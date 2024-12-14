@@ -30,8 +30,7 @@ class WalkerThread: public QThread
     int amount_w; // количество сигнатур добавленных в массив signs_to_scan_d
 
     void sort_signatures(Signature **signs_to_scan, int amount); // пузырьковая сортировка сигнатур (по полю .as_u64i, а не по ключу)
-    void prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, s32i low_index, s32i base_index, s32i hi_index, bool left, u32i *idx);
-    //void prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int low_index, int base_index, int hi_index, bool left, int *idx);
+    void prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int first_index, int last_index, bool left, int *idx);
     void print_avl_tree(TreeNode *tree, int amount);
     void prepare_structures_before_engine(); // подготавливает selected_formats_fast, tree_dw, tree_w;
     void clean_structures_after_engine();    // освобождает selected_formats_fast, tree_dw, tree_w;

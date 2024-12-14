@@ -23,7 +23,7 @@ WalkerThread::~WalkerThread()
 inline void WalkerThread::update_general_progress(int paths_total, int current_path_index)
 {
     s64i current_msecs = QDateTime::currentMSecsSinceEpoch();
-    int general_progress = ( current_path_index == paths_total ) ? 100 : ((current_path_index + 1) * 100) / paths_total; // там, где tp_idx+1 - т.к. это индекс и он начинается с 0
+    int general_progress = ( current_path_index == paths_total ) ? 100 : ((current_path_index + 1) * 100) / paths_total; // там, где current_path_index+1 - т.к. это индекс и он начинается с 0
     if ( ( current_msecs < previous_msecs ) or ( current_msecs - previous_msecs >= MIN_SIGNAL_INTERVAL_MSECS ) )
     {
         previous_msecs = current_msecs;
@@ -34,15 +34,16 @@ inline void WalkerThread::update_general_progress(int paths_total, int current_p
 
 void WalkerThread::sort_signatures(Signature **signs_to_scan, int amount)
 {
-    if (amount > 1)
+    if ( amount > 1 )
     {
         Signature *tmp_sign;
         bool was_swap;
-        do {
+        do
+        {
             was_swap = false;
             for (int idx = 0; idx < amount - 1; ++idx)
             {
-                if (signs_to_scan[idx]->as_u64i > signs_to_scan[idx+1]->as_u64i)
+                if ( signs_to_scan[idx]->as_u64i > signs_to_scan[idx+1]->as_u64i )
                 {
                     tmp_sign = signs_to_scan[idx + 1];
                     signs_to_scan[idx + 1] = signs_to_scan[idx];
@@ -54,27 +55,29 @@ void WalkerThread::sort_signatures(Signature **signs_to_scan, int amount)
     }
 }
 
-void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, s32i low_index, s32i base_index, s32i hi_index, bool left, u32i *idx)
-//void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int low_index, int base_index, int hi_index, bool left, int *idx)
+void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int first_index, int last_index, bool left, int *idx)
 {
-    if (low_index <= hi_index)
+    int base_index = first_index + (last_index - first_index + 1) / 2;
+    tree[*idx] = TreeNode{signs_to_scan[base_index], nullptr, nullptr}; // заполняем новый узел
+    TreeNode *we_as_parent = &tree[*idx]; // указатель на нас самих, т.е. на TreeNode, записанный под индексом idx в tree
+    (*idx)++; // инкремент ячейки в массиве tree
+    if ( last_index != first_index ) // проверка на размер поддерева : если оно из 1 элемента, то это stop_condition для рекурсии
     {
-        tree[*idx] = TreeNode{signs_to_scan[base_index], nullptr, nullptr}; // заполняем новую ячейку узла
-        TreeNode *we_as_parent = &tree[*idx];
-        (*idx)++;
-        s32i left_offset   = (base_index - 1 - low_index) / 2;
-        s32i right_offset  = (hi_index - base_index) / 2;
-        s32i new_left_hi   = base_index - 1;
-        s32i new_right_low = base_index + 1;
-        if (low_index <= new_left_hi)
+        int new_first_index;
+        int new_last_index;
+        if ( base_index > first_index ) // значит слева ещё остались элементы
         {
-            we_as_parent->left = &tree[*idx];
-            prepare_avl_tree(tree, signs_to_scan, low_index, low_index + left_offset, new_left_hi, true, idx); // left
+            new_first_index = first_index;
+            new_last_index  = base_index - 1;
+            we_as_parent->left = &tree[*idx]; // записываем себе в левого потомка следующий TreeNode, который точно будет, потому что base_index > first_index
+            prepare_avl_tree(tree, signs_to_scan, new_first_index, new_last_index, true /*left*/, idx);
         }
-        if (new_right_low <= hi_index)
+        if ( base_index < last_index ) // значит справа ещё остались элементы
         {
-            we_as_parent->right = &tree[*idx];
-            prepare_avl_tree(tree, signs_to_scan, new_right_low, base_index + 1 + right_offset, hi_index, false, idx); // right
+            new_first_index = base_index + 1;
+            new_last_index  = last_index;
+            we_as_parent->right = &tree[*idx]; // записываем себе в правого потомка следующий TreeNode, который точно будет, потому что base_index < last_index
+            prepare_avl_tree(tree, signs_to_scan, new_first_index, new_last_index, false /*right*/, idx);
         }
     }
 }
@@ -103,8 +106,8 @@ void WalkerThread::prepare_structures_before_engine()
 {
     int global_signs_num = signatures.size(); // общее количество известных сигнатур
 
-    Signature **signs_to_scan_dw = new Signature*[global_signs_num]; // массив dword-сигнатур для поиска (указатель на массив указателей на элементы структуры signatures)
-    Signature **signs_to_scan_w  = new Signature*[global_signs_num]; // массив word-сигнатур для поиска (указатель на массив указателей на элементы структуры signatures)
+    Signature **signs_to_scan_dw = new Signature*[global_signs_num]; // массив dword-сигнатур для поиска (массив указателей на элементы структуры signatures)
+    Signature **signs_to_scan_w  = new Signature*[global_signs_num]; // массив word-сигнатур для поиска  (массив указателей на элементы структуры signatures)
     // ^^^для простоты выделяем памяти на всё кол-во известных сигнатур; реально используемое кол-во будет хранится в amount_(d)w
 
     QSet <QString> uniq_signature_names_dw; // множества для отбора уникальных сигнатур по ключу сигнатур
@@ -132,7 +135,8 @@ void WalkerThread::prepare_structures_before_engine()
             selected_formats_fast[val.index] = true;
             for (const auto &name: val.signature_ids) // перербор всех сигнатур отдельного формата (у одного формата может быть несколько сигнатур, например у pcx)
             {
-                switch(signatures[name].signature_size) {
+                switch(signatures[name].signature_size)
+                {
                 case 2:
                     uniq_signature_names_w.insert(name);
                     break;
@@ -165,22 +169,15 @@ void WalkerThread::prepare_structures_before_engine()
         amount_w++;
     }
 
-    qInfo() << "signs_to_scan_dw:" << amount_dw;
-    qInfo() << "signs_to_scan_w :" << amount_w;
-
     // сортировка signs_to_scan_(d)w, т.к. для построения авл-дерева массив сигнатур должен быть предварительно упорядочен
     sort_signatures(signs_to_scan_dw, amount_dw);
-    for (int i = 0; i < amount_dw; ++i)
-    {
-        qInfo() << QString::number(signs_to_scan_dw[i]->as_u64i, 16);
-    }
     sort_signatures(signs_to_scan_w, amount_w);
 
     // формируем АВЛ-деревья для сигнатур типа dword и word
-    u32i avl_index = 0;
-    prepare_avl_tree(tree_dw, signs_to_scan_dw, 0, amount_dw / 2, amount_dw - 1, false, &avl_index); // рекурсивная ф-я
+    int avl_index = 0;
+    prepare_avl_tree(tree_dw, signs_to_scan_dw, 0, amount_dw - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
     avl_index = 0;
-    prepare_avl_tree(tree_w, signs_to_scan_w, 0, amount_w / 2, amount_w - 1, false, &avl_index); // рекурсивная ф-я
+    prepare_avl_tree(tree_w, signs_to_scan_w, 0, amount_w - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
 
     print_avl_tree(tree_dw, amount_dw);
     print_avl_tree(tree_w, amount_w);
