@@ -31,7 +31,7 @@ class SessionWindow: public QWidget
     QLabel *paths_remaining_label;
     QMutex *walker_mutex;
     WalkerThread *walker;
-    void start_walker(); // создание walker-потока, и запуск его в работу
+    void create_and_start_walker(); // создание walker-потока и запуск его в работу
 public:
     SessionWindow(u32i session_id, QWidget *parent = nullptr);
     ~SessionWindow();

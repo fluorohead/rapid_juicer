@@ -6,6 +6,7 @@
 #include <QString>
 #include <QVector>
 #include <QSet>
+#include <QMap>
 
 using u64i = quint64;
 using s64i = qint64;
@@ -69,17 +70,20 @@ extern const u64i CAT_OBJECT;
 extern const u64i CAT_SCENE;
 extern const u64i CAT_USER;
 
-struct FileFormat {
-    QString description;
-    QString commentary; // для отображения более мелким шрифтом
-    QString extension;
-    u64i    base_categories[3];
-    u64i    additional_categories; // задаётся через битовое "|"
+struct FileFormat
+{
+    QString        description;
+    QString        commentary; // для отображения более мелким шрифтом
+    QString        extension;
+    u64i           base_categories[3];
+    u64i           additional_categories; // задаётся через битовое "|"
     QList<QString> signature_ids;  // список сигнатур для формата (может быть >= 1)
-    u32i    index;
-    bool    selected;
-    QString cat_str; // для отображения в tooltip'ах
+    u32i           index;
+    // bool           selected;
+    QString        cat_str; // для отображения в tooltip'ах
 };
+
+extern QMap <QString, FileFormat> fformats;
 
 // для структуры Message.msg_type
 #define MSG_NONE          0x0
@@ -87,7 +91,8 @@ struct FileFormat {
 #define MSG_OPEN_ERROR    2
 #define MSG_UNKNOWN_ERROR 0xFFFFFFFFFFFFFFFF
 
-struct Message {
+struct Message
+{
     u32i    msg_type;
     QString file_name;
     QString format_name;

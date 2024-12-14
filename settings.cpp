@@ -81,6 +81,7 @@ const QString QS_BUFF_IDX  {"buff_idx"};
 const QString QS_RECURSION {"recursion"};
 const QString QS_FILE_MASK {"mask"};
 const QString QS_EXCLUDING {"excluding"};
+const QString QS_SELECTED  {"selected"};
 
 const Config default_config
 {
@@ -109,6 +110,11 @@ Settings::Settings()
     threads_num = QThread::idealThreadCount();
     if (threads_num < 2) threads_num = 2;
 
+    for (auto it = fformats.cbegin(); it != fformats.cend(); ++it) // сразу наполняем список выбранных форматов всеми форматами
+    {
+        settings.selected_formats.insert(it.key());
+    }
+
     config = default_config; // эти значения могут быть переопределены при чтении файла настроек,
     skin   = default_skin;   // если таковой существует
 
@@ -129,66 +135,90 @@ Settings::Settings()
         else
         {
             ok = file.open(QIODevice::ReadWrite); // либо открываем существующий
-            QByteArray ba {file.readAll()};
-            QJsonParseError jspe;
-            QJsonDocument js_doc = QJsonDocument::fromJson(ba, &jspe);
-            if (!js_doc.isNull())
+            if ( ok and (file.size() <= 1024 * 1024) )
             {
-                if ( !js_doc[QS_LANGUAGE].isUndefined() and (js_doc[QS_LANGUAGE].type() == QJsonValue::Double) )
+                QByteArray ba {file.readAll()};
+                QJsonParseError jspe;
+                QJsonDocument js_doc = QJsonDocument::fromJson(ba, &jspe);
+                if (!js_doc.isNull())
                 {
-                    cand_config.lang_idx = js_doc[QS_LANGUAGE].toInt();
-                    if ( (cand_config.lang_idx < int(Langs::MAX)) and (cand_config.lang_idx >= 0) )
+                    if ( !js_doc[QS_LANGUAGE].isUndefined() and (js_doc[QS_LANGUAGE].type() == QJsonValue::Double) )
                     {
-                        config.lang_idx = cand_config.lang_idx;
-                    }
-                }
-                if ( !js_doc[QS_BUFF_IDX].isUndefined() and (js_doc[QS_BUFF_IDX].type() == QJsonValue::Double) )
-                {
-                    cand_config.bfr_size_idx = js_doc[QS_BUFF_IDX].toInt();
-                    if ( (cand_config.bfr_size_idx < (permitted_buffers.count())) and (config.bfr_size_idx >= 0) )
-                    {
-                        config.bfr_size_idx = cand_config.bfr_size_idx;
-                    }
-                }
-                if ( !js_doc[QS_RECURSION].isUndefined() and (js_doc[QS_RECURSION].type() == QJsonValue::Double) )
-                {
-                    int recursion = js_doc[QS_RECURSION].toInt();
-                    if ( (recursion == 0) or (recursion == 1))
-                    {
-                        config.recursion = recursion;
-                    }
-                }
-                if ( (!js_doc[QS_FILE_MASK].isUndefined()) and (js_doc[QS_FILE_MASK].type() == QJsonValue::String) )
-                {
-                    cand_config.file_mask = js_doc[QS_FILE_MASK].toString();
-                    if ( mask_validator(cand_config.file_mask) == QValidator::Acceptable )
-                    {
-                        config.file_mask = cand_config.file_mask;
-                    }
-                }
-                if ( (!js_doc[QS_EXCLUDING].isUndefined()) and (js_doc[QS_EXCLUDING].type() == QJsonValue::Array) )
-                {
-                    QJsonArray jsa = js_doc[QS_EXCLUDING].toArray();
-                    QString tmp_str;
-                    for (auto it = jsa.cbegin(); it < jsa.cend(); ++it)
-                    {
-                        if (it->type() == QJsonValue::String)
+                        cand_config.lang_idx = js_doc[QS_LANGUAGE].toInt();
+                        if ( (cand_config.lang_idx < int(Langs::MAX)) and (cand_config.lang_idx >= 0) )
                         {
-                            tmp_str = it->toString();
-                            if ( excluding_validator(it->toString(tmp_str)) == QValidator::Acceptable )
+                            config.lang_idx = cand_config.lang_idx;
+                        }
+                    }
+                    if ( !js_doc[QS_BUFF_IDX].isUndefined() and (js_doc[QS_BUFF_IDX].type() == QJsonValue::Double) )
+                    {
+                        cand_config.bfr_size_idx = js_doc[QS_BUFF_IDX].toInt();
+                        if ( (cand_config.bfr_size_idx < (permitted_buffers.count())) and (config.bfr_size_idx >= 0) )
+                        {
+                            config.bfr_size_idx = cand_config.bfr_size_idx;
+                        }
+                    }
+                    if ( !js_doc[QS_RECURSION].isUndefined() and (js_doc[QS_RECURSION].type() == QJsonValue::Double) )
+                    {
+                        int recursion = js_doc[QS_RECURSION].toInt();
+                        if ( (recursion == 0) or (recursion == 1) )
+                        {
+                            config.recursion = recursion;
+                        }
+                    }
+                    if ( (!js_doc[QS_FILE_MASK].isUndefined()) and (js_doc[QS_FILE_MASK].type() == QJsonValue::String) )
+                    {
+                        cand_config.file_mask = js_doc[QS_FILE_MASK].toString();
+                        if ( mask_validator(cand_config.file_mask) == QValidator::Acceptable )
+                        {
+                            config.file_mask = cand_config.file_mask;
+                        }
+                    }
+                    if ( (!js_doc[QS_EXCLUDING].isUndefined()) and (js_doc[QS_EXCLUDING].type() == QJsonValue::Array) )
+                    {
+                        QJsonArray jsa = js_doc[QS_EXCLUDING].toArray();
+                        QString tmp_str;
+                        for (auto it = jsa.cbegin(); it < jsa.cend(); ++it)
+                        {
+                            if ( it->type() == QJsonValue::String )
                             {
-                                cand_config.excluding.append(tmp_str);
+                                tmp_str = it->toString();
+                                if ( excluding_validator(it->toString(tmp_str)) == QValidator::Acceptable )
+                                {
+                                    cand_config.excluding.append(tmp_str);
+                                }
+                            }
+                        }
+                        config.excluding = cand_config.excluding;
+                        cand_config.excluding.clear();
+                        cand_config.excluding.squeeze();
+                    }
+                    if ( (!js_doc[QS_SELECTED].isUndefined()) and (js_doc[QS_SELECTED].type() == QJsonValue::Array) )
+                    {
+                        QJsonArray jsa = js_doc[QS_SELECTED].toArray();
+                        QString tmp_str;
+                        settings.selected_formats.clear();
+                        for (auto it = jsa.cbegin(); it < jsa.cend(); ++it)
+                        {
+                            if ( it->type() == QJsonValue::String )
+                            {
+                                tmp_str = it->toString();
+                                if ( fformats.contains(tmp_str) )
+                                {
+                                    settings.selected_formats.insert(tmp_str);
+                                }
                             }
                         }
                     }
-                    config.excluding = cand_config.excluding;
-                    cand_config.excluding.clear();
-                    cand_config.excluding.squeeze();
+                }
+                else
+                {
+                    qInfo() << "incorrect or absent json data in settings.json (possibly syntax error)";
                 }
             }
             else
             {
-                qInfo() << "incorrect or absent json data in settings.json (possibly syntax error)";
+                qInfo() << "error during opening settings file or size is too big (possibly hacked)";
             }
         }
     }
@@ -200,19 +230,25 @@ Settings::~Settings()
     if (file.isOpen())
     {
         file.resize(0);
+        QStringList selected_formats_list;
+        for (auto &&one_format: settings.selected_formats)
+        {
+            selected_formats_list.append(one_format);
+        }
         QString write_str = QString(    "{\r\n"
                                         "\"%1\": %2,\r\n"
                                         "\"%3\": %4,\r\n"
                                         "\"%5\": %6,\r\n"
                                         "\"%7\": \"%8\",\r\n"
-                                        "\"%9\": [%10]\r\n"
-                                        "}"
+                                        "\"%9\": [%10],\r\n"
+                                        "\"%11\": [%12]\r\n}"
                                     ).arg(
                                     QS_LANGUAGE,  QString::number(config.lang_idx),
                                     QS_BUFF_IDX,  QString::number(config.bfr_size_idx),
                                     QS_RECURSION, QString::number(config.recursion),
                                     QS_FILE_MASK, config.file_mask,
-                                    QS_EXCLUDING, config.excluding.isEmpty() ? "" : "\"" + config.excluding.join(R"(", ")") + "\""
+                                    QS_EXCLUDING, config.excluding.isEmpty() ? "" : "\"" + config.excluding.join(R"(", ")") + "\"",
+                                    QS_SELECTED,  settings.selected_formats.isEmpty() ? "" : "\"" + selected_formats_list.join(R"(",")") + "\""
                                     );
         file.write(write_str.toUtf8());
         file.flush();

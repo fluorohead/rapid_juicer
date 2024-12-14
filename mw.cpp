@@ -115,26 +115,31 @@ void FilterButton::leaveEvent(QEvent *event) {
     this->setPixmap(*my_main_pixmap);
 }
 
-FormatLabel::FormatLabel(bool *toggle_flag, const QString &text, QPixmap *corner_pixmap, QWidget *parent)
-    : toggle_flag(toggle_flag)
+FormatLabel::FormatLabel(const QString &format_key, const QString &text, QPixmap *corner_pixmap, QWidget *parent)
+    : my_format_key(format_key)
     , QLabel(text, parent)
     , corner_pixmap(corner_pixmap)
 {
     corner_label.setFixedSize(50, 50);
     corner_label.setMask(corner_pixmap->mask());
-    if (*toggle_flag) corner_label.setPixmap(*corner_pixmap);
+    if ( settings.selected_formats.contains(my_format_key) ) corner_label.setPixmap(*corner_pixmap);
 }
 
-void FormatLabel::rxToggle() {
-    *toggle_flag = !(*toggle_flag);
-    if (*toggle_flag) {
-        corner_label.setPixmap(*corner_pixmap);
-    } else {
+void FormatLabel::rxToggle()
+{
+    if ( settings.selected_formats.contains(my_format_key) ) {
+        settings.selected_formats.remove(my_format_key);
         corner_label.clear();
+    }
+    else
+    {
+        settings.selected_formats.insert(my_format_key);
+        corner_label.setPixmap(*corner_pixmap);
     }
 }
 
-void FormatLabel::mousePressEvent(QMouseEvent *event) {
+void FormatLabel::mousePressEvent(QMouseEvent *event)
+{
     if (event->buttons() == Qt::LeftButton) rxToggle();
     event->accept();
 }
@@ -149,7 +154,8 @@ DescriptionLabel::DescriptionLabel(QWidget *parent):
 {
 }
 
-void DescriptionLabel::mousePressEvent(QMouseEvent *event) {
+void DescriptionLabel::mousePressEvent(QMouseEvent *event)
+{
     if (event->buttons() == Qt::LeftButton) emit txToggle();
     event->accept();
 }
@@ -172,7 +178,8 @@ CategoryLabel::CategoryLabel(QString id, const QMap<u64i, QPixmap *> &pixmaps, Q
     }
 }
 
-void CategoryLabel::mousePressEvent(QMouseEvent *event) {
+void CategoryLabel::mousePressEvent(QMouseEvent *event)
+{
     if (event->buttons() == Qt::LeftButton) emit txToggle();
     event->accept();
 }
@@ -231,7 +238,7 @@ FormatsTable::FormatsTable(QWidget *parent)
     for (auto it = fformats.begin(); it != fformats.end(); ++it)
     {
         this->setRowHeight(it.value().index + 1, FORMATS_TABLE_ROW_H);
-        auto fmt_label = new FormatLabel(&it.value().selected, it.value().extension, &corner_fmt_pixmap);
+        auto fmt_label = new FormatLabel(it.key(), /*&it.value().selected,*/ it.value().extension, &corner_fmt_pixmap);
         fmt_label->setFixedSize(FORMATS_TABLE_COL0_W - 1, FORMATS_TABLE_ROW_H - 1);
         fmt_label->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
         fmt_label->setFont(column0_font);
@@ -294,11 +301,27 @@ void FormatsTable::delCategPixmaps()
 
 void FormatsTable::rxCommand(FilterAction action, u64i categories)
 {
-    for (auto it = fformats.begin(); it != fformats.end(); ++it) {
-        for (u32i bcIdx = 0; bcIdx < 3; ++bcIdx) {
-            if (it.value().base_categories[bcIdx] & categories) { // если совпадёт хотя бы одна
-                it.value().selected = bool(action);
-                ((FormatLabel*)this->cellWidget(it.value().index + 1, 0))->rxToggle();
+    for (auto it = fformats.begin(); it != fformats.end(); ++it) // проход по всем форматам
+    {
+        for (u32i bcIdx = 0; bcIdx < 3; ++bcIdx) { // проход по базовым категориям отдельного формата
+            if ( it.value().base_categories[bcIdx] & categories ) // если совпадёт хотя бы одна
+            {
+                switch (action)
+                {
+                case FilterAction::Include:
+                    if ( !settings.selected_formats.contains(it.key()) )
+                    {
+                        ((FormatLabel*)this->cellWidget(it.value().index + 1, 0))->rxToggle();
+                    }
+                    break;
+                case FilterAction::Exclude:
+                    if ( settings.selected_formats.contains(it.key()) )
+                    {
+                        ((FormatLabel*)this->cellWidget(it.value().index + 1, 0))->rxToggle();
+                    }
+                    break;
+                default:;
+                }
                 break;
             }
         }

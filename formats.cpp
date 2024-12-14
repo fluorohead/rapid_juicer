@@ -1,9 +1,5 @@
 #include "formats.h"
-#include <QMap>
-#include <QHash>
 #include <QString>
-#include <QtMath>
-#include <QDebug>
 
 // Все возможные категории ресурсов
 const u64i CAT_NONE       = 0x0;
@@ -89,36 +85,23 @@ QHash <u64i, QString> categories {
     { CAT_OTHER,      "custom", },
 };
 
-// from : formats.h
-// struct FileFormat {
-//     QString description;
-//     QString commentary; // для отображения более мелким шрифтом
-//     QString extension;
-//     u64i    base_categories[3];
-//     u64i    additional_categories; // задаётся через битовое "|"
-//     QList<QString> signature_ids;  // список сигнатур для формата (может быть >= 1)
-//     u32i    index;
-//     bool    selected;
-//     QString cat_str; // для отображения в tooltip'ах
-// };
-
-QMap <QString, FileFormat> fformats {
+QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОРЯДОЧИВАНИЕ ПО КЛЮЧУ ЗА СЧЁТ КОНТЕЙНЕРА QMap
     // <ключ,     FileFormat>
     // |          |
     // V          V
-    { "bmp",      { "Microsoft Windows Bitmap", "", "bmp", {CAT_IMAGE, CAT_WIN, CAT_PERFRISK}, CAT_RASTER, {"bmp"}, 0, true, "" } },
-    { "pcx",      { "PC Paintbrush", "only v4 and v5", "pcx", {CAT_IMAGE, CAT_DOS, CAT_OUTDATED}, CAT_RASTER, {"pcx4_8, pcx4_24, pcx5_8, pcx5_24"}, 0, true, "" } },
-    { "png",      { "Portable Network Graphics", "", "png", {CAT_IMAGE, CAT_WEB, CAT_NONE}, CAT_RASTER, {"png"}, 0, true, "" } },
-    { "avi",      { "Audio-Video Interleaved", "RIFF container", "avi", {CAT_VIDEO, CAT_NONE, CAT_NONE}, CAT_NONE, {"riff"}, 0, true, "" } },
-    { "wav",      { "Wave Audio Data", "RIFF container", "wav", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_NONE, {"riff"}, 0, true, "" } },
-    { "rmi",      { "MIDI music","RIFF container", "rmi", {CAT_MUSIC, CAT_WIN, CAT_NONE}, CAT_MIDI, {"riff"}, 0, true, "" } },
-    { "lbm",      { "EA Interleaved Bitmap", "IFF container", "lbm", {CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED}, CAT_RASTER | CAT_DOS, {"iff"}, 0, true, "" } },
-    { "gif",      { "Graphics Interchange Format", "", "gif", {CAT_IMAGE, CAT_WEB, CAT_NONE}, CAT_RASTER, {"gif"}, 0, true, "" } },
-    { "tif_ii",   { "Tag Image File Format", "Intel byte order", "tif", {CAT_IMAGE, CAT_PERFRISK, CAT_NONE}, CAT_RASTER | CAT_INTELX86, {"tiff_ii"}, 0, true, "" } },
-    { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "tif", {CAT_IMAGE, CAT_OUTDATED, CAT_PERFRISK}, CAT_RASTER | CAT_MOTOROLA, {"tiff_mm"}, 0, true, "" } },
-    { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "tga", {CAT_IMAGE, CAT_OUTDATED, CAT_NONE}, CAT_RASTER, {"tga_tc32"}, 0, true, "" } },
-    { "jpg",      { "JPEG File Interchange Format", "", "jpg", {CAT_IMAGE, CAT_NONE, CAT_NONE}, CAT_RASTER, {"jfif_soi", "jfif_eoi"}, 0, true, "" } },
-    { "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, true, "" } }
+    { "bmp",      { "Microsoft Windows Bitmap", "", "bmp", {CAT_IMAGE, CAT_WIN, CAT_PERFRISK}, CAT_RASTER, {"bmp"}, 0, /*true,*/ "" } },
+    { "pcx",      { "PC Paintbrush", "only v4 and v5", "pcx", {CAT_IMAGE, CAT_DOS, CAT_OUTDATED}, CAT_RASTER, {"pcx4_8", "pcx4_24", "pcx5_8", "pcx5_24"}, 0, /*true, */"" } },
+    { "png",      { "Portable Network Graphics", "", "png", {CAT_IMAGE, CAT_WEB, CAT_NONE}, CAT_RASTER, {"png"}, 0, /*true,*/ "" } },
+    { "avi",      { "Audio-Video Interleaved", "RIFF container", "avi", {CAT_VIDEO, CAT_NONE, CAT_NONE}, CAT_NONE, {"riff"}, 0, /*true,*/ "" } },
+    { "wav",      { "Wave Audio Data", "RIFF container", "wav", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_NONE, {"riff"}, 0, /*true,*/ "" } },
+    { "rmi",      { "MIDI music","RIFF container", "rmi", {CAT_MUSIC, CAT_WIN, CAT_NONE}, CAT_MIDI, {"riff"}, 0, /*true,*/ "" } },
+    { "lbm",      { "EA Interleaved Bitmap", "IFF container", "lbm", {CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED}, CAT_RASTER | CAT_DOS, {"iff"}, 0, /*true,*/ "" } },
+    { "gif",      { "Graphics Interchange Format", "", "gif", {CAT_IMAGE, CAT_WEB, CAT_NONE}, CAT_RASTER, {"gif"}, 0, /*true,*/ "" } },
+    { "tif_ii",   { "Tag Image File Format", "Intel byte order", "tif", {CAT_IMAGE, CAT_PERFRISK, CAT_NONE}, CAT_RASTER | CAT_INTELX86, {"tiff_ii"}, 0, /*true, */"" } },
+    { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "tif", {CAT_IMAGE, CAT_OUTDATED, CAT_PERFRISK}, CAT_RASTER | CAT_MOTOROLA, {"tiff_mm"}, 0, /*true,*/ "" } },
+    { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "tga", {CAT_IMAGE, CAT_OUTDATED, CAT_NONE}, CAT_RASTER, {"tga_tc32"}, 0, /*true,*/ "" } },
+    { "jpg",      { "JPEG File Interchange Format", "", "jpg", {CAT_IMAGE, CAT_NONE, CAT_NONE}, CAT_RASTER, {"jfif_soi", "jfif_eoi"}, 0, /*true, */"" } },
+    { "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 
 void indexFilesFormats() {

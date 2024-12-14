@@ -14,6 +14,7 @@ enum class Langs: int {Eng = 0, Rus = 1, MAX};
 
 #define MAX_SESSIONS 3
 
+
 struct Config
 {
     bool        scrupulous;
@@ -24,20 +25,23 @@ struct Config
     QStringList excluding;
 };
 
+
 struct Skin
 {
     QString font_name;
     QFont   *main_font;
 };
 
+
 extern const Config default_config;
+
 
 class Settings
 {
     int     threads_num; // 2 by default
-    u32i    paths_count;
     QFile   file;
     QString file_path;
+
 public:
     Settings();
     ~Settings();
@@ -45,6 +49,8 @@ public:
     Config config;
     Config cand_config;
     Skin   skin;
+
+    QSet<QString> selected_formats;
 
     void initSkin();
 
@@ -54,14 +60,17 @@ public:
     u32i getThreadsNum();
 };
 
+
 QValidator::State mask_validator(const QString &input);
 QValidator::State excluding_validator(const QString &input);
+
 
 class MaskValidator: public QValidator {
 public:
     MaskValidator(QObject *parent);
     QValidator::State validate(QString &input, int &pos) const;
 };
+
 
 class ExcludingValidator: public QValidator {
 public:
@@ -83,7 +92,5 @@ public:
     SettingsWindow(QWidget *parent);
     ~SettingsWindow();
 };
-
-
 
 #endif // SETTINGS_H

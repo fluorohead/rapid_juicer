@@ -3,14 +3,13 @@
 #include <QDebug>
 #include <QDir>
 
-WalkerThread::WalkerThread(SessionWindow *receiver, QMutex *control_mtx, const Task &task, const Config &config)
+WalkerThread::WalkerThread(SessionWindow *receiver, QMutex *control_mtx, const Task &task, const Config &config, const QSet<QString> &formats_to_scan)
     : my_receiver(receiver)
     , my_control_mutex(control_mtx)
     , my_task(task)
     , my_config(config)
+    , my_formats(formats_to_scan)
 {
-    engine = new Engine(this, &command, my_control_mutex);
-    previous_msecs = QDateTime::currentMSecsSinceEpoch();
 }
 
 WalkerThread::~WalkerThread()
@@ -25,23 +24,194 @@ inline void WalkerThread::update_general_progress(int paths_total, int current_p
 {
     s64i current_msecs = QDateTime::currentMSecsSinceEpoch();
     int general_progress = ( current_path_index == paths_total ) ? 100 : ((current_path_index + 1) * 100) / paths_total; // там, где tp_idx+1 - т.к. это индекс и он начинается с 0
-
     if ( ( current_msecs < previous_msecs ) or ( current_msecs - previous_msecs >= MIN_SIGNAL_INTERVAL_MSECS ) )
     {
         previous_msecs = current_msecs;
         emit txGeneralProgress("", general_progress);
         return;
     }
-//    qInfo() << "    !!! Walker :: NO! I WILL NOT SEND SIGNALS CAUSE IT'S TOO OFTEN!";
 }
+
+void WalkerThread::sort_signatures(Signature **signs_to_scan, int amount)
+{
+    if (amount > 1)
+    {
+        Signature *tmp_sign;
+        bool was_swap;
+        do {
+            was_swap = false;
+            for (int idx = 0; idx < amount - 1; ++idx)
+            {
+                if (signs_to_scan[idx]->as_u64i > signs_to_scan[idx+1]->as_u64i)
+                {
+                    tmp_sign = signs_to_scan[idx + 1];
+                    signs_to_scan[idx + 1] = signs_to_scan[idx];
+                    signs_to_scan[idx] = tmp_sign;
+                    was_swap = true;
+                }
+            }
+        } while (was_swap);
+    }
+}
+
+void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, s32i low_index, s32i base_index, s32i hi_index, bool left, u32i *idx)
+//void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int low_index, int base_index, int hi_index, bool left, int *idx)
+{
+    if (low_index <= hi_index)
+    {
+        tree[*idx] = TreeNode{signs_to_scan[base_index], nullptr, nullptr}; // заполняем новую ячейку узла
+        TreeNode *we_as_parent = &tree[*idx];
+        (*idx)++;
+        s32i left_offset   = (base_index - 1 - low_index) / 2;
+        s32i right_offset  = (hi_index - base_index) / 2;
+        s32i new_left_hi   = base_index - 1;
+        s32i new_right_low = base_index + 1;
+        if (low_index <= new_left_hi)
+        {
+            we_as_parent->left = &tree[*idx];
+            prepare_avl_tree(tree, signs_to_scan, low_index, low_index + left_offset, new_left_hi, true, idx); // left
+        }
+        if (new_right_low <= hi_index)
+        {
+            we_as_parent->right = &tree[*idx];
+            prepare_avl_tree(tree, signs_to_scan, new_right_low, base_index + 1 + right_offset, hi_index, false, idx); // right
+        }
+    }
+}
+
+void WalkerThread::print_avl_tree(TreeNode *tree, int amount)
+{
+    for (int idx = 0; idx < amount; idx++)
+    {
+        qInfo() <<  "avl_tree index :" << idx << "; value :" << QString::number(tree[idx].signature_ptr->as_u64i, 16);
+        if (tree[idx].left != nullptr)
+        {
+            qInfo() << "      : left child  :" << QString::number(tree[idx].left->signature_ptr->as_u64i, 16);
+        } else {
+            qInfo() << "      : left child  : {nullptr}";
+        }
+        if (tree[idx].right != nullptr)
+        {
+            qInfo() << "      : right child :" << QString::number(tree[idx].right->signature_ptr->as_u64i, 16);
+        } else {
+            qInfo() << "      : right child : {nullptr}";
+        }
+    }
+}
+
+void WalkerThread::prepare_structures_before_engine()
+{
+    int global_signs_num = signatures.size(); // общее количество известных сигнатур
+
+    Signature **signs_to_scan_dw = new Signature*[global_signs_num]; // массив dword-сигнатур для поиска (указатель на массив указателей на элементы структуры signatures)
+    Signature **signs_to_scan_w  = new Signature*[global_signs_num]; // массив word-сигнатур для поиска (указатель на массив указателей на элементы структуры signatures)
+    // ^^^для простоты выделяем памяти на всё кол-во известных сигнатур; реально используемое кол-во будет хранится в amount_(d)w
+
+    QSet <QString> uniq_signature_names_dw; // множества для отбора уникальных сигнатур по ключу сигнатур
+    QSet <QString> uniq_signature_names_w; // ...
+
+    selected_formats_fast = new bool[fformats.size()];
+
+    uniq_signature_names_dw.reserve(global_signs_num);
+    uniq_signature_names_dw.insert("special");
+    uniq_signature_names_w.reserve(global_signs_num);
+
+    tree_dw = new TreeNode[global_signs_num];
+    tree_w  = new TreeNode[global_signs_num];
+    // ^^^для простоты выделяем памяти на всё кол-во известных сигнатур; реально используемое кол-во будет хранится в amount_(d)w
+
+    // заполнение массива selected_formats_fast (назван fast, потому что будет использоваться в recognizer'ах
+    // для быстрого лукапа, вместо использования my_formats.contains(), который гораздо медленнее;
+    // и одновременно
+    // добавление сигнатур в множества uniq_signs_(d)w, чтобы исключить повторения, т.к.
+    // разные форматы могут иметь одну и ту же сигнатуру, например WAV "RIFF" и AVI "RIFF";
+    for (const auto & [key, val] : fformats.asKeyValueRange())
+    {
+        if (this->my_formats.contains(key))
+        {
+            selected_formats_fast[val.index] = true;
+            for (const auto &name: val.signature_ids) // перербор всех сигнатур отдельного формата (у одного формата может быть несколько сигнатур, например у pcx)
+            {
+                switch(signatures[name].signature_size) {
+                case 2:
+                    uniq_signature_names_w.insert(name);
+                    break;
+                case 4:
+                    uniq_signature_names_dw.insert(name);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            selected_formats_fast[val.index] = false;
+        }
+    }
+
+    qInfo() << "uniq_signature_names_dw:"<< uniq_signature_names_dw;
+    qInfo() << "uniq_signature_names_w :"<< uniq_signature_names_w;
+
+    // добавление указателей на сигнатуры в таблицы signs_to_scan_(d)w
+    amount_dw = 0;
+    amount_w = 0;
+    for (const auto &name : uniq_signature_names_dw)
+    {
+        signs_to_scan_dw[amount_dw] = &signatures[name];
+        amount_dw++;
+    }
+    for (const auto &name : uniq_signature_names_w)
+    {
+        signs_to_scan_w[amount_w] = &signatures[name];
+        amount_w++;
+    }
+
+    qInfo() << "signs_to_scan_dw:" << amount_dw;
+    qInfo() << "signs_to_scan_w :" << amount_w;
+
+    // сортировка signs_to_scan_(d)w, т.к. для построения авл-дерева массив сигнатур должен быть предварительно упорядочен
+    sort_signatures(signs_to_scan_dw, amount_dw);
+    for (int i = 0; i < amount_dw; ++i)
+    {
+        qInfo() << QString::number(signs_to_scan_dw[i]->as_u64i, 16);
+    }
+    sort_signatures(signs_to_scan_w, amount_w);
+
+    // формируем АВЛ-деревья для сигнатур типа dword и word
+    u32i avl_index = 0;
+    prepare_avl_tree(tree_dw, signs_to_scan_dw, 0, amount_dw / 2, amount_dw - 1, false, &avl_index); // рекурсивная ф-я
+    avl_index = 0;
+    prepare_avl_tree(tree_w, signs_to_scan_w, 0, amount_w / 2, amount_w - 1, false, &avl_index); // рекурсивная ф-я
+
+    print_avl_tree(tree_dw, amount_dw);
+    print_avl_tree(tree_w, amount_w);
+
+    // освобождаем массивы signs_to_scan_(d)w, т.к. дерево построили и они больше не нужны
+    delete [] signs_to_scan_dw;
+    delete [] signs_to_scan_w;
+}
+
+void WalkerThread::clean_structures_after_engine()
+{
+    delete [] selected_formats_fast;
+    delete [] tree_dw;
+    delete [] tree_w;
+}
+
 
 void WalkerThread::run()
 {
+    prepare_structures_before_engine();
+
+    engine = new Engine(this, &command, my_control_mutex, my_config.scrupulous, 16);
+    previous_msecs = QDateTime::currentMSecsSinceEpoch();
+
     connect(this, &WalkerThread::txGeneralProgress, my_receiver, &SessionWindow::rxGeneralProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
     connect(engine, &Engine::txFileProgress, my_receiver, &SessionWindow::rxFileProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
 
     int tp_count = my_task.task_paths.count();
     int general_progress;
+
+    qInfo() << "formats selected" << settings.selected_formats;
 
     for (int tp_idx = 0; tp_idx < tp_count; ++tp_idx) // проход по спику путей
     {
@@ -154,4 +324,6 @@ void WalkerThread::run()
 
     // финальный аккорд, обнуляем графику для file progress
     emit engine->txFileProgress("", 0);
+
+    clean_structures_after_engine();
 }

@@ -48,11 +48,11 @@ signals:
 class FormatLabel: public QLabel {
     Q_OBJECT
     void mousePressEvent(QMouseEvent *event);
-    bool *toggle_flag;
     QLabel corner_label {this};
     QPixmap *corner_pixmap;
+    QString my_format_key;
 public:
-    FormatLabel(bool *toggle_flag, const QString &text, QPixmap *corner_pixmap, QWidget *parent = nullptr);
+    FormatLabel(const QString &format_key, const QString &text, QPixmap *corner_pixmap, QWidget *parent = nullptr);
 public slots:
     void rxToggle();
 };

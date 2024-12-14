@@ -161,6 +161,7 @@ SessionWindow::SessionWindow(u32i session_id, QWidget *parent)
                                 "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
 
     stop_button->setFont(tmpFont);
+    stop_button->setDisabled(true);
     stop_button->setText(stop_button_txt[curr_lang()]);
     stop_button->setParent(central_widget);
     stop_button->move(64, 182);
@@ -173,6 +174,7 @@ SessionWindow::SessionWindow(u32i session_id, QWidget *parent)
                                 "QPushButton:pressed  {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
                                 "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
     pause_resume_button->setFont(tmpFont);
+    pause_resume_button->setDisabled(true);
     pause_resume_button->setText(pause_button_txt[curr_lang()]);
     pause_resume_button->setParent(central_widget);
     pause_resume_button->move(139, 182);
@@ -185,6 +187,7 @@ SessionWindow::SessionWindow(u32i session_id, QWidget *parent)
                                 "QPushButton:pressed  {color: #fffef9; background-color: #7c812e; border-width: 0px;}"
                                 "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
     skip_button->setFont(tmpFont);
+    skip_button->setDisabled(true);
     skip_button->setText(skip_button_txt[curr_lang()]);
     skip_button->setParent(central_widget);
     skip_button->move(214, 182);
@@ -197,6 +200,7 @@ SessionWindow::SessionWindow(u32i session_id, QWidget *parent)
                                     "QPushButton:pressed {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
                                     "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
     save_all_button->setFont(tmpFont);
+    save_all_button->setDisabled(true);
     save_all_button->setText(save_all_button_txt[curr_lang()]);
     save_all_button->setDisabled(true);
     save_all_button->setParent(central_widget);
@@ -210,6 +214,7 @@ SessionWindow::SessionWindow(u32i session_id, QWidget *parent)
                                     "QPushButton:pressed {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
                                     "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
     report_button->setFont(tmpFont);
+    report_button->setDisabled(true);
     report_button->setText(report_button_txt[curr_lang()]);
     report_button->setDisabled(true);
     report_button->setParent(central_widget);
@@ -296,15 +301,15 @@ SessionWindow::SessionWindow(u32i session_id, QWidget *parent)
     connect(close_button, &OneStateButton::imReleased, this, &SessionWindow::close);
     connect(minimize_button, &OneStateButton::imReleased, this, &SessionWindow::showMinimized);
 
-    ///////////////////////// здесь готовим поток walker'а, создаём его, соединяем сигналы/слоты и т.д.
-    start_walker();
+    ///////////////////////// здесь готовим поток walker'а : создаём его, соединяем сигналы/слоты, затем запускаем поток
+    create_and_start_walker();
     /////////////////////////////////////////////////////////
 }
 
-void SessionWindow::start_walker()
+void SessionWindow::create_and_start_walker()
 {
     task.delAllTaskPaths();
-    task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
+    //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\battlefield\Scenemus\DTN-FUTR.S3M)", "", false});
     // task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\battlefield\Scenemus\LIQUID)", "*.*", true});
@@ -314,15 +319,15 @@ void SessionWindow::start_walker()
     // task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\Icon_six_Circle.png)", "", false});
     // task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\LN2_Avatar_Mono_Square.png)", "", false});
 
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\LN2_Avatar_Six_Square.png)", "", false});
+    task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\LN2_Avatar_Six_Square.png)", "", false});
 
-    if ( !task.task_paths.empty() ) // запускаем только в случае наличия путей
+    if ( !task.task_paths.empty() and !settings.selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
     {
         is_walker_dead = false;
-        walker_mutex = new QMutex;  // задача по освободжению указателя возложена на WalkerThread, т.к. SessionWindow может быть удалена раньше,
-            // приэтом walker_mutex должен оставаться в памяти до окончания работы WalkerThread
+        walker_mutex = new QMutex;  // задача по освободжению указателя возложена на WalkerThread, т.к. SessionWindow может быть удалено раньше,
+                                    // поэтому walker_mutex должен оставаться в памяти до окончания работы WalkerThread.
 
-        walker = new WalkerThread(this, walker_mutex, task, settings.config);
+        walker = new WalkerThread(this, walker_mutex, task, settings.config, settings.selected_formats);
 
         connect(walker, &WalkerThread::finished, this, [this](){ // блокируем кнопки управления, когда walker отчитался, что закончил работу полностью
             qInfo() << " :::: finished() :::: signal received from WalkerThread and slot executed in thread id" << QThread::currentThreadId();
@@ -358,9 +363,7 @@ void SessionWindow::start_walker()
             stop_button->setDisabled(true);
             pause_resume_button->setDisabled(true);
             skip_button->setDisabled(true);
-            //
-            // начальное значение is_walker_paused = true и выставляется при создании объекта SessionWindow
-            //
+            // начальное значение is_walker_paused = false и выставляется при создании объекта SessionWindow
             if ( !(is_walker_paused) ) // нажали pause
             {
                 walker_mutex->lock();
@@ -385,7 +388,16 @@ void SessionWindow::start_walker()
             walker->command = WalkerCommand::Skip;
         });
 
+
+        stop_button->setEnabled(true);
+        pause_resume_button->setEnabled(true);
+        skip_button->setEnabled(true);
+
         walker->start(QThread::InheritPriority);
+    }
+    else
+    {
+        qInfo() << " --- Nothing to do : no paths added or no formats selected";
     }
 }
 

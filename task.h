@@ -14,10 +14,10 @@ struct TaskPath
 class Task
 {
 public:
-    QSet <QString>   selected_formats;
     QList <TaskPath> task_paths;
-    int              paths_count; // поддерживается, чтобы не вызывать каждый раз task_paths.count() из GUI-виджетов
-    bool             scrupulous; // заполняется только непосредственно перед запуском сканирования
+
+    int paths_count; // поддерживается, чтобы не вызывать каждый раз task_paths.count() из GUI-виджетов
+    bool scrupulous;  // заполняется только непосредственно перед запуском сканирования в SessionWindow::create_and_start_walker()
 
     void addTaskPath(const TaskPath &taskpath);
     void delTaskPath(int index);
