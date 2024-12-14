@@ -1,0 +1,3 @@
+build/
+.gitignore.bak
+CMakeLists.txt.user
