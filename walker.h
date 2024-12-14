@@ -18,7 +18,7 @@ class WalkerThread: public QThread
     QMutex *my_control_mutex;
     Engine *engine;
     WalkerCommand command {WalkerCommand::Run};
-    s64i previous_msecs;
+    s64i previous_msecs; // должно быть инициализировано значением QDateTime::currentMSecsSinceEpoch(); до первого вызова update_general_progress()
     void update_general_progress(int paths_total, int current_path_index);
 public:
     WalkerThread(SessionWindow* window_receiver, QMutex* control_mtx, const Task &task, const Config &config);
