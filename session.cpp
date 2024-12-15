@@ -81,9 +81,9 @@ const QString current_progress_header_txt[int(Langs::MAX)]
     "Текущий прогресс"
 };
 
-SessionWindow::SessionWindow(u32i session_id, QWidget *parent)
+SessionWindow::SessionWindow(u32i session_id)
     : my_session_id(session_id)
-    , QWidget(parent, Qt::FramelessWindowHint)
+    , QWidget(nullptr, Qt::FramelessWindowHint)  // окно это QWidget без родителя
 {
     this->setAttribute(Qt::WA_TranslucentBackground);
     this->setAttribute(Qt::WA_DeleteOnClose);

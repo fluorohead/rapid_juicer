@@ -33,7 +33,7 @@ class SessionWindow: public QWidget
     WalkerThread *walker;
     void create_and_start_walker(); // создание walker-потока и запуск его в работу
 public:
-    SessionWindow(u32i session_id, QWidget *parent = nullptr);
+    SessionWindow(u32i session_id);
     ~SessionWindow();
 public slots:
     void rxGeneralProgress(QString remaining, int percentage_value);

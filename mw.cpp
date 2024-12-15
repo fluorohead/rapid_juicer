@@ -328,159 +328,254 @@ void FormatsTable::rxCommand(FilterAction action, u64i categories)
     }
 }
 
-CentralWidget::CentralWidget(QWidget *parent, DirlistWindow *dirlist)
-    : QLabel(parent)
-    , _dirlist(dirlist)
+// CentralWidget::CentralWidget(QWidget *parent, DirlistWindow *dirlist)
+//     : QLabel(parent)
+//     , _dirlist(dirlist)
+// {
+//     QPixmap background {":/gui/main/cw.png"};
+//     this->setFixedSize(background.size());
+//     this->move(0, 0);
+//     this->setPixmap(background);
+//     play_button.move(232, 96);
+//     add_file_button.move(23, 32);
+//     add_dir_button.move(187, 32);
+//     settings_button.move(133, 26);
+//     scrup_button.move(176, 110);
+//     minimize_button.move(778, 50);
+//     close_button.move(684, 8);
+
+//     formats_table.move(336, 42);
+
+//     QFont tmpFont {*skin_font()};
+//     tmpFont.setPixelSize(13);
+//     tmpFont.setBold(false);
+
+//     // надпись "Тщательный режим"
+//     scrup_label.move(32, 112);
+//     scrup_label.resize(140, 24);
+//     scrup_label.setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+//     scrup_label.setStyleSheet("color: #b6c7c7");
+//     scrup_label.setFont(tmpFont);
+//     scrup_label.setText(scrup_mode_txt[curr_lang()]);
+
+//     // Фильтры категорий
+//     tmpFont.setBold(true);
+//     for (int idx = 0; idx < MAX_FILTERS; ++idx)
+//     {
+//         categ_labels[idx] = new QLabel(filter_labels_txt[curr_lang()][idx], this);
+//         categ_labels[idx]->setFixedSize(144, 24);
+//         categ_labels[idx]->move(40, 175 + 35 * idx);
+//         categ_labels[idx]->setFont(tmpFont);
+//         categ_labels[idx]->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+//         categ_labels[idx]->setStyleSheet("color: #b6c7c7");
+//         includeButtons[idx] = new FilterButton(this, FilterAction::Include, filters[idx], {193, 177 + 35 * int(idx)}, &filter_main_pixmaps[0], &filter_hover_pixmaps[0]);
+//         excludeButtons[idx] = new FilterButton(this, FilterAction::Exclude, filters[idx], {242, 177 + 35 * int(idx)}, &filter_main_pixmaps[1], &filter_hover_pixmaps[1]);
+//         connect(includeButtons[idx], &FilterButton::imReleased, &formats_table, &FormatsTable::rxCommand);
+//         connect(excludeButtons[idx], &FilterButton::imReleased, &formats_table, &FormatsTable::rxCommand);
+//     }
+
+//     // Лейбл с информацией о версии
+//     tmpFont.setBold(false);
+//     version_label.move(32, 504);
+//     version_label.setStyleSheet("color: #fffef9");
+//     version_label.setFont(tmpFont);
+
+//     // Кнопка с количеством добавленных путей
+//     paths_button = new DynamicInfoButton(this, ":/gui/main/pth_btn.png", ":/gui/main/pth_btn_h.png", paths_button_txt, 12, 10, &task.paths_count);
+//     paths_button->move(424, 499);
+
+//     // Лейбл с информацией о количестве запущенных задач
+//     tmpFont.setItalic(true);
+//     tmpFont.setPixelSize(12);
+//     tasks_label.move(624, 504);
+//     tasks_label.setStyleSheet("color: #fffef9");
+//     tasks_label.setFont(tmpFont);
+//     tasks_label.setText(tasks_label_txt[curr_lang()]);
+
+//     connect(&add_file_button, &OneStateButton::imReleased, this, &CentralWidget::addFiles);
+//     connect(&add_dir_button, &OneStateButton::imReleased, this, &CentralWidget::addDir);
+//     connect(this, &CentralWidget::txFilenames, dirlist, &DirlistWindow::rxAddFilenames);
+//     connect(this, &CentralWidget::txDirname, dirlist, &DirlistWindow::rxAddDirname);
+//     connect(&minimize_button, &OneStateButton::imReleased, parent, &MainWindow::showMinimized);
+//     connect(&close_button, &OneStateButton::imReleased, parent, &MainWindow::close);
+//     connect(&dirlist->dirtable, &DirlistTable::txUpdatePathsButton, paths_button, &DynamicInfoButton::updateText);
+//     connect(paths_button, &DynamicInfoButton::imReleased, dirlist, &DirlistWindow::show);
+//     connect(&settings_button, &OneStateButton::imReleased, this, &CentralWidget::showSettings);
+//     connect(&play_button, &OneStateButton::imReleased, this, &CentralWidget::showNewSessionWindow);
+// }
+
+// void CentralWidget::mouseMoveEvent(QMouseEvent *event)
+// {
+//     event->ignore(); // отправляем событие ниже до MainWindow
+// }
+
+// void CentralWidget::mousePressEvent(QMouseEvent *event)
+// {
+//     event->ignore(); // отправляем событие ниже до MainWindow
+// }
+
+// void CentralWidget::changeEvent(QEvent *event)
+// {
+//     if ( event->type() == QEvent::LanguageChange )
+//     {
+//         scrup_label.setText(scrup_mode_txt[curr_lang()]);
+//         paths_button->updateText(true);
+//         tasks_label.setText(tasks_label_txt[curr_lang()]);
+//         for (int idx = 0; idx < MAX_FILTERS; ++idx)
+//         {
+//             categ_labels[idx]->setText(filter_labels_txt[curr_lang()][idx]);
+//         }
+//         ((QLabel*)formats_table.cellWidget(0, 0))->setText(header_txt[curr_lang()][0]);
+//         ((QLabel*)formats_table.cellWidget(0, 1))->setText(header_txt[curr_lang()][1]);
+//         ((QLabel*)formats_table.cellWidget(0, 2))->setText(header_txt[curr_lang()][2]);
+//         QApplication::postEvent(_dirlist, new QEvent(QEvent::LanguageChange)); // отсылаем в DirlistWindow
+//     }
+//     event->accept();
+// }
+
+// void CentralWidget::addFiles()
+// {
+//     QStringList filenames = QFileDialog::getOpenFileNames(this);
+//     if (!filenames.isEmpty()) {
+//         emit txFilenames(filenames);
+//         paths_button->updateText();
+//     }
+// }
+
+// void CentralWidget::addDir()
+// {
+//     QString dirname = QFileDialog::getExistingDirectory(this);
+//     if (!dirname.isEmpty()) {
+//         emit txDirname(dirname);
+//         paths_button->updateText();
+//     }
+// }
+
+// void CentralWidget::showSettings()
+// {
+//     SettingsWindow* tw = new SettingsWindow(this);
+//     tw->show(); // модальное окно уничтожается автоматически после вызова close()
+// }
+
+// void CentralWidget::showNewSessionWindow()
+// {
+//     u32i new_session_id = sessions_pool.get_new_session_id();
+//     if ( new_session_id != 0 )
+//     {
+//         auto new_session_window = new SessionWindow(new_session_id);
+//         if ( sessions_pool.write_new_session(new_session_window, new_session_id) == 0 )
+//         {
+//             // если по какой-то причине не удалось записать указатель в пул с переданным id, тогда уничтожаем окно
+//             delete new_session_window;
+//         }
+//         else
+//         {
+//             new_session_window->show();
+//         }
+//     }
+// }
+
+MainWindow::MainWindow()
+    : QWidget(nullptr, Qt::FramelessWindowHint)  // окно это QWidget без родителя
 {
+    this->setAttribute(Qt::WA_TranslucentBackground);
+    this->setAttribute(Qt::WA_NoSystemBackground);
+
     QPixmap background {":/gui/main/cw.png"};
-    this->setFixedSize(background.size());
-    this->move(0, 0);
-    this->setPixmap(background);
-    play_button.move(232, 96);
-    add_file_button.move(23, 32);
-    add_dir_button.move(187, 32);
-    settings_button.move(133, 26);
-    scrup_button.move(176, 110);
-    minimize_button.move(778, 50);
-    close_button.move(684, 8);
-    formats_table.move(336, 42);
+    auto central_widget = new QLabel(this);
+    central_widget->setFixedSize(background.size());
+    central_widget->move(0, 0);
+    central_widget->setPixmap(background);
+
+    this->resize(central_widget->size()); // размер окна по размеру центрального QLabel
+
+    auto play_button = new OneStateButton(this, ":/gui/main/play.png", ":/gui/main/play_h.png");
+    auto add_file_button = new OneStateButton(this, ":/gui/main/afile.png", ":/gui/main/afile_h.png");
+    auto add_dir_button = new OneStateButton(this, ":/gui/main/adir.png", ":/gui/main/adir_h.png");
+    auto settings_button = new OneStateButton(this, ":/gui/main/setts.png", ":/gui/main/setts_h.png");
+    auto minimize_button = new OneStateButton(this, ":/gui/main/min.png", ":gui/main//min_h.png");
+    auto close_button = new OneStateButton(this, ":/gui/main/close.png", ":/gui/main/close_h.png");
+    auto scrup_button = new TwoStatesButton(this, &settings.config.scrupulous, ":/gui/main/scrpm_off.png", ":/gui/main/scrpm_on.png", ":/gui/main/scrpm_off_h.png", ":/gui/main/scrpm_on_h.png");
+
+    play_button->move(232, 96);
+    add_file_button->move(23, 32);
+    add_dir_button->move(187, 32);
+    settings_button->move(133, 26);
+    minimize_button->move(778, 50);
+    close_button->move(684, 8);
+    scrup_button->move(176, 110);
+
+    formats_table = new FormatsTable(this);
+    formats_table->move(336, 42);
 
     QFont tmpFont {*skin_font()};
     tmpFont.setPixelSize(13);
     tmpFont.setBold(false);
 
-    // кнопка Тщательный режим
-    scrup_label.move(32, 112);
-    scrup_label.resize(140, 24);
-    scrup_label.setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    scrup_label.setStyleSheet("color: #b6c7c7");
-    scrup_label.setFont(tmpFont);
-    scrup_label.setText(scrup_mode_txt[curr_lang()]);
+    scrup_label = new QLabel; // надпись "Тщательный режим"
+    scrup_label->setFixedSize(140, 24);
+    scrup_label->setStyleSheet("color: #b6c7c7");
+    scrup_label->setFont(tmpFont);
+    scrup_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    scrup_label->setParent(this);
+    scrup_label->move(32, 112);
+    scrup_label->setText(scrup_mode_txt[curr_lang()]);
 
-    // Фильтры категорий
+    filter_main_pixmaps[0]  = QPixmap(":/gui/main/incl.png");
+    filter_main_pixmaps[1]  = QPixmap(":/gui/main/excl.png");
+    filter_hover_pixmaps[0] = QPixmap(":/gui/main/incl_h.png");
+    filter_hover_pixmaps[1] = QPixmap(":/gui/main/excl_h.png");
+
     tmpFont.setBold(true);
-    for (int idx = 0; idx < MAX_FILTERS; ++idx)
+    for (int idx = 0; idx < MAX_FILTERS; ++idx) // надписи и кнопки выбора категорий
     {
-        categ_labels[idx] = new QLabel(filter_labels_txt[curr_lang()][idx], this);
+        categ_labels[idx] = new QLabel;
         categ_labels[idx]->setFixedSize(144, 24);
-        categ_labels[idx]->move(40, 175 + 35 * idx);
+        categ_labels[idx]->setStyleSheet("color: #b6c7c7");
         categ_labels[idx]->setFont(tmpFont);
         categ_labels[idx]->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        categ_labels[idx]->setStyleSheet("color: #b6c7c7");
-        includeButtons[idx] = new FilterButton(this, FilterAction::Include, filters[idx], {193, 177 + 35 * int(idx)}, &filter_main_pixmaps[0], &filter_hover_pixmaps[0]);
-        excludeButtons[idx] = new FilterButton(this, FilterAction::Exclude, filters[idx], {242, 177 + 35 * int(idx)}, &filter_main_pixmaps[1], &filter_hover_pixmaps[1]);
-        connect(includeButtons[idx], &FilterButton::imReleased, &formats_table, &FormatsTable::rxCommand);
-        connect(excludeButtons[idx], &FilterButton::imReleased, &formats_table, &FormatsTable::rxCommand);
+        categ_labels[idx]->setParent(this);
+        categ_labels[idx]->move(40, 175 + 35 * idx);
+        categ_labels[idx]->setText(filter_labels_txt[curr_lang()][idx]);
+        auto include_button = new FilterButton(this, FilterAction::Include, filters[idx], {193, 177 + 35 * int(idx)}, &filter_main_pixmaps[0], &filter_hover_pixmaps[0]);
+        auto exclude_button = new FilterButton(this, FilterAction::Exclude, filters[idx], {242, 177 + 35 * int(idx)}, &filter_main_pixmaps[1], &filter_hover_pixmaps[1]);
+        connect(include_button, &FilterButton::imReleased, formats_table, &FormatsTable::rxCommand);
+        connect(exclude_button, &FilterButton::imReleased, formats_table, &FormatsTable::rxCommand);
     }
 
-    // Лейбл с информацией о версии
     tmpFont.setBold(false);
-    version_label.move(32, 504);
-    version_label.setStyleSheet("color: #fffef9");
-    version_label.setFont(tmpFont);
+    auto version_label = new QLabel; // Лейбл с информацией о версии
+    version_label->setStyleSheet("color: #fffef9");
+    version_label->setFont(tmpFont);
+    version_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    version_label->setParent(this);
+    version_label->move(32, 504);
+    version_label->setText(VERSION_TEXT);
 
     // Кнопка с количеством добавленных путей
     paths_button = new DynamicInfoButton(this, ":/gui/main/pth_btn.png", ":/gui/main/pth_btn_h.png", paths_button_txt, 12, 10, &task.paths_count);
     paths_button->move(424, 499);
 
-    // Лейбл с информацией о количестве запущенных задач
     tmpFont.setItalic(true);
     tmpFont.setPixelSize(12);
-    tasks_label.move(624, 504);
-    tasks_label.setStyleSheet("color: #fffef9");
-    tasks_label.setFont(tmpFont);
-    tasks_label.setText(tasks_label_txt[curr_lang()]);
+    tasks_label = new QLabel; // Лейбл с информацией о количестве запущенных задач
+    tasks_label->setStyleSheet("color: #fffef9");
+    tasks_label->setFont(tmpFont);
+    tasks_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    tasks_label->setParent(this);
+    tasks_label->move(624, 504);
+    tasks_label->setText(tasks_label_txt[curr_lang()]);
 
-    connect(&add_file_button, &OneStateButton::imReleased, this, &CentralWidget::addFiles);
-    connect(&add_dir_button, &OneStateButton::imReleased, this, &CentralWidget::addDir);
-    connect(this, &CentralWidget::txFilenames, dirlist, &DirlistWindow::rxAddFilenames);
-    connect(this, &CentralWidget::txDirname, dirlist, &DirlistWindow::rxAddDirname);
-    connect(&minimize_button, &OneStateButton::imReleased, parent, &MainWindow::showMinimized);
-    connect(&close_button, &OneStateButton::imReleased, parent, &MainWindow::close);
-    connect(&dirlist->dirtable, &DirlistTable::txUpdatePathsButton, paths_button, &DynamicInfoButton::updateText);
-    connect(paths_button, &DynamicInfoButton::imReleased, dirlist, &DirlistWindow::show);
-    connect(&settings_button, &OneStateButton::imReleased, this, &CentralWidget::showSettings);
-    connect(&play_button, &OneStateButton::imReleased, this, &CentralWidget::showNewSessionWindow);
-}
-
-void CentralWidget::mouseMoveEvent(QMouseEvent *event)
-{
-    event->ignore(); // отправляем событие ниже до MainWindow
-}
-
-void CentralWidget::mousePressEvent(QMouseEvent *event)
-{
-    event->ignore(); // отправляем событие ниже до MainWindow
-}
-
-void CentralWidget::changeEvent(QEvent *event)
-{
-    if ( event->type() == QEvent::LanguageChange )
-    {
-        scrup_label.setText(scrup_mode_txt[curr_lang()]);
-        paths_button->updateText(true);
-        tasks_label.setText(tasks_label_txt[curr_lang()]);
-        for (int idx = 0; idx < MAX_FILTERS; ++idx)
-        {
-            categ_labels[idx]->setText(filter_labels_txt[curr_lang()][idx]);
-        }
-        ((QLabel*)formats_table.cellWidget(0, 0))->setText(header_txt[curr_lang()][0]);
-        ((QLabel*)formats_table.cellWidget(0, 1))->setText(header_txt[curr_lang()][1]);
-        ((QLabel*)formats_table.cellWidget(0, 2))->setText(header_txt[curr_lang()][2]);
-        QApplication::postEvent(_dirlist, new QEvent(QEvent::LanguageChange)); // отсылаем в DirlistWindow
-    }
-    event->accept();
-}
-
-void CentralWidget::addFiles()
-{
-    QStringList filenames = QFileDialog::getOpenFileNames(this);
-    if (!filenames.isEmpty()) {
-        emit txFilenames(filenames);
-        paths_button->updateText();
-    }
-}
-
-void CentralWidget::addDir()
-{
-    QString dirname = QFileDialog::getExistingDirectory(this);
-    if (!dirname.isEmpty()) {
-        emit txDirname(dirname);
-        paths_button->updateText();
-    }
-}
-
-void CentralWidget::showSettings()
-{
-    SettingsWindow* tw = new SettingsWindow(this);
-    tw->show(); // модальное окно уничтожается автоматически после вызова close()
-}
-
-void CentralWidget::showNewSessionWindow()
-{
-    u32i new_session_id = sessions_pool.get_new_session_id();
-    if ( new_session_id != 0 )
-    {
-        auto new_session_window = new SessionWindow(new_session_id);
-        if ( sessions_pool.write_new_session(new_session_window, new_session_id) == 0 )
-        {
-            // если по какой-то причине не удалось записать указатель в пул с переданным id, тогда уничтожаем окно
-            delete new_session_window;
-        }
-        else
-        {
-            new_session_window->show();
-        }
-    }
-}
-
-MainWindow::MainWindow(QWidget *parent)
-    : QWidget(parent, Qt::FramelessWindowHint)
-{
-    this->setAttribute(Qt::WA_TranslucentBackground);
-    this->setAttribute(Qt::WA_NoSystemBackground);
-    central.move(0, 0);
-    this->resize(central.size());
+    connect(add_file_button, &OneStateButton::imReleased, this, &MainWindow::addFiles);
+    connect(add_dir_button, &OneStateButton::imReleased, this, &MainWindow::addDir);
+    connect(this, &MainWindow::txFilenames, &dirlist, &DirlistWindow::rxAddFilenames);
+    connect(this, &MainWindow::txDirname, &dirlist, &DirlistWindow::rxAddDirname);
+    connect(minimize_button, &OneStateButton::imReleased, this, &MainWindow::showMinimized);
+    connect(close_button, &OneStateButton::imReleased, this, &MainWindow::close);
+    connect(&dirlist.dirtable, &DirlistTable::txUpdatePathsButton, paths_button, &DynamicInfoButton::updateText);
+    connect(paths_button, &DynamicInfoButton::imReleased, &dirlist, &DirlistWindow::show);
+    connect(settings_button, &OneStateButton::imReleased, this, &MainWindow::showSettings);
+    connect(play_button, &OneStateButton::imReleased, this, &MainWindow::showNewSessionWindow);
 }
 
 MainWindow::~MainWindow()
@@ -503,6 +598,25 @@ void MainWindow::mousePressEvent(QMouseEvent *event)
     }
 }
 
+void MainWindow::changeEvent(QEvent *event)
+{
+    if ( event->type() == QEvent::LanguageChange )
+    {
+        scrup_label->setText(scrup_mode_txt[curr_lang()]);
+        paths_button->updateText(true);
+        tasks_label->setText(tasks_label_txt[curr_lang()]);
+        for (int idx = 0; idx < MAX_FILTERS; ++idx)
+        {
+            categ_labels[idx]->setText(filter_labels_txt[curr_lang()][idx]);
+        }
+        ((QLabel*)formats_table->cellWidget(0, 0))->setText(header_txt[curr_lang()][0]);
+        ((QLabel*)formats_table->cellWidget(0, 1))->setText(header_txt[curr_lang()][1]);
+        ((QLabel*)formats_table->cellWidget(0, 2))->setText(header_txt[curr_lang()][2]);
+        QApplication::postEvent(&dirlist, new QEvent(QEvent::LanguageChange)); // отсылаем в DirlistWindow
+    }
+    event->accept();
+}
+
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     for (u32i idx = 0; idx < sessions_pool._size; ++idx) // закрываем окна сессий, если они есть
@@ -513,4 +627,46 @@ void MainWindow::closeEvent(QCloseEvent *event)
         }
     }
     dirlist.close();
+}
+
+void MainWindow::addFiles()
+{
+    QStringList filenames = QFileDialog::getOpenFileNames(this);
+    if (!filenames.isEmpty()) {
+        emit txFilenames(filenames);
+        paths_button->updateText();
+    }
+}
+
+void MainWindow::addDir()
+{
+    QString dirname = QFileDialog::getExistingDirectory(this);
+    if (!dirname.isEmpty()) {
+        emit txDirname(dirname);
+        paths_button->updateText();
+    }
+}
+
+void MainWindow::showSettings()
+{
+    SettingsWindow* tw = new SettingsWindow(this);
+    tw->show(); // модальное окно уничтожается автоматически после вызова close()
+}
+
+void MainWindow::showNewSessionWindow()
+{
+    u32i new_session_id = sessions_pool.get_new_session_id();
+    if ( new_session_id != 0 )
+    {
+        auto new_session_window = new SessionWindow(new_session_id);
+        if ( sessions_pool.write_new_session(new_session_window, new_session_id) == 0 )
+        {
+            // если по какой-то причине не удалось записать указатель в пул с переданным id, тогда уничтожаем окно
+            delete new_session_window;
+        }
+        else
+        {
+            new_session_window->show();
+        }
+    }
 }

@@ -30,14 +30,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_special RECOGNIZE_FUNC_HEADER {
     return 0;
 }
 
-Engine::Engine(WalkerThread *walker_parent, WalkerCommand *walker_command, QMutex *walker_mutex, bool scrupulous_mode, u64i buffer_size)
+Engine::Engine(WalkerThread *walker_parent)
     : my_walker_parent(walker_parent)
-    , command(walker_command)
-    , my_control_mutex(walker_mutex)
-    , scrupulous(scrupulous_mode)
-    , read_buffer_size(buffer_size)
 {
-    previous_msecs = QDateTime::currentMSecsSinceEpoch();
+    command = &my_walker_parent->command;
+    control_mutex = my_walker_parent->walker_control_mutex;
+    scrupulous = my_walker_parent->walker_config.scrupulous;
+    read_buffer_size = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx);
 }
 
 void Engine::scan_file(const QString &file_name)
@@ -72,9 +71,9 @@ void Engine::scan_file(const QString &file_name)
         case WalkerCommand::Pause:
             qInfo() << "-> Engine: i'm paused due to Pause command";
             emit my_walker_parent->txImPaused();
-            my_control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
+            control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
             // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
-            my_control_mutex->unlock();
+            control_mutex->unlock();
             if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
             {
                 read_count = 4; // условие выхода из внешнего цикла (сейчас это for) чтения файла

@@ -5,17 +5,18 @@
 
 WalkerThread::WalkerThread(SessionWindow *receiver, QMutex *control_mtx, const Task &task, const Config &config, const QSet<QString> &formats_to_scan)
     : my_receiver(receiver)
-    , my_control_mutex(control_mtx)
-    , my_task(task)
-    , my_config(config)
+    , walker_control_mutex(control_mtx)
+    , walker_task(task)
+    , walker_config(config)
     , my_formats(formats_to_scan)
 {
+
 }
 
 WalkerThread::~WalkerThread()
 {
     delete engine;
-    delete my_control_mutex;
+    delete walker_control_mutex;
 
     qInfo() << "WalkerThread object was destroyed in thread id:" << currentThreadId();
 }
@@ -32,7 +33,7 @@ inline void WalkerThread::update_general_progress(int paths_total, int current_p
     }
 }
 
-void WalkerThread::sort_signatures(Signature **signs_to_scan, int amount)
+void WalkerThread::sort_signatures_array(Signature **signs_to_scan, int amount)
 {
     if ( amount > 1 )
     {
@@ -58,7 +59,7 @@ void WalkerThread::sort_signatures(Signature **signs_to_scan, int amount)
 void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int first_index, int last_index, bool left, int *idx)
 {
     int base_index = first_index + (last_index - first_index + 1) / 2;
-    tree[*idx] = TreeNode{signs_to_scan[base_index], nullptr, nullptr}; // заполняем новый узел
+    tree[*idx] = TreeNode{*signs_to_scan[base_index], nullptr, nullptr}; // заполняем новый узел
     TreeNode *we_as_parent = &tree[*idx]; // указатель на нас самих, т.е. на TreeNode, записанный под индексом idx в tree
     (*idx)++; // инкремент ячейки в массиве tree
     if ( last_index != first_index ) // проверка на размер поддерева : если оно из 1 элемента, то это stop_condition для рекурсии
@@ -86,16 +87,16 @@ void WalkerThread::print_avl_tree(TreeNode *tree, int amount)
 {
     for (int idx = 0; idx < amount; idx++)
     {
-        qInfo() <<  "avl_tree index :" << idx << "; value :" << QString::number(tree[idx].signature_ptr->as_u64i, 16);
+        qInfo() <<  "avl_tree index :" << idx << "; value :" << QString::number(tree[idx].signature.as_u64i, 16);
         if (tree[idx].left != nullptr)
         {
-            qInfo() << "      : left child  :" << QString::number(tree[idx].left->signature_ptr->as_u64i, 16);
+            qInfo() << "      : left child  :" << QString::number(tree[idx].left->signature.as_u64i, 16);
         } else {
             qInfo() << "      : left child  : {nullptr}";
         }
         if (tree[idx].right != nullptr)
         {
-            qInfo() << "      : right child :" << QString::number(tree[idx].right->signature_ptr->as_u64i, 16);
+            qInfo() << "      : right child :" << QString::number(tree[idx].right->signature.as_u64i, 16);
         } else {
             qInfo() << "      : right child : {nullptr}";
         }
@@ -106,8 +107,8 @@ void WalkerThread::prepare_structures_before_engine()
 {
     int global_signs_num = signatures.size(); // общее количество известных сигнатур
 
-    Signature **signs_to_scan_dw = new Signature*[global_signs_num]; // массив dword-сигнатур для поиска (массив указателей на элементы структуры signatures)
-    Signature **signs_to_scan_w  = new Signature*[global_signs_num]; // массив word-сигнатур для поиска  (массив указателей на элементы структуры signatures)
+    Signature **signatures_array_dw = new Signature*[global_signs_num]; // массив dword-сигнатур для поиска (массив указателей на элементы структуры signatures)
+    Signature **signatures_array_w  = new Signature*[global_signs_num]; // массив word-сигнатур для поиска  (массив указателей на элементы структуры signatures)
     // ^^^для простоты выделяем памяти на всё кол-во известных сигнатур; реально используемое кол-во будет хранится в amount_(d)w
 
     QSet <QString> uniq_signature_names_dw; // множества для отбора уникальных сигнатур по ключу сигнатур
@@ -116,7 +117,6 @@ void WalkerThread::prepare_structures_before_engine()
     selected_formats_fast = new bool[fformats.size()];
 
     uniq_signature_names_dw.reserve(global_signs_num);
-    uniq_signature_names_dw.insert("special");
     uniq_signature_names_w.reserve(global_signs_num);
 
     tree_dw = new TreeNode[global_signs_num];
@@ -125,8 +125,7 @@ void WalkerThread::prepare_structures_before_engine()
 
     // заполнение массива selected_formats_fast (назван fast, потому что будет использоваться в recognizer'ах
     // для быстрого лукапа, вместо использования my_formats.contains(), который гораздо медленнее;
-    // и одновременно
-    // добавление сигнатур в множества uniq_signs_(d)w, чтобы исключить повторения, т.к.
+    // и одновременно добавление сигнатур в множества uniq_signature_names_(d)w, чтобы исключить повторения, т.к.
     // разные форматы могут иметь одну и ту же сигнатуру, например WAV "RIFF" и AVI "RIFF";
     for (const auto & [key, val] : fformats.asKeyValueRange())
     {
@@ -155,36 +154,36 @@ void WalkerThread::prepare_structures_before_engine()
     qInfo() << "uniq_signature_names_dw:"<< uniq_signature_names_dw;
     qInfo() << "uniq_signature_names_w :"<< uniq_signature_names_w;
 
-    // добавление указателей на сигнатуры в таблицы signs_to_scan_(d)w
+    // добавление указателей на сигнатуры в таблицу signs_to_scan_(d)w
     amount_dw = 0;
     amount_w = 0;
     for (const auto &name : uniq_signature_names_dw)
     {
-        signs_to_scan_dw[amount_dw] = &signatures[name];
+        signatures_array_dw[amount_dw] = &signatures[name];
         amount_dw++;
     }
     for (const auto &name : uniq_signature_names_w)
     {
-        signs_to_scan_w[amount_w] = &signatures[name];
+        signatures_array_w[amount_w] = &signatures[name];
         amount_w++;
     }
 
     // сортировка signs_to_scan_(d)w, т.к. для построения авл-дерева массив сигнатур должен быть предварительно упорядочен
-    sort_signatures(signs_to_scan_dw, amount_dw);
-    sort_signatures(signs_to_scan_w, amount_w);
+    sort_signatures_array(signatures_array_dw, amount_dw);
+    sort_signatures_array(signatures_array_w, amount_w);
 
     // формируем АВЛ-деревья для сигнатур типа dword и word
     int avl_index = 0;
-    prepare_avl_tree(tree_dw, signs_to_scan_dw, 0, amount_dw - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
+    prepare_avl_tree(tree_dw, signatures_array_dw, 0, amount_dw - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
     avl_index = 0;
-    prepare_avl_tree(tree_w, signs_to_scan_w, 0, amount_w - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
+    prepare_avl_tree(tree_w, signatures_array_w, 0, amount_w - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
 
     print_avl_tree(tree_dw, amount_dw);
     print_avl_tree(tree_w, amount_w);
 
     // освобождаем массивы signs_to_scan_(d)w, т.к. дерево построили и они больше не нужны
-    delete [] signs_to_scan_dw;
-    delete [] signs_to_scan_w;
+    delete [] signatures_array_dw;
+    delete [] signatures_array_w;
 }
 
 void WalkerThread::clean_structures_after_engine()
@@ -194,30 +193,29 @@ void WalkerThread::clean_structures_after_engine()
     delete [] tree_w;
 }
 
-
 void WalkerThread::run()
 {
     prepare_structures_before_engine();
 
-    engine = new Engine(this, &command, my_control_mutex, my_config.scrupulous, 16);
+    engine = new Engine(this);
     previous_msecs = QDateTime::currentMSecsSinceEpoch();
 
     connect(this, &WalkerThread::txGeneralProgress, my_receiver, &SessionWindow::rxGeneralProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
     connect(engine, &Engine::txFileProgress, my_receiver, &SessionWindow::rxFileProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
 
-    int tp_count = my_task.task_paths.count();
+    int tp_count = walker_task.task_paths.count();
     int general_progress;
 
     qInfo() << "formats selected" << settings.selected_formats;
 
     for (int tp_idx = 0; tp_idx < tp_count; ++tp_idx) // проход по спику путей
     {
-        if ( my_task.task_paths[tp_idx].file_mask.isEmpty() )  // если .filter пуст, значит это файл
+        if ( walker_task.task_paths[tp_idx].file_mask.isEmpty() )  // если .filter пуст, значит это файл
         {
-            qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : main \"for\" : scanning file \""<< my_task.task_paths[tp_idx].path;
+            qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : main \"for\" : scanning file \""<< walker_task.task_paths[tp_idx].path;
 
             /////  запуск поискового движка
-            engine->scan_file(my_task.task_paths[tp_idx].path);
+            engine->scan_file(walker_task.task_paths[tp_idx].path);
             /////
 
             ///// анализ причин завершения функции scan_file()
@@ -230,7 +228,7 @@ void WalkerThread::run()
         }
         else // если .filter не пуст, значит это каталог
         {
-            qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : scanning folder \""<< my_task.task_paths[tp_idx].path << "; recursion:" << my_task.task_paths[tp_idx].recursion;
+            qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : scanning folder \""<< walker_task.task_paths[tp_idx].path << "; recursion:" << walker_task.task_paths[tp_idx].recursion;
 
             std::function<void(const QString&, const QString&)> dir_walking = [&](const QString &dir, const QString &sub_dir) // так объявляется рекурсивная лямбда; обычные можно через auto
             {
@@ -238,7 +236,7 @@ void WalkerThread::run()
                 if ( current_dir.exists() && current_dir.isReadable() )
                 {
                     current_dir.setSorting(QDir::Name);
-                    current_dir.setNameFilters({my_task.task_paths[tp_idx].file_mask}); // mask
+                    current_dir.setNameFilters({walker_task.task_paths[tp_idx].file_mask}); // mask
                     current_dir.setFilter(QDir::Files | QDir::NoSymLinks | QDir::NoDotAndDotDot | QDir::Readable | QDir::Hidden | QDir::System);
 
                     QFileInfoList file_infolist = current_dir.entryInfoList(); // получение списка файлов в подкаталоге
@@ -264,7 +262,7 @@ void WalkerThread::run()
                         ////////////////////////////////////////////////
                     }
 
-                    if ( my_task.task_paths[tp_idx].recursion )
+                    if ( walker_task.task_paths[tp_idx].recursion )
                     {
                         current_dir.setNameFilters({"*"}); // для каталогов применяем маску * вместо маски файлов *.*
                         current_dir.setFilter(QDir::Dirs | QDir::NoSymLinks | QDir::NoDotAndDotDot | QDir::Readable | QDir::Hidden | QDir::System);
@@ -288,8 +286,8 @@ void WalkerThread::run()
                             case WalkerCommand::Pause:
                                 qInfo() << ">>>> WalkerThread : received Pause command in dir_walking \"for\", when resursing into subdirs, due to mutex lock";
                                 emit txImPaused();
-                                my_control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
-                                my_control_mutex->unlock(); // сюда, если mutex разблокирован в вызывающем коде
+                                walker_control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
+                                walker_control_mutex->unlock(); // сюда, если mutex разблокирован в вызывающем коде
                                 if ( command == WalkerCommand::Stop) // вдруг пока мы стояли на паузе, была нажата кнопка Stop
                                 {
                                     tp_idx = tp_count; // чтобы выйти из главного for
@@ -311,7 +309,7 @@ void WalkerThread::run()
                 }
             };
             ///// начальный вызов рекурсивной функции
-            dir_walking(my_task.task_paths[tp_idx].path, "");
+            dir_walking(walker_task.task_paths[tp_idx].path, "");
             /////
         }
 

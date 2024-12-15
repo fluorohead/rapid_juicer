@@ -55,7 +55,7 @@ public:
     void initSkin();
 
     u64i getBufferSizeInBytes();
-    u64i getBufferSizeByIndex(int idx);
+    static u64i getBufferSizeByIndex(int idx);
 
     u32i getThreadsNum();
 };

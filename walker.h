@@ -13,23 +13,23 @@ class WalkerThread: public QThread
 {
     Q_OBJECT
 
-    Task my_task;              // собственные копии, не зависящие от глобальных
-    Config my_config;          // ..
-    QSet<QString> my_formats;  // ..
+    Task walker_task;              // собственные копии, не зависящие от глобальных
+    Config walker_config;          // ..
+    QSet<QString> my_formats;      // ..
     SessionWindow *my_receiver;
-    QMutex *my_control_mutex;
+    QMutex *walker_control_mutex;
     Engine *engine;
     WalkerCommand command {WalkerCommand::Run};
     s64i previous_msecs; // должно быть инициализировано значением QDateTime::currentMSecsSinceEpoch(); до первого вызова update_general_progress()
     void update_general_progress(int paths_total, int current_path_index);
 
-    TreeNode *tree_dw {nullptr}; // авл-дерево для dw-сигнатур, указатель на массив TreeNode-элементов
-    TreeNode *tree_w  {nullptr}; // авл-дерево для w-сигнатур , указатель на массив TreeNode-элементов
+    TreeNode *tree_dw {nullptr}; // авл-дерево для dw-сигнатур, массив TreeNode-элементов
+    TreeNode *tree_w  {nullptr}; // авл-дерево для w-сигнатур , массив TreeNode-элементов
     bool *selected_formats_fast; // массив будет построен в prepare_struct..(), для последующего быстрого lookup'а внутри recognizer'ов
-    int amount_dw; // количество сигнатур в дереве
-    int amount_w; // количество сигнатур добавленных в массив signs_to_scan_d
+    int amount_dw; // количество dw-сигнатур в dw-дереве
+    int amount_w; // количество w-сигнатур в w-дереве
 
-    void sort_signatures(Signature **signs_to_scan, int amount); // пузырьковая сортировка сигнатур (по полю .as_u64i, а не по ключу)
+    void sort_signatures_array(Signature **signs_to_scan, int amount); // пузырьковая сортировка сигнатур (по полю .as_u64i, а не по ключу)
     void prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int first_index, int last_index, bool left, int *idx);
     void print_avl_tree(TreeNode *tree, int amount);
     void prepare_structures_before_engine(); // подготавливает selected_formats_fast, tree_dw, tree_w;
@@ -45,6 +45,7 @@ signals:
     void txImResumed();
 
     friend SessionWindow;
+    friend Engine;
 };
 
 #endif // WALKER_H
