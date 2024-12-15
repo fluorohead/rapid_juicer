@@ -208,7 +208,7 @@ void WalkerThread::run()
 
     qInfo() << "formats selected" << settings.selected_formats;
 
-    for (int tp_idx = 0; tp_idx < tp_count; ++tp_idx) // проход по спику путей
+    for (int tp_idx = 0; tp_idx < tp_count; ++tp_idx) // проход по списку путей
     {
         if ( walker_task.task_paths[tp_idx].file_mask.isEmpty() )  // если .filter пуст, значит это файл
         {

@@ -169,10 +169,10 @@ SessionWindow::SessionWindow(u32i session_id)
     pause_resume_button = new QPushButton;
     pause_resume_button->setAttribute(Qt::WA_NoMousePropagation);
     pause_resume_button->setFixedSize(64, 32);
-    pause_resume_button->setStyleSheet("QPushButton:enabled  {color: #fffef9; background-color: #7fab6d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                                "QPushButton:hover    {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                                "QPushButton:pressed  {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
-                                "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
+    pause_resume_button->setStyleSheet( "QPushButton:enabled  {color: #fffef9; background-color: #7fab6d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                        "QPushButton:hover    {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                        "QPushButton:pressed  {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
+                                        "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
     pause_resume_button->setFont(tmpFont);
     pause_resume_button->setDisabled(true);
     pause_resume_button->setText(pause_button_txt[curr_lang()]);

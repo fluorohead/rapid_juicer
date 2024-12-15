@@ -83,13 +83,14 @@ signals:
 
 class FormatsTable: public QTableWidget {
     Q_OBJECT
-    QPixmap corner_fmt_pixmap {":/gui/main/selector.png"};
+    QPixmap *corner_fmt_pixmap;
     static const QMap <u64i, QString> categories_resources; // проинициализированно в mw.cpp
     QMap <u64i, QPixmap*> categories_pixmaps;
     void prepCategPixmaps();
     void delCategPixmaps();
 public:
     FormatsTable(QWidget *parent);
+    ~FormatsTable();
 public slots:
     void rxCommand(FilterAction action, u64i categories);
 };

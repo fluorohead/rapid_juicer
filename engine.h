@@ -4,8 +4,13 @@
 #include "formats.h"
 #include <QObject>
 #include <QMutex>
+#include <QFile>
 
 #define MIN_SIGNAL_INTERVAL_MSECS 20
+
+#define MIN_RESOURCE_SIZE 32 // должно быть кратно MAX_SIGN_SIZE
+#define MAX_SIGNATURE_SIZE 4
+#define AUX_BUFFER_SIZE 512
 
 #define RECOGNIZE_FUNC_HEADER (Engine *e)
 #define RECOGNIZE_FUNC_DECL_RETURN static u64i
@@ -39,17 +44,28 @@ class Engine: public QObject
     WalkerCommand *command;
     QMutex *control_mutex; // тот же мьютекс, что использует WalkerThread и основной поток
     s64i previous_msecs; // должно быть инициализировано значением QDateTime::currentMSecsSinceEpoch(); до первого вызова update_file_progress()
+    int previous_file_progress;
     WalkerThread *my_walker_parent;
 
+    static const u32i special_signature;
+
+    QFile file; // текущий файл
+    int amount_dw;
+    int amount_w;
     bool scrupulous;
     u64i read_buffer_size; // 2|10|50 MiB
+    u64i total_buffer_size; // read_buffer_size + 4
+    u8i *scanbuf_ptr {nullptr}; // главный буфер сканирования размером total_buffer_size
+    u8i *auxbuf_ptr  {nullptr}; // вспомогательный буфер для recognizer'ов размером AUX_BUFFER_SIZE
+    u8i *fillbuf_ptr {nullptr}; // указатель на главный буфер + 4; наполнение главного буфера всегда происходит с этого смещения, но сканирование с 0
+    s64i signature_file_pos {0}; // позиция сигнатуры в файле
 
     void update_file_progress(const QString &file_name, int file_size, int total_readed_bytes);
 public:
-    //Engine(WalkerThread *walker_parent, WalkerCommand *walker_command, QMutex *walker_mutex, bool scrupulous_mode, u64i buffer_size);
     Engine(WalkerThread *walker_parent);
     ~Engine();
     void scan_file(const QString &file_name); // возвращает смещение в файле, где произошёл останов функции, чтобы потом можно было возобновить сканирование с этого места
+    void scan_file_v2(const QString &file_name);
 
     RECOGNIZE_FUNC_DECL_RETURN recognize_special RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_bmp RECOGNIZE_FUNC_HEADER;

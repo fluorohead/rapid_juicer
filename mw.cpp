@@ -187,6 +187,7 @@ void CategoryLabel::mousePressEvent(QMouseEvent *event)
 FormatsTable::FormatsTable(QWidget *parent)
     : QTableWidget(parent)
 {
+    corner_fmt_pixmap = new QPixmap(":/gui/main/selector.png");
     this->setFixedSize(FORMATS_TABLE_W, FORMATS_TABLE_H);
     this->setColumnCount(3);
     this->setStyleSheet("color: #cdc8c7; gridline-color: #a4a4a4; background-color: #794642");
@@ -238,7 +239,7 @@ FormatsTable::FormatsTable(QWidget *parent)
     for (auto it = fformats.begin(); it != fformats.end(); ++it)
     {
         this->setRowHeight(it.value().index + 1, FORMATS_TABLE_ROW_H);
-        auto fmt_label = new FormatLabel(it.key(), /*&it.value().selected,*/ it.value().extension, &corner_fmt_pixmap);
+        auto fmt_label = new FormatLabel(it.key(), /*&it.value().selected,*/ it.value().extension, corner_fmt_pixmap);
         fmt_label->setFixedSize(FORMATS_TABLE_COL0_W - 1, FORMATS_TABLE_ROW_H - 1);
         fmt_label->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
         fmt_label->setFont(column0_font);
@@ -279,6 +280,11 @@ FormatsTable::FormatsTable(QWidget *parent)
         this->setCellWidget(it.value().index + 1, 2, categ_label);
     }
     delCategPixmaps();
+}
+
+FormatsTable::~FormatsTable()
+{
+    delete corner_fmt_pixmap;
 }
 
 void FormatsTable::prepCategPixmaps()

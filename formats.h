@@ -19,9 +19,8 @@ using u8i  = quint8;
 #define RECOGNIZE_FUNC_DECL_RETURN static u64i
 #define RECOGNIZE_FUNC_RETURN u64i
 
-#define MAX_SIGN_SIZE 4  // максимальный размер сигнатуры
-#define MIN_RESOURCE_SIZE 32  // должно быть кратно MAX_SIGN_SIZE
-#define MAX_TRACKMANS 4 // ограничение на количество одновременных обходчиков
+#define MAX_SIGNATURE_SIZE 4  // максимальный размер сигнатуры
+#define MIN_RESOURCE_SIZE 32  // должно быть кратно MAX_SIGNATURE_SIZE
 
 // Все возможные категории ресурсов
 extern const u64i CAT_NONE;
