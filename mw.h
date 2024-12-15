@@ -28,6 +28,7 @@ extern Settings settings;
 
 enum class FilterAction { Include = 0, Exclude = 1, MAX };
 
+
 class FilterButton: public QLabel {
     Q_OBJECT
     FilterAction my_action;
@@ -45,6 +46,7 @@ signals:
     void imReleased(FilterAction action, u64i categories);
 };
 
+
 class FormatLabel: public QLabel {
     Q_OBJECT
     void mousePressEvent(QMouseEvent *event);
@@ -57,6 +59,7 @@ public slots:
     void rxToggle();
 };
 
+
 class DescriptionLabel: public QLabel {
     Q_OBJECT
     void mousePressEvent(QMouseEvent *event);
@@ -67,6 +70,7 @@ signals:
     void txToggle();
 };
 
+
 class CategoryLabel: public QLabel {
     Q_OBJECT
     void mousePressEvent(QMouseEvent *event);
@@ -75,6 +79,7 @@ public:
 signals:
     void txToggle();
 };
+
 
 class FormatsTable: public QTableWidget {
     Q_OBJECT
@@ -89,40 +94,6 @@ public slots:
     void rxCommand(FilterAction action, u64i categories);
 };
 
-// class CentralWidget: public QLabel {
-//     Q_OBJECT
-//     OneStateButton play_button {this, ":/gui/main/play.png", ":/gui/main/play_h.png"};
-//     OneStateButton add_file_button {this, ":/gui/main/afile.png", ":/gui/main/afile_h.png"};
-//     OneStateButton add_dir_button {this, ":/gui/main/adir.png", ":/gui/main/adir_h.png"};
-//     OneStateButton settings_button {this, ":/gui/main/setts.png", ":/gui/main/setts_h.png"};
-//     OneStateButton minimize_button {this, ":/gui/main/min.png", ":gui/main//min_h.png"};
-//     OneStateButton close_button {this, ":/gui/main/close.png", ":/gui/main/close_h.png"};
-//     TwoStatesButton scrup_button {this, &settings.config.scrupulous, ":/gui/main/scrpm_off.png", ":/gui/main/scrpm_on.png", ":/gui/main/scrpm_off_h.png", ":/gui/main/scrpm_on_h.png"};
-//     DynamicInfoButton *paths_button;
-//     QLabel version_label {VERSION_TEXT, this};
-//     QLabel tasks_label {this};
-//     QLabel scrup_label {this};
-//     FormatsTable formats_table {this};
-//     void mouseMoveEvent(QMouseEvent *event);
-//     void mousePressEvent(QMouseEvent *event);
-//     void changeEvent(QEvent *event);
-//     FilterButton* includeButtons[MAX_FILTERS];
-//     FilterButton* excludeButtons[MAX_FILTERS];
-//     QPixmap filter_main_pixmaps  [2] { {":/gui/main/incl.png"},   {":/gui/main/excl.png"}   }; // [0] - for include, [1] - for exclude
-//     QPixmap filter_hover_pixmaps [2] { {":/gui/main/incl_h.png"}, {":/gui/main/excl_h.png"} }; // [0] - for include, [1] - for exclude
-//     DirlistWindow *_dirlist;
-//     QLabel *categ_labels[MAX_FILTERS];
-// public:
-//     CentralWidget(QWidget *parent, DirlistWindow *dirlist);
-// public slots:
-//     void addFiles();
-//     void addDir();
-//     void showSettings();
-//     void showNewSessionWindow();
-// signals:
-//     void txFilenames(QStringList filenames);
-//     void txDirname(QString dirname);
-// };
 
 class MainWindow: public QWidget {
     Q_OBJECT

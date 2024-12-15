@@ -15,6 +15,9 @@
 #define DIRTABLE_COL0_W 32
 #define DIRTABLE_COL1_W 59
 
+class MainWindow;
+class DirlistWindow;
+
 class YesNoMicroButton: public QLabel {
     Q_OBJECT
     QPixmap* main_pixmap[2];
@@ -58,7 +61,8 @@ public slots:
 class DirlistTable: public QTableWidget {
     Q_OBJECT
     QCommonStyle *my_style;
-    void fillHeaderZeroRow();
+    void fill_header();
+    void update_header();
 public:
     DirlistTable(QWidget *parent = nullptr);
     ~DirlistTable();
@@ -68,6 +72,8 @@ signals:
 public slots:
     void rxRemoveRow(u32i row_index);
     void rxRemoveAll();
+
+    friend DirlistWindow;
 };
 
 class CornerGrip: public QLabel {
@@ -104,10 +110,10 @@ class DirlistWindow: public QWidget {
     QLabel footer_left {this};
     QLabel footer_hfiller {this};
     QLabel footer_right {this};
-    QLabel infoText {this};
-    QLabel trashcanLbl {this};
-    QLabel trashcanText {&trashcanLbl};
-    OneStateButton cleanAll {&trashcanLbl, ":/gui/dirlist/tc_btn.png", ":/gui/dirlist/tc_btn_h.png"};
+    QLabel info_label {this};
+    QLabel trashcan_label {this};
+    QLabel trashcan_text {&trashcan_label};
+    OneStateButton cleanAll {&trashcan_label, ":/gui/dirlist/tc_btn.png", ":/gui/dirlist/tc_btn_h.png"};
     OneStateButton close_button {this, ":/gui/dirlist/dlw_close.png", ":/gui/dirlist/dlw_close_h.png"};
     OneStateButton minimize_button {this, ":/gui/dirlist/dlw_min.png", ":/gui/dirlist/dlw_min_h.png"};
     CornerGrip grip {&footer_right};
@@ -122,13 +128,15 @@ class DirlistWindow: public QWidget {
     void mousePressEvent(QMouseEvent *event);
     void paintEvent(QPaintEvent *event);
     void changeEvent(QEvent *event);
-public:
     DirlistTable dirtable {this};
+public:
     DirlistWindow(QWidget *parent);
 public slots:
     void rxAddFilenames(QStringList filenames);
     void rxAddDirname(QString dirname);
     void rxDiffXY(int x_diff, int y_diff);
+
+    friend MainWindow;
 };
 
 #endif // DLW_H

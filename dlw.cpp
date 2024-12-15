@@ -12,7 +12,7 @@ extern Task     task;
 
 const QString dirlist_info_txt[int(Langs::MAX)]
 {
-    "To toggle directory recursion, set Yes or No\nin \"Recursion\" column",
+    "To toggle directory recursion,\nset Yes or No in \"Recursion\" column",
     "Для переключения рекурсивного обхода каталога\nвыберите Yes или No в колонке \"Рекурсия\""
 };
 
@@ -174,11 +174,11 @@ DirlistTable::DirlistTable(QWidget *parent)
     my_style = new QCommonStyle;
     this->verticalScrollBar()->setStyle(my_style);
     this->verticalScrollBar()->setStyleSheet(   ":vertical {background-color: #7e7b5f; width: 10px}"
-                                             "::handle:vertical {background-color: #6e6b4f; border-radius: 5px; min-height: 48px}"
-                                             "::sub-line:vertical {height: 0px}"
-                                             "::add-line:vertical {height: 0px}");
+                                                "::handle:vertical {background-color: #6e6b4f; border-radius: 5px; min-height: 48px}"
+                                                "::sub-line:vertical {height: 0px}"
+                                                "::add-line:vertical {height: 0px}");
 
-    fillHeaderZeroRow();
+    fill_header();
 
     QFont tmpFont {*skin_font()};
     tmpFont.setBold(true);
@@ -195,18 +195,26 @@ DirlistTable::~DirlistTable()
     delete my_style;
 }
 
-void DirlistTable::fillHeaderZeroRow()
+void DirlistTable::fill_header()
 {
     QFont tmpFont {*skin_font()};
     tmpFont.setPixelSize(12);
     tmpFont.setBold(true);
-    for (u32i column = 0; column <= 2; ++column) {  // выставляем настройки всех трёх колонок строки 0, которая вместо обычного заголовка таблицы
+    for (u32i column = 0; column <= 2; ++column) // выставляем настройки всех трёх колонок строки 0, которая вместо обычного заголовка таблицы
+    {
         auto header_label = new QLabel(dirtable_header_txt[curr_lang()][column]);
         header_label->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-        //header_label->setFont(column0_font);
         header_label->setFont(tmpFont);
-        header_label->setStyleSheet("color: #c7c7c7");
+        header_label->setStyleSheet("color: #e7e7e7");
         this->setCellWidget(0, column, header_label);
+    }
+}
+
+void DirlistTable::update_header()
+{
+    for (u32i column = 0; column <= 2; ++column) // выставляем настройки всех трёх колонок строки 0, которая вместо обычного заголовка таблицы
+    {
+        ((QLabel*)this->cellWidget(0, column))->setText(dirtable_header_txt[curr_lang()][column]);
     }
 }
 
@@ -229,7 +237,7 @@ void DirlistTable::rxRemoveAll()
     this->setUpdatesEnabled(false); // чтобы виджет не перерисовывался, пока идёт изменение количества строк
     task.delAllTaskPaths();
     this->clear();
-    fillHeaderZeroRow();
+    fill_header();
     emit txUpdatePathsButton();
     this->setUpdatesEnabled(true); // закончили изменения, можно перерисоваться
 }
@@ -339,29 +347,34 @@ DirlistWindow::DirlistWindow(QWidget *parent)
     tmpFont.setItalic(true);
     tmpFont.setBold(false);
     tmpFont.setPixelSize(12);
-    infoText.setStyleSheet("color: #fffef9"/*;  background-color: #009167"*/);
-    infoText.setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-    infoText.setFont(tmpFont);
-    infoText.setText(dirlist_info_txt[curr_lang()]);
-    infoText.resize(368, 32);
-    infoText.move(36, current_height - 44);
+
+    info_label.setFixedSize(368, 32);
+    info_label.setStyleSheet("color: #fffef9"/*;  background-color: #009167"*/);
+    info_label.setFont(tmpFont);
+    info_label.setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    info_label.move(36, current_height - 44);
+    info_label.setText(dirlist_info_txt[curr_lang()]);
 
     close_button.move(current_width - 128, current_height - 40);
     minimize_button.move(current_width - 88, current_height - 40);
 
     tmpPixmap.load(":/gui/dirlist/tc_lbl.png");
-    trashcanLbl.resize(tmpPixmap.size());
-    trashcanLbl.setPixmap(tmpPixmap);
-    tclWidthHalf =  trashcanLbl.width() / 2;
-    trashcanLbl.move(432 + (((current_width - 132) - 432)/2 - tclWidthHalf), current_height - 45);
+    trashcan_label.resize(tmpPixmap.size());
+    trashcan_label.setPixmap(tmpPixmap);
+    tclWidthHalf =  trashcan_label.width() / 2;
+    trashcan_label.move(432 + (((current_width - 132) - 432)/2 - tclWidthHalf), current_height - 45);
+
     tmpFont.setItalic(false);
     tmpFont.setBold(false);
     tmpFont.setPixelSize(13);
-    trashcanText.setStyleSheet("color: #fffef9"/*;  background-color: #009167"*/);
-    trashcanText.setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-    trashcanText.setFont(tmpFont);
-    trashcanText.setText(trash_can_txt[curr_lang()]);
-    trashcanText.move(16, 8);
+
+    trashcan_text.setFixedSize(128, 24);
+    trashcan_text.setStyleSheet("color: #fffef9"/*;  background-color: #009167"*/);
+    trashcan_text.setFont(tmpFont);
+    trashcan_text.setAlignment(Qt::AlignCenter);
+    trashcan_text.move(16, 6);
+    trashcan_text.setText(trash_can_txt[curr_lang()]);
+
     cleanAll.move(148, 5);
 
     connect(&cleanAll, &OneStateButton::imReleased, &dirtable, &DirlistTable::rxRemoveAll);
@@ -403,8 +416,8 @@ void DirlistWindow::paintEvent(QPaintEvent *event)
     dirtable_width  = current_width - 48;
     dirtable_height = current_height - footer_height - 8;
     dirtable.resize(dirtable_width, dirtable_height);
-    infoText.move(36, current_height - 44);
-    trashcanLbl.move(432 + (((current_width - 132) - 432)/2 - tclWidthHalf), current_height - 45);
+    info_label.move(36, current_height - 44);
+    trashcan_label.move(432 + (((current_width - 132) - 432)/2 - tclWidthHalf), current_height - 45);
     close_button.move(current_width - 128, current_height - 40);
     minimize_button.move(current_width - 88, current_height - 40);
 }
@@ -413,8 +426,9 @@ void DirlistWindow::changeEvent(QEvent *event)
 {
     if ( event->type() == QEvent::LanguageChange )
     {
-        qInfo() << "DirlistWindow have received language change event";
-
+        info_label.setText(dirlist_info_txt[curr_lang()]);
+        trashcan_text.setText(trash_can_txt[curr_lang()]);
+        dirtable.update_header();
     }
     event->accept();
 }
