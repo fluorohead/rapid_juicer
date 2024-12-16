@@ -36,8 +36,8 @@ public:
     SessionWindow(u32i session_id);
     ~SessionWindow();
 public slots:
-    void rxGeneralProgress(QString remaining, int percentage_value);
-    void rxFileProgress(QString file_name, int percentage_value);
+    void rxGeneralProgress(QString remaining, u64i percentage_value);
+    void rxFileProgress(QString file_name, u64i percentage_value);
 };
 
 

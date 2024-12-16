@@ -35,12 +35,15 @@ class WalkerThread: public QThread
     void prepare_structures_before_engine(); // подготавливает selected_formats_fast, tree_dw, tree_w;
     void clean_structures_after_engine();    // освобождает selected_formats_fast, tree_dw, tree_w;
 
+    QSet <QString> uniq_signature_names_dw; // множества для отбора уникальных сигнатур по ключу сигнатур
+    QSet <QString> uniq_signature_names_w; // ...
+
 public:
     WalkerThread(SessionWindow* window_receiver, QMutex* control_mtx, const Task &task, const Config &config, const QSet<QString> &formats_to_scan);
     ~WalkerThread();
     void run();
 signals:
-    void txGeneralProgress(QString remaining, int percents);
+    void txGeneralProgress(QString remaining, u64i percents);
     void txImPaused();
     void txImResumed();
 

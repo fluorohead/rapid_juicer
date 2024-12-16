@@ -74,7 +74,7 @@ const QString cancel_txt[int(Langs::MAX)]
     "Cancel",  "Отмена"
 };
 
-extern const QList<u64i> permitted_buffers {2, 10, 50}; // разрешённые размеры буфера чтения (в мегабайтах)
+extern const QList<u64i> permitted_buffers {2, 10, 50, 100, 200}; // разрешённые размеры буфера чтения (в мегабайтах)
 
 const QString QS_LANGUAGE  {"lang_idx"};
 const QString QS_BUFF_IDX  {"buff_idx"};
@@ -218,7 +218,7 @@ Settings::Settings()
             }
             else
             {
-                qInfo() << "error during opening settings file or size is too big (possibly hacked)";
+                qInfo() << "error during opening settings file or size is too big (possibly corrupted)";
             }
         }
     }

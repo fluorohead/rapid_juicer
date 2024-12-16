@@ -319,7 +319,8 @@ void SessionWindow::create_and_start_walker()
     // task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\Icon_six_Circle.png)", "", false});
     // task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\LN2_Avatar_Mono_Square.png)", "", false});
 
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\LN2_Avatar_Six_Square.png)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\LN2_Avatar_Six_Square.png)", "", false});
+    task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     if ( !task.task_paths.empty() and !settings.selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
     {
@@ -407,13 +408,13 @@ SessionWindow::~SessionWindow()
     qInfo() << "Session window destroyed";
 }
 
-void SessionWindow::rxGeneralProgress(QString remaining, int percentage_value)
+void SessionWindow::rxGeneralProgress(QString remaining, u64i percentage_value)
 {
     // qInfo() << "thread" << QThread::currentThreadId() << ": general progress is" << percentage_value << "%";
     general_progress_bar->setValue(percentage_value);
 }
 
-void SessionWindow::rxFileProgress(QString file_name, int percentage_value)
+void SessionWindow::rxFileProgress(QString file_name, u64i percentage_value)
 {
     // qInfo() << "thread" << QThread::currentThreadId() << ": file progress is" << percentage_value << "%";
     QString tmp_fn = reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN);

@@ -24,7 +24,7 @@ WalkerThread::~WalkerThread()
 inline void WalkerThread::update_general_progress(int paths_total, int current_path_index)
 {
     s64i current_msecs = QDateTime::currentMSecsSinceEpoch();
-    int general_progress = ( current_path_index == paths_total ) ? 100 : ((current_path_index + 1) * 100) / paths_total; // там, где current_path_index+1 - т.к. это индекс и он начинается с 0
+    u64i general_progress = ( current_path_index == paths_total ) ? 100 : ((current_path_index + 1) * 100) / paths_total; // там, где current_path_index+1 - т.к. это индекс и он начинается с 0
     if ( ( current_msecs < previous_msecs ) or ( current_msecs - previous_msecs >= MIN_SIGNAL_INTERVAL_MSECS ) )
     {
         previous_msecs = current_msecs;
@@ -111,9 +111,6 @@ void WalkerThread::prepare_structures_before_engine()
     Signature **signatures_array_w  = new Signature*[global_signs_num]; // массив word-сигнатур для поиска  (массив указателей на элементы структуры signatures)
     // ^^^для простоты выделяем памяти на всё кол-во известных сигнатур; реально используемое кол-во будет хранится в amount_(d)w
 
-    QSet <QString> uniq_signature_names_dw; // множества для отбора уникальных сигнатур по ключу сигнатур
-    QSet <QString> uniq_signature_names_w; // ...
-
     selected_formats_fast = new bool[fformats.size()];
 
     uniq_signature_names_dw.reserve(global_signs_num);
@@ -174,12 +171,12 @@ void WalkerThread::prepare_structures_before_engine()
 
     // формируем АВЛ-деревья для сигнатур типа dword и word
     int avl_index = 0;
-    prepare_avl_tree(tree_dw, signatures_array_dw, 0, amount_dw - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
+    if ( amount_dw > 0 ) prepare_avl_tree(tree_dw, signatures_array_dw, 0, amount_dw - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
     avl_index = 0;
-    prepare_avl_tree(tree_w, signatures_array_w, 0, amount_w - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
+    if ( amount_w > 0 )  prepare_avl_tree(tree_w, signatures_array_w, 0, amount_w - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
 
-    print_avl_tree(tree_dw, amount_dw);
-    print_avl_tree(tree_w, amount_w);
+    // print_avl_tree(tree_dw, amount_dw);
+    // print_avl_tree(tree_w, amount_w);
 
     // освобождаем массивы signs_to_scan_(d)w, т.к. дерево построили и они больше не нужны
     delete [] signatures_array_dw;
@@ -215,7 +212,9 @@ void WalkerThread::run()
             qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : main \"for\" : scanning file \""<< walker_task.task_paths[tp_idx].path;
 
             /////  запуск поискового движка
-            engine->scan_file(walker_task.task_paths[tp_idx].path);
+            s64i fix_msecs = QDateTime::currentMSecsSinceEpoch();
+            engine->scan_file_v3(walker_task.task_paths[tp_idx].path);
+            qInfo() << "scan_file worked for:" << (QDateTime::currentMSecsSinceEpoch() - fix_msecs) << "msecs";
             /////
 
             ///// анализ причин завершения функции scan_file()
@@ -252,7 +251,7 @@ void WalkerThread::run()
                         qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : \"for\" in lambda : scanning file \""<< file_infolist[idx].absoluteFilePath();
 
                         //// тут запуск поискового движка
-                        engine->scan_file(file_infolist[idx].absoluteFilePath());
+                        engine->scan_file_v1(file_infolist[idx].absoluteFilePath());
                         if ( command == WalkerCommand::Stop ) // функция scan_file завершилась по команде Stop => выходим из while (и потом сразу из lambda for, а потом сразу из главного for)
                         {
                             qInfo() << " >>>> WalkerThread : received Stop command, when Engine was running! (in lambda)";

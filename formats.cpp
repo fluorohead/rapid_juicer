@@ -101,7 +101,7 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "tif", {CAT_IMAGE, CAT_OUTDATED, CAT_PERFRISK}, CAT_RASTER | CAT_MOTOROLA, {"tiff_mm"}, 0, /*true,*/ "" } },
     { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "tga", {CAT_IMAGE, CAT_OUTDATED, CAT_NONE}, CAT_RASTER, {"tga_tc32"}, 0, /*true,*/ "" } },
     { "jpg",      { "JPEG File Interchange Format", "", "jpg", {CAT_IMAGE, CAT_NONE, CAT_NONE}, CAT_RASTER, {"jfif_soi", "jfif_eoi"}, 0, /*true, */"" } },
-    { "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
+    //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 
 void indexFilesFormats() {

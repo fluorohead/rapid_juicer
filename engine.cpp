@@ -33,7 +33,8 @@ Engine::Engine(WalkerThread *walker_parent)
     command = &my_walker_parent->command;
     control_mutex = my_walker_parent->walker_control_mutex;
     scrupulous = my_walker_parent->walker_config.scrupulous;
-    read_buffer_size = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx);
+    read_buffer_size = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
+    qInfo() << "READ_BUFFER_SIZE" << read_buffer_size;
     total_buffer_size = read_buffer_size + MAX_SIGNATURE_SIZE/*4*/;
     amount_dw = my_walker_parent->amount_dw;
     amount_w  = my_walker_parent->amount_w;
@@ -50,71 +51,7 @@ Engine::~Engine()
     qInfo() << "Engine destructor called in thread id" << QThread::currentThreadId();
 }
 
-void Engine::scan_file(const QString &file_name)
-{
-    /// выставление начальных значений важных переменных
-    previous_file_progress = 0;
-    previous_msecs = QDateTime::currentMSecsSinceEpoch();
-    /// здесь открываем новый файл
-
-    ///
-
-    int file_size = 1024;
-    int total_readed_bytes = 0;
-
-    for (int read_count = 0; read_count < 4; ++read_count) // эмуляция итерационных чтений файла в буфер
-    {
-        //// lambda
-        auto scanner = [&]() /// основной движок (сейчас эмуляция)
-        {
-            qInfo() << "  :: iteration reading from file to buffer";
-            QThread::msleep(500);
-            total_readed_bytes += (1024 / 4); // искусственно, для отладки. в реальном коде переменная должна хранить действительное количество считанных байт.
-        };
-        //// lambda
-
-        switch (*command)
-        {
-        case WalkerCommand::Run:
-            scanner(); // один проход по буферу
-            break;
-        case WalkerCommand::Stop:
-            qInfo() << "-> Engine: i'm stopped due to Stop command";
-            read_count = 4;  // условие выхода из внешнего цикла (сейчас это for) чтения файла
-            break;
-        case WalkerCommand::Pause:
-            qInfo() << "-> Engine: i'm paused due to Pause command";
-            emit my_walker_parent->txImPaused();
-            control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
-            // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
-            control_mutex->unlock();
-            if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
-            {
-                read_count = 4; // условие выхода из внешнего цикла (сейчас это for) чтения файла
-                break;
-            }
-            emit my_walker_parent->txImResumed();
-            qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
-            break;
-        case WalkerCommand::Skip:
-            qInfo() << " >>>> Engine : current file skipped :" << file_name;
-            *command = WalkerCommand::Run;
-            read_count = 4;  // условие выхода из внешнего цикла (сейчас это for) чтения файла
-            break;
-        }
-
-        update_file_progress(file_name, file_size, total_readed_bytes); // посылаем сигнал обновить progress bar для файла
-    }
-
-    /// здесь закрываем файл
-    ///
-    ///
-
-    qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
-    return;
-}
-
-void Engine::scan_file_v2(const QString &file_name)
+void Engine::scan_file_v1(const QString &file_name)
 {
     file.setFileName(file_name);
     if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( (file.size() < MIN_RESOURCE_SIZE) ) )
@@ -132,6 +69,152 @@ void Engine::scan_file_v2(const QString &file_name)
     TreeNode *tree_w  = my_walker_parent->tree_w;
     u64i resource_size;
     s64i save_restore_seek; // перед вызовом recognizer'а запоминаем последнюю позицию в файле, т.к. recognizer может перемещать позицию для дополнительных чтений
+    s64i file_size = file.size();
+    //////////////////////////////////////////////////////////////
+
+    ////// выставление начальных значений важных переменных //////
+    previous_file_progress = 0;
+    previous_msecs = QDateTime::currentMSecsSinceEpoch();
+    zero_phase = true;
+    *(u32i *)(&scanbuf_ptr[0]) = special_signature;
+    signature_file_pos = 0 - MAX_SIGNATURE_SIZE; // начинаем со значения -4, чтобы компенсировать нулевую фазу
+    //////////////////////////////////////////////////////////////
+
+    do /// цикл итерационных чтений из файла
+    {
+
+        last_read_amount = file.read((char *)fillbuf_ptr, read_buffer_size); // размер хвоста
+        // на нулевой фазе минимальный хвост должен быть >= MIN_RESOURCE_SIZE;
+        // на ненелувой фазе должен быть >= (MIN_RESOURCE_SIZE - 4), т.к. в начальных 4 байтах буфера уже что-то есть и это не спец-заполнитель
+        if ( last_read_amount < (MIN_RESOURCE_SIZE - (!zero_phase) * MAX_SIGNATURE_SIZE) ) // ищём только в достаточном отрезке, иначе пропускаем короткий файл или недостаточно длинный хвост
+        {
+            break; // слишком короткий хвост -> выход из do-while итерационных чтений
+        }
+
+        for (scanbuf_offset = 0; scanbuf_offset < last_read_amount; ++scanbuf_offset) // цикл прохода по буферу dword-сигнатур
+        {
+            node = &tree_dw[0]; // для каждого очередного dword'а выставляем текущий узел в [0] индекс дерева, т.к. у бинарных деревьев это корень
+            analyzed_dword = *(u32i *)(scanbuf_ptr + scanbuf_offset);
+
+            do /// цикл обхода авл-дерева
+            {
+                if ( node != nullptr )
+                {
+                    if ( analyzed_dword == node->signature.as_u64i ) // совпадение сигнатуры!
+                    {
+                        if ( file.size() - signature_file_pos >= MIN_RESOURCE_SIZE )
+                        {
+                            save_restore_seek = file.pos();
+                            resource_size = node->signature.recognizer_ptr(this); // вызов функции-распознавателя через указатель
+                            file.seek(save_restore_seek);
+                        }
+                        break;
+                    }
+                    if ( analyzed_dword > node->signature.as_u64i )
+                    { // переход в правое поддерево
+                        node = node->right;
+                    }
+                    else
+                    { // иначе переход в левое поддерево
+                        node = node->left;
+                    }
+                }
+                else // достигли nullptr, значит в дереве не было совпадений
+                {
+                    break;
+                }
+            } while ( true );
+            /// end of avl-tree do-while
+
+            ++signature_file_pos; // счётчик позиции сигнатуры в файле
+         }
+        /// end of for
+
+        //qInfo() << "  :: iteration reading from file to buffer";
+        //QThread::msleep(2000);
+
+        switch (*command) // проверка на поступление команды управления
+        {
+        case WalkerCommand::Stop:
+            qInfo() << "-> Engine: i'm stopped due to Stop command";
+            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            break;
+        case WalkerCommand::Pause:
+            qInfo() << "-> Engine: i'm paused due to Pause command";
+            emit my_walker_parent->txImPaused();
+            control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
+            // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
+            control_mutex->unlock();
+            if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
+            {
+                last_read_amount = 0; // условие выхода из внешнего цикла do-while итерационных чтений файла
+                break;
+            }
+            emit my_walker_parent->txImResumed();
+            qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
+            break;
+        case WalkerCommand::Skip:
+            qInfo() << " >>>> Engine : current file skipped :" << file_name;
+            *command = WalkerCommand::Run;
+            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            break;
+        default:; // сюда в случае WalkerCommand::Run
+        }
+
+        update_file_progress(file_name, file_size, signature_file_pos + 4); // посылаем сигнал обновить progress bar для файла
+        *(u32i *)(&scanbuf_ptr[0]) = *(u32i *)(&scanbuf_ptr[read_buffer_size]); // копируем последние 4 байта в начало буфера scanbuf_ptr
+        zero_phase = false;
+
+    } while ( last_read_amount == read_buffer_size );
+    /// end of do-while итерационных чтений из файла
+
+    qInfo() << "closing file";
+    qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
+    file.close();
+}
+
+void Engine::scan_file_v2(const QString &file_name)
+{
+    file.setFileName(file_name);
+    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( (file.size() < MIN_RESOURCE_SIZE) ) )
+    {
+        return;
+    }
+
+    ////// объявление рабочих переменных на стеке (так эффективней, чем в классе) //////
+    s64i last_read_amount; // количество прочитанного из файла за последнюю операцию чтения
+    bool zero_phase; // индикатор нулевой фазы, когда первые 4 байта заполнены специальной сигнатурой
+    u64i scanbuf_offset; // текущее смещение в буфере scanbuf_ptr
+    u32i analyzed_dword;
+    u64i resource_size;
+    s64i save_restore_seek; // перед вызовом recognizer'а запоминаем последнюю позицию в файле, т.к. recognizer может перемещать позицию для дополнительных чтений
+    s64i file_size = file.size();
+
+    u64i selected_signatures_array[amount_dw]; // на стэке; массив будет неупорядоченным
+    u64i selected_recognizers_array[amount_dw];
+
+    QList<s64i> found_db;
+    int s_idx = 0;
+    for (auto &&signature_name: my_walker_parent->uniq_signature_names_dw)
+    {
+        qInfo() << "uniq_signature_selected:" << signature_name;
+        selected_signatures_array[s_idx] = signatures[signature_name].as_u64i;
+        selected_recognizers_array[s_idx] = (u64i) signatures[signature_name].recognizer_ptr;
+        ++s_idx;
+    }
+    qInfo() << "amount_dw:" << amount_dw;
+    qInfo() << "[0]:" << QString::number(selected_signatures_array[0], 16);
+    qInfo() << "[1]:" << QString::number(selected_signatures_array[1], 16);
+    qInfo() << "[2]:" << QString::number(selected_signatures_array[2], 16);
+    qInfo() << "[3]:" << QString::number(selected_signatures_array[3], 16);
+    qInfo() << "[4]:" << QString::number(selected_signatures_array[4], 16);
+    qInfo() << "[5]:" << QString::number(selected_signatures_array[5], 16);
+    qInfo() << "[6]:" << QString::number(selected_signatures_array[6], 16);
+    qInfo() << "[7]:" << QString::number(selected_signatures_array[7], 16);
+    qInfo() << "[8]:" << QString::number(selected_signatures_array[8], 16);
+    qInfo() << "[9]:" << QString::number(selected_signatures_array[9], 16);
+    qInfo() << "[10]:" << QString::number(selected_signatures_array[10], 16);
+    qInfo() << "[11]:" << QString::number(selected_signatures_array[11], 16);
     //////////////////////////////////////////////////////////////
 
     ////// выставление начальных значений важных переменных //////
@@ -152,75 +235,195 @@ void Engine::scan_file_v2(const QString &file_name)
             break; // слишком короткий хвост -> выход из do-while итерационных чтений
         }
 
-        for (scanbuf_offset = 0; scanbuf_offset < last_read_amount; ++scanbuf_offset)
+        for (scanbuf_offset = 0; scanbuf_offset < last_read_amount; ++scanbuf_offset) // цикл прохода по буферу dword-сигнатур
         {
-            node = &tree_dw[0]; // для каждого очередного dword'а выставляем текущий узел в [0] индекс дерева, т.к. у бинарных деревьев это корень
             analyzed_dword = *(u32i *)(scanbuf_ptr + scanbuf_offset);
-            do /// цикл обхода авл-дерева
+
+            for (int s_idx = 0; s_idx < amount_dw; ++s_idx)
             {
-                if ( node != nullptr )
+                if ( analyzed_dword == selected_signatures_array[s_idx])
                 {
-                    if ( analyzed_dword == node->signature.as_u64i ) // совпадение сигнатуры!
-                    {
-                        if ( file.size() - signature_file_pos >= MIN_RESOURCE_SIZE )
-                        {
-                            save_restore_seek = file.pos();
-                            resource_size = node->signature.recognizer_ptr(this); // вызов функции-распознавателя через указатель
-                            file.seek(save_restore_seek);
-                        }
-                        break;
-                    }
-                    else // сигнатура не совпала, значит идём в поддеревья
-                    {
-                        if ( analyzed_dword > node->signature.as_u64i )
-                        { // переход в правое поддерево
-                            node = node->right;
-                        }
-                        else
-                        { // иначе переход в левое поддерево
-                            node = node->left;
-                        }
-                    }
-                }
-                else // достигли nullptr, значит в дереве не было совпадений
-                {
+                    recognize_special(this);
                     break;
                 }
-            } while ( true );
-            /// end of avl-tree do-while
+            }
 
-            signature_file_pos++; // счётчик позиции сигнатуры в файле
-         }
+            ++signature_file_pos; // счётчик позиции сигнатуры в файле
+        }
         /// end of for
 
-         *(u32i *)(&scanbuf_ptr[0]) = *(u32i *)(&scanbuf_ptr[read_buffer_size]); // копируем последние 4 байта в начало буфера scanbuf_ptr
+        //qInfo() << "  :: iteration reading from file to buffer";
+        //QThread::msleep(2000);
+
+        switch (*command) // проверка на поступление команды управления
+        {
+        case WalkerCommand::Stop:
+            qInfo() << "-> Engine: i'm stopped due to Stop command";
+            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            break;
+        case WalkerCommand::Pause:
+            qInfo() << "-> Engine: i'm paused due to Pause command";
+            emit my_walker_parent->txImPaused();
+            control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
+            // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
+            control_mutex->unlock();
+            if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
+            {
+                last_read_amount = 0; // условие выхода из внешнего цикла do-while итерационных чтений файла
+                break;
+            }
+            emit my_walker_parent->txImResumed();
+            qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
+            break;
+        case WalkerCommand::Skip:
+            qInfo() << " >>>> Engine : current file skipped :" << file_name;
+            *command = WalkerCommand::Run;
+            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            break;
+        default:; // сюда в случае WalkerCommand::Run
+        }
+
+        update_file_progress(file_name, file_size, signature_file_pos + 4); // посылаем сигнал обновить progress bar для файла
+        *(u32i *)(&scanbuf_ptr[0]) = *(u32i *)(&scanbuf_ptr[read_buffer_size]); // копируем последние 4 байта в начало буфера scanbuf_ptr
         zero_phase = false;
+
     } while ( last_read_amount == read_buffer_size );
     /// end of do-while итерационных чтений из файла
 
+    qInfo() << "closing file";
+    qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
+    file.close();
+}
+
+void Engine::scan_file_v3(const QString &file_name)
+{
+    file.setFileName(file_name);
+    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( (file.size() < MIN_RESOURCE_SIZE) ) )
+    {
+        return;
+    }
+
+    ////// объявление рабочих переменных на стеке (так эффективней, чем в классе) //////
+    s64i last_read_amount; // количество прочитанного из файла за последнюю операцию чтения
+    bool zero_phase; // индикатор нулевой фазы, когда первые 4 байта заполнены специальной сигнатурой
+    u64i scanbuf_offset; // текущее смещение в буфере scanbuf_ptr
+    u64i current_ptr;
+    u32i analyzed_dword;
+    u64i resource_size;
+    s64i save_restore_seek; // перед вызовом recognizer'а запоминаем последнюю позицию в файле, т.к. recognizer может перемещать позицию для дополнительных чтений
+    s64i file_size = file.size();
+    //////////////////////////////////////////////////////////////
+
+    ////// выставление начальных значений важных переменных //////
+    previous_file_progress = 0;
+    previous_msecs = QDateTime::currentMSecsSinceEpoch();
+    zero_phase = true;
+    *(u32i *)(&scanbuf_ptr[0]) = special_signature;
+    signature_file_pos = 0 - MAX_SIGNATURE_SIZE; // начинаем со значения -4, чтобы компенсировать нулевую фазу
+    //////////////////////////////////////////////////////////////
+
+    do /// цикл итерационных чтений из файла
+    {
+
+        last_read_amount = file.read((char *)fillbuf_ptr, read_buffer_size); // размер хвоста
+        // на нулевой фазе минимальный хвост должен быть >= MIN_RESOURCE_SIZE;
+        // на ненелувой фазе должен быть >= (MIN_RESOURCE_SIZE - 4), т.к. в начальных 4 байтах буфера уже что-то есть и это не спец-заполнитель
+        if ( last_read_amount < (MIN_RESOURCE_SIZE - (!zero_phase) * MAX_SIGNATURE_SIZE) ) // ищём только в достаточном отрезке, иначе пропускаем короткий файл или недостаточно длинный хвост
+        {
+            break; // слишком короткий хвост -> выход из do-while итерационных чтений
+        }
+
+        for (scanbuf_offset = 0; scanbuf_offset < last_read_amount; ++scanbuf_offset) // цикл прохода по буферу dword-сигнатур
+        {
+            analyzed_dword = *(u32i *)(scanbuf_ptr + scanbuf_offset);
+
+            { // линейный поиск
+                if ( analyzed_dword == 0x0000000000020000) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x00000000002A4949) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x000000000801040A) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x000000000801050A) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x000000001801040A) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x000000001801050A) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x000000002A004D4D) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x0000000038464947) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x0000000046464952) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x00000000474E5089) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x000000004D524F46) { recognize_special(this); break; }
+                if ( analyzed_dword == 0x00000000E0FFD8FF) { recognize_special(this); break; }
+            }
+
+            ++signature_file_pos; // счётчик позиции сигнатуры в файле
+        }
+        /// end of for
+
+        //qInfo() << "  :: iteration reading from file to buffer";
+        //QThread::msleep(2000);
+
+        switch (*command) // проверка на поступление команды управления
+        {
+        case WalkerCommand::Stop:
+            qInfo() << "-> Engine: i'm stopped due to Stop command";
+            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            break;
+        case WalkerCommand::Pause:
+            qInfo() << "-> Engine: i'm paused due to Pause command";
+            emit my_walker_parent->txImPaused();
+            control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
+            // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
+            control_mutex->unlock();
+            if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
+            {
+                last_read_amount = 0; // условие выхода из внешнего цикла do-while итерационных чтений файла
+                break;
+            }
+            emit my_walker_parent->txImResumed();
+            qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
+            break;
+        case WalkerCommand::Skip:
+            qInfo() << " >>>> Engine : current file skipped :" << file_name;
+            *command = WalkerCommand::Run;
+            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            break;
+        default:; // сюда в случае WalkerCommand::Run
+        }
+
+        update_file_progress(file_name, file_size, signature_file_pos + 4); // посылаем сигнал обновить progress bar для файла
+        *(u32i *)(&scanbuf_ptr[0]) = *(u32i *)(&scanbuf_ptr[read_buffer_size]); // копируем последние 4 байта в начало буфера scanbuf_ptr
+        zero_phase = false;
+
+    } while ( last_read_amount == read_buffer_size );
+    /// end of do-while итерационных чтений из файла
+
+    update_file_progress(file_name, file_size, signature_file_pos + 4); // на всякий ещё раз обновляет прогресс, т.к. мог быть выход из do-while через break и поэтому последний update_file_progress() не вызвался
+
+    qInfo() << "closing file";
+    qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
     file.close();
 }
 
 
-inline void Engine::update_file_progress(const QString &file_name, int file_size, int total_readed_bytes)
+void Engine::update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes)
 {
+    u64i current_file_progress = (total_readed_bytes * 100) / file_size;
+    if ( current_file_progress == previous_file_progress )
+    {
+        return;
+    }
     s64i current_msecs = QDateTime::currentMSecsSinceEpoch();
-    int current_file_progress = ( total_readed_bytes >= file_size ) ? 100 : (total_readed_bytes * 100) / file_size;
-
-    if ( (( current_msecs < previous_msecs ) or ( current_msecs - previous_msecs >= MIN_SIGNAL_INTERVAL_MSECS )) and (current_file_progress > previous_file_progress) )
+    if ( ( current_msecs < previous_msecs ) or ( current_msecs - previous_msecs >= MIN_SIGNAL_INTERVAL_MSECS ) )
     {
         previous_msecs = current_msecs;
         previous_file_progress = current_file_progress;
         emit txFileProgress(file_name, current_file_progress);
-        return;
     }
-
-    qInfo() << "    !!! Engine :: NO! I WILL NOT SEND SIGNALS CAUSE IT'S TOO OFTEN!";
+//    qInfo() << "    !!! Engine :: NO! I WILL NOT SEND SIGNALS CAUSE IT'S TOO OFTEN!";
 }
 
 // функция-заглушка для обработки технической сигнатуры
 RECOGNIZE_FUNC_RETURN Engine::recognize_special RECOGNIZE_FUNC_HEADER
 {
-    qInfo() << "special signature found at file_pos" << e->signature_file_pos;
+    static u64i hits_counter = 0;
+    ++hits_counter;
+    //qInfo() << "some signature found at file_pos" << e->signature_file_pos;
     return 0;
 }

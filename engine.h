@@ -44,7 +44,7 @@ class Engine: public QObject
     WalkerCommand *command;
     QMutex *control_mutex; // тот же мьютекс, что использует WalkerThread и основной поток
     s64i previous_msecs; // должно быть инициализировано значением QDateTime::currentMSecsSinceEpoch(); до первого вызова update_file_progress()
-    int previous_file_progress;
+    u64i previous_file_progress;
     WalkerThread *my_walker_parent;
 
     static const u32i special_signature;
@@ -60,12 +60,13 @@ class Engine: public QObject
     u8i *fillbuf_ptr {nullptr}; // указатель на главный буфер + 4; наполнение главного буфера всегда происходит с этого смещения, но сканирование с 0
     s64i signature_file_pos {0}; // позиция сигнатуры в файле
 
-    void update_file_progress(const QString &file_name, int file_size, int total_readed_bytes);
+    void update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes);
 public:
     Engine(WalkerThread *walker_parent);
     ~Engine();
-    void scan_file(const QString &file_name); // возвращает смещение в файле, где произошёл останов функции, чтобы потом можно было возобновить сканирование с этого места
-    void scan_file_v2(const QString &file_name);
+    void scan_file_v1(const QString &file_name); // по dword-сигнатурам через авл-дерево в буфере
+    void scan_file_v2(const QString &file_name); // по dword-сигнатурам через линейный поиск в буфере
+    void scan_file_v3(const QString &file_name); // по dword-сигнатурам через пачку if'ов
 
     RECOGNIZE_FUNC_DECL_RETURN recognize_special RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_bmp RECOGNIZE_FUNC_HEADER;
@@ -79,7 +80,7 @@ public:
     // RECOGNIZE_FUNC_DECL_RETURN recognize_jfif_soi RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_jfif_eoi RECOGNIZE_FUNC_HEADER; // всегда должна возвращать 0 (или 2? обдумать)
 signals:
-    void txFileProgress(QString file_name, int percentage_value);
+    void txFileProgress(QString file_name, u64i percentage_value);
 };
 
 #endif // ENGINE_H
