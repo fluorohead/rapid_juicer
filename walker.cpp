@@ -317,7 +317,7 @@ void WalkerThread::run()
     }
 
     // финальный аккорд, обнуляем графику для file progress
-    emit engine->txFileProgress("", 0);
+    //emit engine->txFileProgress("", 0);
 
     clean_structures_after_engine();
 }

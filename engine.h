@@ -66,6 +66,7 @@ public:
     ~Engine();
     void scan_file_v1(const QString &file_name); // по dword-сигнатурам через авл-дерево в буфере
     void scan_file_v2(const QString &file_name); // по dword-сигнатурам через линейный поиск в буфере
+    void extracted(u32i &analyzed_dword);
     void scan_file_v3(const QString &file_name); // по dword-сигнатурам через пачку if'ов
 
     RECOGNIZE_FUNC_DECL_RETURN recognize_special RECOGNIZE_FUNC_HEADER;
@@ -80,7 +81,7 @@ public:
     // RECOGNIZE_FUNC_DECL_RETURN recognize_jfif_soi RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_jfif_eoi RECOGNIZE_FUNC_HEADER; // всегда должна возвращать 0 (или 2? обдумать)
 signals:
-    void txFileProgress(QString file_name, u64i percentage_value);
+    void txFileProgress(QString file_name, s64i percentage_value);
 };
 
 #endif // ENGINE_H

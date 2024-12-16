@@ -193,7 +193,6 @@ void Engine::scan_file_v2(const QString &file_name)
     u64i selected_signatures_array[amount_dw]; // на стэке; массив будет неупорядоченным
     u64i selected_recognizers_array[amount_dw];
 
-    QList<s64i> found_db;
     int s_idx = 0;
     for (auto &&signature_name: my_walker_parent->uniq_signature_names_dw)
     {
@@ -203,18 +202,6 @@ void Engine::scan_file_v2(const QString &file_name)
         ++s_idx;
     }
     qInfo() << "amount_dw:" << amount_dw;
-    qInfo() << "[0]:" << QString::number(selected_signatures_array[0], 16);
-    qInfo() << "[1]:" << QString::number(selected_signatures_array[1], 16);
-    qInfo() << "[2]:" << QString::number(selected_signatures_array[2], 16);
-    qInfo() << "[3]:" << QString::number(selected_signatures_array[3], 16);
-    qInfo() << "[4]:" << QString::number(selected_signatures_array[4], 16);
-    qInfo() << "[5]:" << QString::number(selected_signatures_array[5], 16);
-    qInfo() << "[6]:" << QString::number(selected_signatures_array[6], 16);
-    qInfo() << "[7]:" << QString::number(selected_signatures_array[7], 16);
-    qInfo() << "[8]:" << QString::number(selected_signatures_array[8], 16);
-    qInfo() << "[9]:" << QString::number(selected_signatures_array[9], 16);
-    qInfo() << "[10]:" << QString::number(selected_signatures_array[10], 16);
-    qInfo() << "[11]:" << QString::number(selected_signatures_array[11], 16);
     //////////////////////////////////////////////////////////////
 
     ////// выставление начальных значений важных переменных //////
@@ -320,12 +307,13 @@ void Engine::scan_file_v3(const QString &file_name)
     zero_phase = true;
     *(u32i *)(&scanbuf_ptr[0]) = special_signature;
     signature_file_pos = 0 - MAX_SIGNATURE_SIZE; // начинаем со значения -4, чтобы компенсировать нулевую фазу
+    qInfo() << "start signature_file_pos:" << signature_file_pos;
     //////////////////////////////////////////////////////////////
 
     do /// цикл итерационных чтений из файла
     {
-
         last_read_amount = file.read((char *)fillbuf_ptr, read_buffer_size); // размер хвоста
+
         // на нулевой фазе минимальный хвост должен быть >= MIN_RESOURCE_SIZE;
         // на ненелувой фазе должен быть >= (MIN_RESOURCE_SIZE - 4), т.к. в начальных 4 байтах буфера уже что-то есть и это не спец-заполнитель
         if ( last_read_amount < (MIN_RESOURCE_SIZE - (!zero_phase) * MAX_SIGNATURE_SIZE) ) // ищём только в достаточном отрезке, иначе пропускаем короткий файл или недостаточно длинный хвост
@@ -333,30 +321,78 @@ void Engine::scan_file_v3(const QString &file_name)
             break; // слишком короткий хвост -> выход из do-while итерационных чтений
         }
 
-        for (scanbuf_offset = 0; scanbuf_offset < last_read_amount; ++scanbuf_offset) // цикл прохода по буферу dword-сигнатур
+        for (scanbuf_offset = 0; scanbuf_offset < last_read_amount; ++scanbuf_offset) // цикл прохода по буферу
         {
             analyzed_dword = *(u32i *)(scanbuf_ptr + scanbuf_offset);
 
-            { // линейный поиск
-                if ( analyzed_dword == 0x0000000000020000) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x00000000002A4949) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x000000000801040A) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x000000000801050A) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x000000001801040A) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x000000001801050A) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x000000002A004D4D) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x0000000038464947) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x0000000046464952) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x00000000474E5089) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x000000004D524F46) { recognize_special(this); break; }
-                if ( analyzed_dword == 0x00000000E0FFD8FF) { recognize_special(this); break; }
+            /// поисковый движок
+            {
+words:
+            switch ((u16i)analyzed_dword)
+            {
+            case 0x4D42:
+                recognize_special(this);
+                break;
+            case 0xD9FF:
+                recognize_special(this);
+                break;
             }
+dwords:
+            if ( analyzed_dword >= 0x2A004D4D ) goto second_half;
+first_half:
+            switch (analyzed_dword)
+            {
+            case 0x00020000:
+                recognize_special(this);
+                break;
+            case 0x002A4949:
+                recognize_special(this);
+                break;
+            case 0x0801040A:
+                recognize_special(this);
+                break;
+            case 0x0801050A:
+                recognize_special(this);
+                break;
+            case 0x1801040A:
+                recognize_special(this);
+                break;
+            case 0x1801050A:
+                recognize_special(this);
+                break;
+            }
+            goto end;
+second_half:
+            switch (analyzed_dword)
+            {
+            case 0x2A004D4D:
+                recognize_special(this);
+                break;
+            case 0x38464947:
+                recognize_special(this);
+                break;
+            case 0x46464952:
+                recognize_special(this);
+                break;
+            case 0x474E5089:
+                recognize_special(this);
+                break;
+            case 0x4D524F46:
+                recognize_special(this);
+                break;
+            case 0xE0FFD8FF:
+                recognize_special(this);
+                break;
+            }
+            }
+            ///
+end:
 
             ++signature_file_pos; // счётчик позиции сигнатуры в файле
         }
         /// end of for
 
-        //qInfo() << "  :: iteration reading from file to buffer";
+        //qInfo() << "  :: iterational reading from file to buffer";
         //QThread::msleep(2000);
 
         switch (*command) // проверка на поступление команды управления
@@ -394,17 +430,15 @@ void Engine::scan_file_v3(const QString &file_name)
     } while ( last_read_amount == read_buffer_size );
     /// end of do-while итерационных чтений из файла
 
-    update_file_progress(file_name, file_size, signature_file_pos + 4); // на всякий ещё раз обновляет прогресс, т.к. мог быть выход из do-while через break и поэтому последний update_file_progress() не вызвался
-
     qInfo() << "closing file";
     qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
     file.close();
 }
 
 
-void Engine::update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes)
+inline void Engine::update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes)
 {
-    u64i current_file_progress = (total_readed_bytes * 100) / file_size;
+    s64i current_file_progress = (total_readed_bytes * 100) / file_size;
     if ( current_file_progress == previous_file_progress )
     {
         return;

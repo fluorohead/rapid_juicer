@@ -414,9 +414,9 @@ void SessionWindow::rxGeneralProgress(QString remaining, u64i percentage_value)
     general_progress_bar->setValue(percentage_value);
 }
 
-void SessionWindow::rxFileProgress(QString file_name, u64i percentage_value)
+void SessionWindow::rxFileProgress(QString file_name, s64i percentage_value)
 {
-    // qInfo() << "thread" << QThread::currentThreadId() << ": file progress is" << percentage_value << "%";
+    //qInfo() << "thread" << QThread::currentThreadId() << ": file progress is" << percentage_value << "%";
     QString tmp_fn = reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN);
     current_file_label->setText(reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN));
     file_progress_bar->setValue(percentage_value);
