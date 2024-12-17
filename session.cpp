@@ -321,6 +321,7 @@ void SessionWindow::create_and_start_walker()
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\LN2_Avatar_Six_Square.png)", "", false});
     task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Artbook\LN2_Artbook_DIGITAL.pdf)", "", false});
 
     if ( !task.task_paths.empty() and !settings.selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
     {

@@ -24,9 +24,6 @@ int main(int argc, char *argv[])
 
     settings.initSkin();
 
-    u32i abc = 0xaabbccdd;
-    qInfo() << QString::number((u16i)abc, 16);
-
     indexFilesFormats();
 
     // qInfo() << "Main process id (uint64):" << QApplication::applicationPid();

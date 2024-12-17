@@ -213,7 +213,7 @@ void WalkerThread::run()
 
             /////  запуск поискового движка
             s64i fix_msecs = QDateTime::currentMSecsSinceEpoch();
-            engine->scan_file_v3(walker_task.task_paths[tp_idx].path);
+            engine->scan_file_v4(walker_task.task_paths[tp_idx].path);
             qInfo() << "scan_file worked for:" << (QDateTime::currentMSecsSinceEpoch() - fix_msecs) << "msecs";
             /////
 

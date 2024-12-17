@@ -59,15 +59,17 @@ class Engine: public QObject
     u8i *auxbuf_ptr  {nullptr}; // вспомогательный буфер для recognizer'ов размером AUX_BUFFER_SIZE
     u8i *fillbuf_ptr {nullptr}; // указатель на главный буфер + 4; наполнение главного буфера всегда происходит с этого смещения, но сканирование с 0
     s64i signature_file_pos {0}; // позиция сигнатуры в файле
-
+    s64i file_size;
+    u64i scanbuf_offset; // текущее смещение в буфере map_scanbuf_ptr
     void update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes);
+    bool enough_room_to_proceed(u64i min_size); // достаточно ли места min_size до конца файла, чтобы проверить заголовок сигнатуры
+    u64i hits {0};
 public:
     Engine(WalkerThread *walker_parent);
     ~Engine();
     void scan_file_v1(const QString &file_name); // по dword-сигнатурам через авл-дерево в буфере
     void scan_file_v2(const QString &file_name); // по dword-сигнатурам через линейный поиск в буфере
-    void extracted(u32i &analyzed_dword);
-    void scan_file_v3(const QString &file_name); // по dword-сигнатурам через пачку if'ов
+    void scan_file_v4(const QString &file_name); // по dword-сигнатурам через switch-case и file mapping
 
     RECOGNIZE_FUNC_DECL_RETURN recognize_special RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_bmp RECOGNIZE_FUNC_HEADER;

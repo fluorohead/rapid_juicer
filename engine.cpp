@@ -282,159 +282,137 @@ void Engine::scan_file_v2(const QString &file_name)
     file.close();
 }
 
-void Engine::scan_file_v3(const QString &file_name)
+void Engine::scan_file_v4(const QString &file_name)
 {
     file.setFileName(file_name);
-    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( (file.size() < MIN_RESOURCE_SIZE) ) )
+    file_size = file.size();
+    qInfo() << "file_size:" << file_size;
+    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( ( file.size() < MIN_RESOURCE_SIZE ) ) )
     {
         return;
     }
-
-    ////// объявление рабочих переменных на стеке (так эффективней, чем в классе) //////
-    s64i last_read_amount; // количество прочитанного из файла за последнюю операцию чтения
-    bool zero_phase; // индикатор нулевой фазы, когда первые 4 байта заполнены специальной сигнатурой
-    u64i scanbuf_offset; // текущее смещение в буфере scanbuf_ptr
-    u64i current_ptr;
-    u32i analyzed_dword;
-    u64i resource_size;
-    s64i save_restore_seek; // перед вызовом recognizer'а запоминаем последнюю позицию в файле, т.к. recognizer может перемещать позицию для дополнительных чтений
-    s64i file_size = file.size();
-    //////////////////////////////////////////////////////////////
-
-    ////// выставление начальных значений важных переменных //////
-    previous_file_progress = 0;
-    previous_msecs = QDateTime::currentMSecsSinceEpoch();
-    zero_phase = true;
-    *(u32i *)(&scanbuf_ptr[0]) = special_signature;
-    signature_file_pos = 0 - MAX_SIGNATURE_SIZE; // начинаем со значения -4, чтобы компенсировать нулевую фазу
-    qInfo() << "start signature_file_pos:" << signature_file_pos;
-    //////////////////////////////////////////////////////////////
-
-    do /// цикл итерационных чтений из файла
+    uchar *map_scanbuf_ptr = file.map(0, file_size);
+    if ( map_scanbuf_ptr == nullptr )
     {
-        last_read_amount = file.read((char *)fillbuf_ptr, read_buffer_size); // размер хвоста
+        qInfo() << "unsuccesfull file to memory mapping";
+        return;
+    }
+    ////// объявление рабочих переменных на стеке (так эффективней, чем в классе) //////
+    u64i start_offset;
+    u64i last_offset = 0; // =0 - важно!
+    u32i analyzed_dword;
+    u64i iteration;
+    u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
+    u64i tale_size = file_size % granularity;
+    u64i max_iterations = file_size / granularity + ((tale_size == 0) ? 0 : 1);
+    qInfo() << "max_iterations:" << max_iterations;
+    //////////////////////////////////////////////////////////////
 
-        // на нулевой фазе минимальный хвост должен быть >= MIN_RESOURCE_SIZE;
-        // на ненелувой фазе должен быть >= (MIN_RESOURCE_SIZE - 4), т.к. в начальных 4 байтах буфера уже что-то есть и это не спец-заполнитель
-        if ( last_read_amount < (MIN_RESOURCE_SIZE - (!zero_phase) * MAX_SIGNATURE_SIZE) ) // ищём только в достаточном отрезке, иначе пропускаем короткий файл или недостаточно длинный хвост
+    for (iteration = 1; iteration <= max_iterations; ++iteration)
+    {
+        start_offset = last_offset;
+        last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : (last_offset += tale_size);
+        for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
         {
-            break; // слишком короткий хвост -> выход из do-while итерационных чтений
-        }
-
-        for (scanbuf_offset = 0; scanbuf_offset < last_read_amount; ++scanbuf_offset) // цикл прохода по буферу
-        {
-            analyzed_dword = *(u32i *)(scanbuf_ptr + scanbuf_offset);
-
-            /// поисковый движок
+            analyzed_dword = *(u32i*)(map_scanbuf_ptr + scanbuf_offset);
+            /// сравнение с сигнатурами
             {
-words:
-            switch ((u16i)analyzed_dword)
+        words:
+            switch ((u16i)analyzed_dword) // усечение старших 16 бит, чтобы остались только младшие 16
             {
-            case 0x4D42:
-                recognize_special(this);
-                break;
-            case 0xD9FF:
-                recognize_special(this);
-                break;
+                case 0x4D42:
+                    recognize_special(this);
+                    break;
+                case 0xD9FF:
+                    recognize_special(this);
+                    break;
             }
-dwords:
+        dwords:
             if ( analyzed_dword >= 0x2A004D4D ) goto second_half;
-first_half:
+        first_half:
             switch (analyzed_dword)
             {
-            case 0x00020000:
-                recognize_special(this);
-                break;
-            case 0x002A4949:
-                recognize_special(this);
-                break;
-            case 0x0801040A:
-                recognize_special(this);
-                break;
-            case 0x0801050A:
-                recognize_special(this);
-                break;
-            case 0x1801040A:
-                recognize_special(this);
-                break;
-            case 0x1801050A:
-                recognize_special(this);
-                break;
+                case 0x00020000:
+                    recognize_special(this);
+                    break;
+                case 0x002A4949:
+                    recognize_special(this);
+                    break;
+                case 0x0801040A:
+                    recognize_special(this);
+                    break;
+                case 0x0801050A:
+                    recognize_special(this);
+                    break;
+                case 0x1801040A:
+                    recognize_special(this);
+                    break;
+                case 0x1801050A:
+                    recognize_special(this);
+                    break;
             }
             goto end;
-second_half:
+        second_half:
             switch (analyzed_dword)
             {
-            case 0x2A004D4D:
-                recognize_special(this);
-                break;
-            case 0x38464947:
-                recognize_special(this);
-                break;
-            case 0x46464952:
-                recognize_special(this);
-                break;
-            case 0x474E5089:
-                recognize_special(this);
-                break;
-            case 0x4D524F46:
-                recognize_special(this);
-                break;
-            case 0xE0FFD8FF:
-                recognize_special(this);
-                break;
+                case 0x2A004D4D:
+                    recognize_special(this);
+                    break;
+                case 0x38464947:
+                    recognize_special(this);
+                    break;
+                case 0x46464952:
+                    recognize_special(this);
+                    break;
+                case 0x474E5089:
+                    recognize_special(this);
+                    break;
+                case 0x4D524F46:
+                    recognize_special(this);
+                    break;
+                case 0xE0FFD8FF:
+                    recognize_special(this);
+                    break;
             }
+        end:
+            ;
             }
-            ///
-end:
-
-            ++signature_file_pos; // счётчик позиции сигнатуры в файле
         }
-        /// end of for
-
-        //qInfo() << "  :: iterational reading from file to buffer";
-        //QThread::msleep(2000);
-
         switch (*command) // проверка на поступление команды управления
         {
-        case WalkerCommand::Stop:
-            qInfo() << "-> Engine: i'm stopped due to Stop command";
-            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
-            break;
-        case WalkerCommand::Pause:
-            qInfo() << "-> Engine: i'm paused due to Pause command";
-            emit my_walker_parent->txImPaused();
-            control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
-            // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
-            control_mutex->unlock();
-            if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
-            {
-                last_read_amount = 0; // условие выхода из внешнего цикла do-while итерационных чтений файла
+            case WalkerCommand::Stop:
+                qInfo() << "-> Engine: i'm stopped due to Stop command";
+                iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
                 break;
-            }
-            emit my_walker_parent->txImResumed();
-            qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
-            break;
-        case WalkerCommand::Skip:
-            qInfo() << " >>>> Engine : current file skipped :" << file_name;
-            *command = WalkerCommand::Run;
-            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
-            break;
-        default:; // сюда в случае WalkerCommand::Run
+            case WalkerCommand::Pause:
+                qInfo() << "-> Engine: i'm paused due to Pause command";
+                emit my_walker_parent->txImPaused();
+                control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
+                // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
+                control_mutex->unlock();
+                if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
+                {
+                    iteration = max_iterations; // условие выхода из внешнего цикла do-while итерационных чтений файла
+                    break;
+                }
+                emit my_walker_parent->txImResumed();
+                qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
+                break;
+            case WalkerCommand::Skip:
+                qInfo() << " >>>> Engine : current file skipped :" << file_name;
+                *command = WalkerCommand::Run;
+                iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+                break;
+            default:; // сюда в случае WalkerCommand::Run
         }
-
-        update_file_progress(file_name, file_size, signature_file_pos + 4); // посылаем сигнал обновить progress bar для файла
-        *(u32i *)(&scanbuf_ptr[0]) = *(u32i *)(&scanbuf_ptr[read_buffer_size]); // копируем последние 4 байта в начало буфера scanbuf_ptr
-        zero_phase = false;
-
-    } while ( last_read_amount == read_buffer_size );
-    /// end of do-while итерационных чтений из файла
+        update_file_progress(file_name, file_size, scanbuf_offset); // посылаем сигнал обновить progress bar для файла
+     }
 
     qInfo() << "closing file";
     qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
+    file.unmap(map_scanbuf_ptr);
     file.close();
 }
-
 
 inline void Engine::update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes)
 {
@@ -449,15 +427,27 @@ inline void Engine::update_file_progress(const QString &file_name, u64i file_siz
         previous_msecs = current_msecs;
         previous_file_progress = current_file_progress;
         emit txFileProgress(file_name, current_file_progress);
+        //return; // нужен только в случае, если далее идёт qInfo(), иначе return можно удалить
     }
 //    qInfo() << "    !!! Engine :: NO! I WILL NOT SEND SIGNALS CAUSE IT'S TOO OFTEN!";
+}
+
+bool Engine::enough_room_to_proceed(u64i min_size)
+{
+    if ( file_size - scanbuf_offset >= min_size )
+    {
+        return true;
+    }
+    return false;
 }
 
 // функция-заглушка для обработки технической сигнатуры
 RECOGNIZE_FUNC_RETURN Engine::recognize_special RECOGNIZE_FUNC_HEADER
 {
-    static u64i hits_counter = 0;
-    ++hits_counter;
-    //qInfo() << "some signature found at file_pos" << e->signature_file_pos;
+    if ( e->enough_room_to_proceed(10) )
+    {
+        ++(e->hits);
+    }
+
     return 0;
 }

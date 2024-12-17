@@ -454,7 +454,13 @@ void DirlistWindow::rxAddFilenames(QStringList filenames)
 
 void DirlistWindow::rxAddDirname(QString dirname)
 {
+    // в dirname путь с перевёрнутыми слэшами a'la linux
+
     if ((*paths_count < DIRTABLE_MAX_PATHS) and (!task.isTaskPathPresent(dirname))) {
+        if ( ( dirname.length() > 1 ) and ( dirname.endsWith('/') ) ) // чтобы исключить добавление пути "C:/", к которому потом прицепится второй '/' : поэтому удаляем '/', если он есть и если это не linux (len > 1)
+        {
+            dirname.removeLast();
+        }
         task.addTaskPath(TaskPath {dirname, settings.config.file_mask, settings.config.recursion});
         auto delete_button = new DeleteMicroButton(nullptr, *paths_count, &delete_pixmap, &delete_hover_pixmap);
         delete_button->setFixedSize(delete_pixmap.size());
