@@ -4,6 +4,8 @@
 #include <QDebug>
 #include <QDateTime>
 
+extern const QMap <u32i, QString> wave_codecs;
+
 QMap <QString, Signature> signatures { // в QMap значения будут автоматически упорядочены по ключам
     // ключ (он же сигнатура формата)
     // |
@@ -376,7 +378,7 @@ void Engine::scan_file_v4(const QString &file_name)
                     recognize_special(this);
                     break;
                 case 0x46464952:
-                    recognize_special(this);
+                    recognize_riff(this);
                     break;
                 case 0x474E5089:
                     recognize_png(this);
@@ -493,8 +495,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
         u32i crc;
     };
 #pragma pack(pop)
-    static const u32i format_index = fformats["png"].index;
-    static constexpr u64i min_room_need = sizeof(FileHeader) + sizeof(ChunkHeader) + sizeof(IHDRData) + sizeof(CRC);
+    static const u32i format_id = fformats["png"].index;
+    static const u64i min_room_need = sizeof(FileHeader) + sizeof(ChunkHeader) + sizeof(IHDRData) + sizeof(CRC);
     static const QSet <u8i>  VALID_BIT_DEPTH  {1, 2, 4, 8, 16};
     static const QSet <u8i>  VALID_COLOR_TYPE {0, 2, 3, 4, 6};
     static const QSet <u8i>  VALID_INTERLACE  {0, 1};
@@ -504,7 +506,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
                                                    0x42475273 /*sRGB*/, 0x52455473 /*sTER*/, 0x4C414370 /*pCAL*/, 0x47495364 /*dSIG*/, 0x50434369 /*iCCP*/, 0x50434963 /*iICP*/, 0x7643446D /*mDCv*/,
                                                    0x694C4C63 /*cLLi*/, 0x74585469 /*iTXt*/, 0x744C5073 /*sPLt*/, 0x66495865 /*eXIf*/, 0x52444849 /*iHDR*/};
 
-    if ( ( !e->selected_formats[format_index] ) ) return 0;
+    if ( ( !e->selected_formats[format_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -548,7 +550,83 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
     }
     QString info = QString(R"(%1x%2 (%3))").arg(QString::number(be2le(ihdr_data->width)),
                                                 QString::number(be2le(ihdr_data->height)),
-                                                color_type);
+                                                color_type );
     emit e->txResourceFound("png", e->file.fileName(), base_index, resource_size, info);
+    return last_index;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct ChunkHeader
+    {
+        u32i chunk_id; /*RIFF*/
+        u32i chunk_size;
+        u64i subchunk_id; /*AVI LIST*/ /*WAVEfmt */ /*RMIDdata*/
+        u32i subchunk_size;
+    };
+    struct AviInfoHeader
+    {
+        u64i hdrl_avih_sign;
+        u32i sub_subchunk_size;
+        u32i time_between_frames, max_date_rate, padding, flags, total_num_of_frames, num_of_init_frames, num_of_streams, suggested_buf_size;
+        u32i width, height, time_scale, data_rate, start_time, data_len;
+    };
+    struct WavInfoHeader
+    {
+        u16i fmt_code;
+        u16i chans;
+        u32i smp_rate, avg_bytes_per_sec;
+        u16i blk_align, bits_per_smp, ext_size, valid_bits_per_smp;
+        u32i chan_mask;
+        u8i  sub_format[16];
+    };
+    struct MidHeader
+    {
+
+    };
+#pragma pack(pop)
+    static u32i avi_id {fformats["avi"].index};
+    static u32i wav_id {fformats["wav"].index};
+    static u32i rmi_id {fformats["rmi"].index};
+    static const u64i min_room_need = sizeof(ChunkHeader);
+    static const QSet <u64i> VALID_SUBCHUNK_TYPE { 0x5453494C20495641 /*AVI LIST*/, 0x20746D6645564157 /*WAVEfmt */, 0x6174616444494D52 /*RMIDdata*/} ;
+    if ( ( !e->selected_formats[avi_id] ) and ( !e->selected_formats[wav_id] ) and ( e->selected_formats[rmi_id] ) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    s64i file_size = e->file_size;
+    u64i last_index = (*((ChunkHeader*)(&buffer[base_index]))).chunk_size + sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size);
+    if ( base_index + last_index > file_size ) return 0; // неверное поле chunk_size
+    if ( !VALID_SUBCHUNK_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->subchunk_id) ) return 0; // проверка на валидные id сабчанков: AVI LIST, WAVEfmt , RMIDdata
+    u64i resource_size = last_index - base_index;
+    switch (((ChunkHeader*)(&buffer[base_index]))->subchunk_id)
+    {
+    case 0x5453494C20495641: // avi
+    {
+        if ( resource_size < (sizeof(ChunkHeader) + sizeof(AviInfoHeader)) ) return 0;
+        AviInfoHeader *avi_info_header = (AviInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        if ( avi_info_header->hdrl_avih_sign != 0x686976616C726468 /*hdrlavih*/ ) return 0;
+        QString info = QString(R"(%1x%2)").arg( QString::number(avi_info_header->width),
+                                                QString::number(avi_info_header->height) );
+        emit e->txResourceFound("avi", e->file.fileName(), base_index, resource_size, info);
+        break;
+    }
+    case 0x20746D6645564157: // wav
+    {
+        if ( resource_size < (sizeof(ChunkHeader) + sizeof(WavInfoHeader)) ) return 0;
+        WavInfoHeader *wav_info_header = (WavInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        QString codec_name = ( wave_codecs.contains(wav_info_header->fmt_code) ) ? wave_codecs[wav_info_header->fmt_code] : "unknown";
+        QString info = QString(R"(%1 codec : %2-bit %3Hz %4-ch)").arg(  codec_name,
+                                                                        QString::number(wav_info_header->bits_per_smp),
+                                                                        QString::number(wav_info_header->smp_rate),
+                                                                        QString::number(wav_info_header->chans) );
+        emit e->txResourceFound("wav", e->file.fileName(), base_index, resource_size, info);
+        break;
+    }
+    case 0x6174616444494D52: // rmi
+
+        break;
+    }
     return last_index;
 }
