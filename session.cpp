@@ -320,8 +320,9 @@ void SessionWindow::create_and_start_walker()
     // task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\LN2_Avatar_Mono_Square.png)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Avatars\LN2_Avatar_Six_Square.png)", "", false});
-    task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rjmt\test\Artbook\LN2_Artbook_DIGITAL.pdf)", "", false});
+    task.addTaskPath(TaskPath {R"(c:\Downloads\mgts-logo-crop.png)", "", false});
 
     if ( !task.task_paths.empty() and !settings.selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
     {
@@ -421,6 +422,14 @@ void SessionWindow::rxFileProgress(QString file_name, s64i percentage_value)
     QString tmp_fn = reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN);
     current_file_label->setText(reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN));
     file_progress_bar->setValue(percentage_value);
+}
+
+void SessionWindow::rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info)
+{
+    qInfo() << "---\nThread:" << QThread::currentThreadId();
+    qInfo() << "resource" << format_name.toUpper() << "found at pos:" << file_offset << "; size:"<< size << "bytes";
+    qInfo() << "in file:" << file_name;
+    qInfo() << "additional info:" << info << "\n---";
 }
 
 void SessionWindow::mouseMoveEvent(QMouseEvent *event)

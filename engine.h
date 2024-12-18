@@ -46,6 +46,7 @@ class Engine: public QObject
     s64i previous_msecs; // должно быть инициализировано значением QDateTime::currentMSecsSinceEpoch(); до первого вызова update_file_progress()
     u64i previous_file_progress;
     WalkerThread *my_walker_parent;
+    bool *selected_formats;
 
     static const u32i special_signature;
 
@@ -62,7 +63,8 @@ class Engine: public QObject
     s64i file_size;
     u64i scanbuf_offset; // текущее смещение в буфере map_scanbuf_ptr
     void update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes);
-    bool enough_room_to_proceed(u64i min_size); // достаточно ли места min_size до конца файла, чтобы проверить заголовок сигнатуры
+    bool enough_room_to_continue(u64i min_size); // достаточно ли места min_size до конца файла, чтобы проверить заголовок сигнатуры
+    uchar *mmf_scanbuf;
     u64i hits {0};
 public:
     Engine(WalkerThread *walker_parent);
@@ -73,7 +75,7 @@ public:
 
     RECOGNIZE_FUNC_DECL_RETURN recognize_special RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_bmp RECOGNIZE_FUNC_HEADER;
-    // RECOGNIZE_FUNC_DECL_RETURN recognize_png RECOGNIZE_FUNC_HEADER;
+    RECOGNIZE_FUNC_DECL_RETURN recognize_png RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_riff RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_iff RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_gif RECOGNIZE_FUNC_HEADER;
@@ -84,6 +86,7 @@ public:
     // RECOGNIZE_FUNC_DECL_RETURN recognize_jfif_eoi RECOGNIZE_FUNC_HEADER; // всегда должна возвращать 0 (или 2? обдумать)
 signals:
     void txFileProgress(QString file_name, s64i percentage_value);
+    void txResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
 };
 
 #endif // ENGINE_H

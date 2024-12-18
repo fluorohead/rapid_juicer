@@ -38,6 +38,7 @@ public:
 public slots:
     void rxGeneralProgress(QString remaining, u64i percentage_value);
     void rxFileProgress(QString file_name, s64i percentage_value);
+    void rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
 };
 
 

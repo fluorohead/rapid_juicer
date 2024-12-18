@@ -195,10 +195,11 @@ void WalkerThread::run()
     prepare_structures_before_engine();
 
     engine = new Engine(this);
-    previous_msecs = QDateTime::currentMSecsSinceEpoch();
-
+    connect(engine, &Engine::txResourceFound, my_receiver, &SessionWindow::rxResourceFound, Qt::DirectConnection); // исполнение слота не в основном, а в текущем потоке!
     connect(this, &WalkerThread::txGeneralProgress, my_receiver, &SessionWindow::rxGeneralProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
     connect(engine, &Engine::txFileProgress, my_receiver, &SessionWindow::rxFileProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
+
+    previous_msecs = QDateTime::currentMSecsSinceEpoch();
 
     int tp_count = walker_task.task_paths.count();
     int general_progress;
