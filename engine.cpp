@@ -9,25 +9,36 @@ extern const QMap <u32i, QString> wave_codecs;
 QMap <QString, Signature> signatures { // в QMap значения будут автоматически упорядочены по ключам
     // ключ (он же сигнатура формата)
     // |
-    // V                       00RREEZZ
-    { "special",    {0x000000003052455A, 4, Engine::recognize_special } }, // "ZER0" zero-phase buffer filler
-    { "bmp",        {0x0000000000004D42, 2, Engine::recognize_special } }, // "BM"
-    { "pcx4_8",     {0x000000000801040A, 4, Engine::recognize_special } }, // временная заглушка
-    { "pcx4_24",    {0x000000001801040A, 4, Engine::recognize_special } }, // временная заглушка
-    { "pcx5_8",     {0x000000000801050A, 4, Engine::recognize_special } }, // временная заглушка
-    { "pcx5_24",    {0x000000001801050A, 4, Engine::recognize_special } }, // временная заглушка
-    { "png",        {0x00000000474E5089, 4, Engine::recognize_special } }, // "\x89PNG"
-    { "riff",       {0x0000000046464952, 4, Engine::recognize_special } }, // "RIFF"
-    { "iff",        {0x000000004D524F46, 4, Engine::recognize_special } }, // "FORM"
-    { "gif",        {0x0000000038464947, 4, Engine::recognize_special } }, // "GIF8"
-    { "tiff_ii",    {0x00000000002A4949, 4, Engine::recognize_special } }, // "II\0x2A\0x00"
-    { "tiff_mm",    {0x000000002A004D4D, 4, Engine::recognize_special } }, // "MM\0x00\0x2A"
-    { "tga_tc32",   {0x0000000000020000, 4, Engine::recognize_special } }, // "\0x00\0x00\0x02\0x00"
-    { "jfif_soi",   {0x00000000E0FFD8FF, 4, Engine::recognize_special } }, // "\0xFF\0xD8\0xFF\0xE0"
-    { "jfif_eoi",   {0x000000000000D9FF, 2, Engine::recognize_special } }, // "\0xFF\0xD9" маркер конца изображения
+    // V                        00RREEZZ
+    { "special",    { 0x000000003052455A, 4, Engine::recognize_special } }, // "ZER0" zero-phase buffer filler
+    { "bmp",        { 0x0000000000004D42, 2, Engine::recognize_special } }, // "BM"
+    { "pcx4_8",     { 0x000000000801040A, 4, Engine::recognize_special } }, // временная заглушка
+    { "pcx4_24",    { 0x000000001801040A, 4, Engine::recognize_special } }, // временная заглушка
+    { "pcx5_8",     { 0x000000000801050A, 4, Engine::recognize_special } }, // временная заглушка
+    { "pcx5_24",    { 0x000000001801050A, 4, Engine::recognize_special } }, // временная заглушка
+    { "png",        { 0x00000000474E5089, 4, Engine::recognize_special } }, // "\x89PNG"
+    { "riff",       { 0x0000000046464952, 4, Engine::recognize_special } }, // "RIFF"
+    { "iff",        { 0x000000004D524F46, 4, Engine::recognize_special } }, // "FORM"
+    { "gif",        { 0x0000000038464947, 4, Engine::recognize_special } }, // "GIF8"
+    { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_special } }, // "II\0x2A\0x00"
+    { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_special } }, // "MM\0x00\0x2A"
+    { "tga_tc32",   { 0x0000000000020000, 4, Engine::recognize_special } }, // "\0x00\0x00\0x02\0x00"
+    { "jfif_soi",   { 0x00000000E0FFD8FF, 4, Engine::recognize_special } }, // "\0xFF\0xD8\0xFF\0xE0"
+    { "jfif_eoi",   { 0x000000000000D9FF, 2, Engine::recognize_special } }, // "\0xFF\0xD9" маркер конца изображения
+    { "mid",        { 0x000000006468544D, 4, Engine::recognize_special } }, // "MThd"
 };
 
 const u32i Engine::special_signature = signatures["special"].as_u64i;
+
+u16i be2le(u16i be) {
+    union {
+        u16i as_le;
+        u8i  bytes[2];
+    };
+    bytes[0] = be >> 8;
+    bytes[1] = be;
+    return as_le;
+}
 
 u32i be2le(u32i be) {
     union {
@@ -389,6 +400,9 @@ void Engine::scan_file_v4(const QString &file_name)
                 case 0xE0FFD8FF:
                     recognize_special(this);
                     break;
+                case 0x6468544D:
+                    recognize_mid(this);
+                    break;
             }
         end:
             ;
@@ -552,7 +566,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
                                                 QString::number(be2le(ihdr_data->height)),
                                                 color_type );
     emit e->txResourceFound("png", e->file.fileName(), base_index, resource_size, info);
-    return last_index;
+    return resource_size;
 }
 
 RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
@@ -562,7 +576,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     {
         u32i chunk_id; /*RIFF*/
         u32i chunk_size;
-        u64i subchunk_id; /*AVI LIST*/ /*WAVEfmt */ /*RMIDdata*/
+        u64i subchunk_id; /*AVI LIST*/ /*WAVEfmt */ /*RMIDdata*/ /*ACONLIST*/ /*ACONanih*/
         u32i subchunk_size;
     };
     struct AviInfoHeader
@@ -576,21 +590,25 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     {
         u16i fmt_code;
         u16i chans;
-        u32i smp_rate, avg_bytes_per_sec;
-        u16i blk_align, bits_per_smp, ext_size, valid_bits_per_smp;
+        u32i sample_rate, avg_bytes_per_sec;
+        u16i blk_align, bits_per_sample, ext_size, valid_bits_per_sample;
         u32i chan_mask;
         u8i  sub_format[16];
     };
-    struct MidHeader
+    struct MidiInfoHeader
     {
-
+        u32i chunk_type;  /*MThd*/
+        u32i chunk_size;
+        u16i format;
+        u16i ntrks; // number of tracks
+        u16i division;
     };
 #pragma pack(pop)
     static u32i avi_id {fformats["avi"].index};
     static u32i wav_id {fformats["wav"].index};
     static u32i rmi_id {fformats["rmi"].index};
     static const u64i min_room_need = sizeof(ChunkHeader);
-    static const QSet <u64i> VALID_SUBCHUNK_TYPE { 0x5453494C20495641 /*AVI LIST*/, 0x20746D6645564157 /*WAVEfmt */, 0x6174616444494D52 /*RMIDdata*/} ;
+    static const QSet <u64i> VALID_SUBCHUNK_TYPE { 0x5453494C20495641 /*AVI LIST*/, 0x20746D6645564157 /*WAVEfmt */, 0x6174616444494D52 /*RMIDdata*/, 0x5453494C4E4F4341 /*ACONLIST*/, 0x68696E614E4F4341 /*ACONanih*/};
     if ( ( !e->selected_formats[avi_id] ) and ( !e->selected_formats[wav_id] ) and ( e->selected_formats[rmi_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
@@ -618,15 +636,71 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         WavInfoHeader *wav_info_header = (WavInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
         QString codec_name = ( wave_codecs.contains(wav_info_header->fmt_code) ) ? wave_codecs[wav_info_header->fmt_code] : "unknown";
         QString info = QString(R"(%1 codec : %2-bit %3Hz %4-ch)").arg(  codec_name,
-                                                                        QString::number(wav_info_header->bits_per_smp),
-                                                                        QString::number(wav_info_header->smp_rate),
+                                                                        QString::number(wav_info_header->bits_per_sample),
+                                                                        QString::number(wav_info_header->sample_rate),
                                                                         QString::number(wav_info_header->chans) );
         emit e->txResourceFound("wav", e->file.fileName(), base_index, resource_size, info);
         break;
     }
     case 0x6174616444494D52: // rmi
-
+    {
+        if ( resource_size < (sizeof(ChunkHeader) + sizeof(MidiInfoHeader)) ) return 0;
+        MidiInfoHeader *midi_info_header = (MidiInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        QString info = QString(R"(%1 tracks)").arg(be2le(midi_info_header->ntrks));
+        emit e->txResourceFound("rmi", e->file.fileName(), base_index, resource_size, info);
         break;
     }
-    return last_index;
+    case 0x5453494C4E4F4341: // ani - animated cursor with ACONLIST subchunk
+    {
+        emit e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
+        break;
+    }
+    case 0x68696E614E4F4341: // ani - animated cursor with ACONanih subchunk
+    {
+        emit e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
+        break;
+    }
+    }
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct MidiChunk
+    {
+        u32i type;
+        u32i size;
+    };
+    struct HeaderData
+    {
+        u16i format;
+        u16i ntrks; // number of tracks
+        u16i division;
+    };
+#pragma pack(pop)
+    static u32i mid_id {fformats["mid"].index};
+    static const u64i min_room_need = sizeof(MidiChunk) + sizeof(HeaderData);
+    static const QSet <u32i> VALID_CHUNK_TYPE { 0x6468544D /*MThd*/, 0x6B72544D /*MTrk*/};
+    if ( !e->selected_formats[mid_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    s64i file_size = e->file_size;
+    HeaderData *info_header = (HeaderData*)(&buffer[base_index + sizeof(MidiChunk)]);
+    u64i last_index = base_index + be2le((*((MidiChunk*)(&buffer[base_index]))).size) + sizeof(MidiChunk); // сразу переставляем last_index после заголовка на первый чанк типа MTrk
+    if ( last_index > file_size ) return 0; // прыгнули за пределы файла => явно неверное поле size в заголовке
+    while (true)
+    {
+        if ( file_size - last_index < sizeof(MidiChunk) ) break; // не хватает места для анализа очередного чанка => достигли конца ресурса
+        if ( !VALID_CHUNK_TYPE.contains((*(MidiChunk*)(&buffer[last_index])).type) ) break; // встретили неизвестный чанк => достигли конца ресурса
+        u64i possible_last_index;
+        possible_last_index = last_index + be2le((*(MidiChunk*)(&buffer[last_index])).size) + sizeof(MidiChunk);
+        if ( possible_last_index > file_size ) break; // возможно кривое поле .size, либо усечённый файл, либо type попался (внезапно) корректный, но size некорректный и т.д.
+        last_index = possible_last_index;
+    }
+    u64i resource_size = last_index - base_index;
+    QString info = QString(R"(%1 tracks)").arg(be2le(info_header->ntrks));
+    emit e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
+    return resource_size;
 }
