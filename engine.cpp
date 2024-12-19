@@ -395,7 +395,7 @@ void Engine::scan_file_v4(const QString &file_name)
                     recognize_png(this);
                     break;
                 case 0x4D524F46:
-                    recognize_special(this);
+                    recognize_iff(this);
                     break;
                 case 0xE0FFD8FF:
                     recognize_special(this);
@@ -491,13 +491,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
     };
     struct ChunkHeader
     {
-        u32i data_len;
+        u32i data_len; // need BE<>LE swap
         u32i type;
     };
     struct IHDRData
     {
-        u32i width;
-        u32i height;
+        u32i width;  // need BE<>LE swap
+        u32i height; // need BE<>LE swap
         u8i  bit_depth;
         u8i  color_type;
         u8i  compression;
@@ -545,6 +545,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
         if ( last_index > file_size) return 0;
     };
     u64i resource_size = last_index - base_index;
+    e->resource_offset = base_index;
     QString color_type;
     switch(ihdr_data->color_type) {
     case 0 :
@@ -574,9 +575,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
 #pragma pack(push,1)
     struct ChunkHeader
     {
-        u32i chunk_id; /*RIFF*/
+        u32i chunk_id; // "RIFF"
         u32i chunk_size;
-        u64i subchunk_id; /*AVI LIST*/ /*WAVEfmt */ /*RMIDdata*/ /*ACONLIST*/ /*ACONanih*/
+        u64i subchunk_id; // "AVI LIST", "WAVEfmt ", "RMIDdata", "ACONLIST", "ACONanih"
         u32i subchunk_size;
     };
     struct AviInfoHeader
@@ -597,7 +598,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     };
     struct MidiInfoHeader
     {
-        u32i chunk_type;  /*MThd*/
+        u32i chunk_type;  // "MThd"
         u32i chunk_size;
         u16i format;
         u16i ntrks; // number of tracks
@@ -607,31 +608,35 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     static u32i avi_id {fformats["avi"].index};
     static u32i wav_id {fformats["wav"].index};
     static u32i rmi_id {fformats["rmi"].index};
+    static u32i ani_id {fformats["animcur"].index};
     static const u64i min_room_need = sizeof(ChunkHeader);
     static const QSet <u64i> VALID_SUBCHUNK_TYPE { 0x5453494C20495641 /*AVI LIST*/, 0x20746D6645564157 /*WAVEfmt */, 0x6174616444494D52 /*RMIDdata*/, 0x5453494C4E4F4341 /*ACONLIST*/, 0x68696E614E4F4341 /*ACONanih*/};
-    if ( ( !e->selected_formats[avi_id] ) and ( !e->selected_formats[wav_id] ) and ( e->selected_formats[rmi_id] ) ) return 0;
+    if ( ( !e->selected_formats[avi_id] ) and ( !e->selected_formats[wav_id] ) and ( e->selected_formats[rmi_id] ) and ( e->selected_formats[ani_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
-    u64i last_index = (*((ChunkHeader*)(&buffer[base_index]))).chunk_size + sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size);
+    u64i last_index = sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + (*((ChunkHeader*)(&buffer[base_index]))).chunk_size;
     if ( base_index + last_index > file_size ) return 0; // неверное поле chunk_size
-    if ( !VALID_SUBCHUNK_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->subchunk_id) ) return 0; // проверка на валидные id сабчанков: AVI LIST, WAVEfmt , RMIDdata
+    if ( !VALID_SUBCHUNK_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->subchunk_id) ) return 0; // проверка на валидные id сабчанков
     u64i resource_size = last_index - base_index;
     switch (((ChunkHeader*)(&buffer[base_index]))->subchunk_id)
     {
     case 0x5453494C20495641: // avi
     {
+        if ( ( !e->selected_formats[avi_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(AviInfoHeader)) ) return 0;
         AviInfoHeader *avi_info_header = (AviInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
         if ( avi_info_header->hdrl_avih_sign != 0x686976616C726468 /*hdrlavih*/ ) return 0;
         QString info = QString(R"(%1x%2)").arg( QString::number(avi_info_header->width),
                                                 QString::number(avi_info_header->height) );
         emit e->txResourceFound("avi", e->file.fileName(), base_index, resource_size, info);
-        break;
+        e->resource_offset = base_index;
+        return resource_size;
     }
     case 0x20746D6645564157: // wav
     {
+        if ( ( !e->selected_formats[wav_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(WavInfoHeader)) ) return 0;
         WavInfoHeader *wav_info_header = (WavInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
         QString codec_name = ( wave_codecs.contains(wav_info_header->fmt_code) ) ? wave_codecs[wav_info_header->fmt_code] : "unknown";
@@ -640,28 +645,35 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
                                                                         QString::number(wav_info_header->sample_rate),
                                                                         QString::number(wav_info_header->chans) );
         emit e->txResourceFound("wav", e->file.fileName(), base_index, resource_size, info);
-        break;
+        e->resource_offset = base_index;
+        return resource_size;
     }
     case 0x6174616444494D52: // rmi
     {
+        if ( ( !e->selected_formats[rmi_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(MidiInfoHeader)) ) return 0;
         MidiInfoHeader *midi_info_header = (MidiInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
         QString info = QString(R"(%1 tracks)").arg(be2le(midi_info_header->ntrks));
         emit e->txResourceFound("rmi", e->file.fileName(), base_index, resource_size, info);
-        break;
+        e->resource_offset = base_index;
+        return resource_size;
     }
     case 0x5453494C4E4F4341: // ani - animated cursor with ACONLIST subchunk
     {
+        if ( ( !e->selected_formats[ani_id] ) ) return 0;
         emit e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
-        break;
+        e->resource_offset = base_index;
+        return resource_size;
     }
     case 0x68696E614E4F4341: // ani - animated cursor with ACONanih subchunk
     {
+        if ( ( !e->selected_formats[ani_id] ) ) return 0;
         emit e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
-        break;
+        e->resource_offset = base_index;
+        return resource_size;
     }
     }
-    return resource_size;
+    return 0;
 }
 
 RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
@@ -670,12 +682,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
     struct MidiChunk
     {
         u32i type;
-        u32i size;
+        u32i size; // need BE<>LE swap
     };
     struct HeaderData
     {
         u16i format;
-        u16i ntrks; // number of tracks
+        u16i ntrks; // number of tracks; need BE<>LE swap
         u16i division;
     };
 #pragma pack(pop)
@@ -700,7 +712,85 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
         last_index = possible_last_index;
     }
     u64i resource_size = last_index - base_index;
+    e->resource_offset = base_index;
     QString info = QString(R"(%1 tracks)").arg(be2le(info_header->ntrks));
     emit e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
     return resource_size;
+}
+
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct ChunkHeader
+    {
+        u32i chunk_id; // "FORM"
+        u32i chunk_size; // need BE<>LE swap
+        u32i format_type; // "ILBM", "AIFF"
+    };
+    struct BitmapInfoHeader
+    {
+        u32i local_chunk_id; // "BMHD"
+        u32i size;
+        u16i width;
+        u16i height;
+        u16i left, top;
+        u8i  bitplanes, masking, compress, padding;
+        u16i transparency;
+        u8i  x_ar, y_ar;
+        u16i page_width, page_height;
+    };
+    struct AIFF_CommonInfoHeader
+    {
+        u32i local_chunk_id; // "COMM"
+        u32i size;
+        u16i channels;
+        u32i sample_frames;
+        u16i sample_size;
+        u64i sample_rate_64bits_extended; // оба поля хранят "80 bit IEEE Standard 754 floating point number"
+        u16i sample_rate_16bits_extended; //
+    };
+#pragma pack(pop)
+    static u32i lbm_id {fformats["lbm"].index};
+    static u32i aif_id {fformats["aif"].index};
+    static const u64i min_room_need = sizeof(ChunkHeader);
+    static const QSet <u32i> VALID_FORMAT_TYPE { 0x4D424C49 /*ILBM*/, 0x46464941 /*AIFF*/ };
+    if ( ( !e->selected_formats[lbm_id] ) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    s64i file_size = e->file_size;
+    u64i last_index = sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + be2le((*((ChunkHeader*)(&buffer[base_index]))).chunk_size);
+    if ( base_index + last_index > file_size ) return 0; // неверное поле chunk_size
+    if ( !VALID_FORMAT_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->format_type) ) return 0; // проверка на валидные форматы
+    u64i resource_size = last_index - base_index;
+    switch (((ChunkHeader*)(&buffer[base_index]))->format_type)
+    {
+    case 0x4D424C49: // "ILBM"
+    {
+        if ( ( !e->selected_formats[lbm_id] ) ) return 0;
+        if ( resource_size < (sizeof(ChunkHeader) + sizeof(BitmapInfoHeader)) ) return 0;
+        BitmapInfoHeader *bitmap_info_header = (BitmapInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        if ( bitmap_info_header->local_chunk_id != 0x44484D42 /*BMHD*/ ) return 0;
+        QString info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
+                                                        QString::number(be2le(bitmap_info_header->height)),
+                                                        QString::number(bitmap_info_header->bitplanes));
+        emit e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x46464941: // "AIFF"
+    {
+        if ( ( !e->selected_formats[aif_id] ) ) return 0;
+        if ( resource_size < (sizeof(ChunkHeader) + sizeof(AIFF_CommonInfoHeader)) ) return 0;
+        AIFF_CommonInfoHeader *aiff_info_header = (AIFF_CommonInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        QString info;
+        if ( aiff_info_header->local_chunk_id == 0x4D4D4F43 ) info = QString("%1-bit %2-ch").arg(   QString::number(be2le(aiff_info_header->sample_size)),
+                                                                                                    QString::number(be2le(aiff_info_header->channels)));
+        emit e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    }
+    return 0;
 }
