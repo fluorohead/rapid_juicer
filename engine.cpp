@@ -12,10 +12,7 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     // V                        00RREEZZ
     { "special",    { 0x000000003052455A, 4, Engine::recognize_special } }, // "ZER0" zero-phase buffer filler
     { "bmp",        { 0x0000000000004D42, 2, Engine::recognize_special } }, // "BM"
-    { "pcx4_8",     { 0x000000000801040A, 4, Engine::recognize_special } }, // временная заглушка
-    { "pcx4_24",    { 0x000000001801040A, 4, Engine::recognize_special } }, // временная заглушка
-    { "pcx5_8",     { 0x000000000801050A, 4, Engine::recognize_special } }, // временная заглушка
-    { "pcx5_24",    { 0x000000001801050A, 4, Engine::recognize_special } }, // временная заглушка
+    { "pcx_05",     { 0x000000000000050A, 2, Engine::recognize_special } }, // "\0x0A\x05"
     { "png",        { 0x00000000474E5089, 4, Engine::recognize_special } }, // "\x89PNG"
     { "riff",       { 0x0000000046464952, 4, Engine::recognize_special } }, // "RIFF"
     { "iff",        { 0x000000004D524F46, 4, Engine::recognize_special } }, // "FORM"
@@ -332,6 +329,7 @@ void Engine::scan_file_v4(const QString &file_name)
     u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
     u64i tale_size = file_size % granularity;
     u64i max_iterations = file_size / granularity + ((tale_size == 0) ? 0 : 1);
+    u64i resource_size = 0;
     qInfo() << "max_iterations:" << max_iterations;
     //////////////////////////////////////////////////////////////
 
@@ -347,12 +345,19 @@ void Engine::scan_file_v4(const QString &file_name)
         words:
             switch ((u16i)analyzed_dword) // усечение старших 16 бит, чтобы остались только младшие 16
             {
-                case 0x4D42:
-                    recognize_special(this);
-                    break;
-                case 0xD9FF:
-                    recognize_special(this);
-                    break;
+            case 0x050A:
+                // ToDo: можно здесь же проверить на encoding==1, не вызывая recognizer
+                resource_size = recognize_pcx(this);
+                if ( resource_size ) goto end;
+                break;
+            case 0x4D42:
+                resource_size = recognize_special(this);
+                if ( resource_size ) goto end;
+                break;
+            case 0xD9FF:
+                resource_size = recognize_special(this);
+                if ( resource_size ) goto end;
+                break;
             }
         dwords:
             if ( analyzed_dword >= 0x2A004D4D ) goto second_half;
@@ -386,22 +391,22 @@ void Engine::scan_file_v4(const QString &file_name)
                     recognize_special(this);
                     break;
                 case 0x38464947:
-                    recognize_special(this);
+                    resource_size = recognize_gif(this);
                     break;
                 case 0x46464952:
-                    recognize_riff(this);
+                    resource_size = recognize_riff(this);
                     break;
                 case 0x474E5089:
-                    recognize_png(this);
+                    resource_size = recognize_png(this);
                     break;
                 case 0x4D524F46:
-                    recognize_iff(this);
+                    resource_size = recognize_iff(this);
                     break;
                 case 0xE0FFD8FF:
                     recognize_special(this);
                     break;
                 case 0x6468544D:
-                    recognize_mid(this);
+                    resource_size = recognize_mid(this);
                     break;
             }
         end:
@@ -712,9 +717,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
         last_index = possible_last_index;
     }
     u64i resource_size = last_index - base_index;
-    e->resource_offset = base_index;
     QString info = QString(R"(%1 tracks)").arg(be2le(info_header->ntrks));
     emit e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
     return resource_size;
 }
 
@@ -792,5 +797,157 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         return resource_size;
     }
     }
+    return 0;
+}
+
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_pcx RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct PcxHeader
+    {
+        u8i  identifier;
+        u8i  version;
+        u8i  encoding;
+        u8i  bits_per_plane;
+        u16i x_start, y_start, x_end, y_end;
+        u16i hor_res, ver_rez;
+        u8i  palette[48], reserved;
+        u8i  bitplanes;
+        u16i bytes_per_line, palette_type, hor_scr_size, ver_scr_size;
+        u8i  padding[54];
+    };
+#pragma pack(pop)
+    static u32i pcx_id {fformats["pcx"].index};
+    static const u64i min_room_need = sizeof(PcxHeader);
+    if ( ( !e->selected_formats[pcx_id] ) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    // дополнительный анализ заголовка
+    PcxHeader* pcx_info_header = (PcxHeader*)(&(e->mmf_scanbuf[e->scanbuf_offset]));
+    if ( !pcx_info_header->encoding ) return 0; // если != 1
+    switch ( pcx_info_header->bits_per_plane )
+    {
+    case 1: case 2: case 4: case 8: case 24:
+        break;
+    default:
+        return 0;
+    }
+    if ( pcx_info_header->x_start > pcx_info_header-> x_end ) return 0;
+    if ( pcx_info_header->y_start > pcx_info_header-> y_end ) return 0;
+    switch ( pcx_info_header->bitplanes )
+    {
+    case 1: case 3: case 4:
+        break;
+    default:
+        return 0;
+    }
+    switch ( pcx_info_header->palette_type )
+    {
+    case 1: case 2:
+        break;
+    default:
+        return 0;
+    }
+    u16i width  = pcx_info_header->x_end - pcx_info_header->x_start + 1;
+    u16i height = pcx_info_header->y_end - pcx_info_header->y_start + 1;
+    u8i  bpp    = pcx_info_header->bits_per_plane * pcx_info_header->bitplanes;
+    u64i empiric_size;
+    if ( bpp < 24 )
+    {
+        empiric_size = sizeof(PcxHeader) + width * height + 768 /*possible vga-palette at end*/;
+    }
+    else
+    {
+        empiric_size = sizeof(PcxHeader) + width * height * (bpp / 8);
+    }
+    u64i base_index = e->scanbuf_offset;
+    u64i last_index = base_index + empiric_size;
+    if ( last_index > e->file_size) last_index = e->file_size;
+    u64i resource_size = last_index - base_index;
+    QString info = QString("%1x%2 %3-bpp").arg( QString::number(width),
+                                            QString::number(height),
+                                            QString::number(bpp));
+    emit e->txResourceFound("pcx", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct FileHeader
+    {
+        u32i signature;
+        u16i version;
+        // включая Logical Screen Descriptor
+        u16i width, height;
+        u8i  packed, bg_color, ar;
+        //
+    };
+    struct LocalImageDescriptor // Local Image Descriptor
+    {
+        u8i  sep_or_introducer; // 0x2C
+        u16i left, top, width, height;
+        u8i  packed;
+        u8i  lzw_min_code_size;
+    };
+    struct CtrlExtension
+    {
+        u8i sep_or_introducer; // 0x21
+        u8i label, blocksize, packed;
+    };
+    struct Zavershitel
+    {
+        u8i sep_or_introducer; // 0x3B
+    };
+#pragma pack(pop)
+    static u32i gif_id {fformats["gif"].index};
+    static constexpr u64i min_room_need = sizeof(FileHeader) + 1; // где +1 на u8i sep_or_introducer
+    static const QSet <u16i> VALID_VERSIONS  { 0x6137 /*7a*/, 0x6139 /*9a*/ };
+    static const QSet <u8i>  EXTS_TO_PROCESS { 0x01, 0xCE, 0xFE, 0xFF };
+    if ( ( !e->selected_formats[gif_id] ) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    s64i file_size = e->file_size;
+    FileHeader *info_header = (FileHeader*)(&buffer[base_index]);
+    u64i colors_num = 1ULL << ((info_header->packed & 0b00000111) + 1);
+    bool global_palette = info_header->packed >> 7;
+    u64i last_index = base_index + sizeof(FileHeader) + 3ULL * colors_num * global_palette; // выставляем last_index на первый вероятный sep_or_introducer
+    u8i block_size;
+    LocalImageDescriptor *lid_info_header;
+    // while (true)
+    // {
+        if ( last_index >= file_size ) return 0; // если не осталось места для sep_or_introducer
+        switch(buffer[last_index])
+        {
+        case 0x2C:
+            if ( last_index + sizeof(LocalImageDescriptor) > file_size ) return 0;
+            lid_info_header = (LocalImageDescriptor*)(&buffer[last_index]);
+            last_index += ( sizeof(LocalImageDescriptor) +  ( 3ULL * ( 1ULL << ((lid_info_header->packed & 0b00000111) + 1)) * (lid_info_header->packed >> 7) ) );
+            // теперь last_index стоит на данных, а точнее на счётчик первого блока данных
+            while(true) // читаем данные итерациями : в начале каждого блока данных стоит счётчик u8i с размером блока; если размер = 0, значит это последний блок
+            {
+                if ( last_index >= file_size ) return 0; // капитуляция, если не осталось места для счётчика блока //// по идее тут можно попытаться сохранить усечённый файл, но пока не будем с этим заморачиваться
+                block_size = buffer[last_index];
+                ++last_index; // передвинули last_index на данные, либо на следующий sep_or_introducer, либо вообще на LID/CtrlExt/Zavershitel
+                if ( block_size == 0 ) break; // данные завершились
+                last_index += block_size; // если не завершились, то передвинулись на следующий счётчик блока
+            }
+            qInfo() << "last_index stopped at:" << last_index;
+            break;
+        case 0x21:
+            break;
+        case 0x3B:
+            break;
+        }
+        if ( buffer[last_index] == 0x3B )
+        {
+            ++last_index;
+            break; // достигли конечного дескриптора; выход из while
+
+        }
+    // }
+
     return 0;
 }

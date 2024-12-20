@@ -62,7 +62,7 @@ class Engine: public QObject
     s64i signature_file_pos {0}; // позиция сигнатуры в файле
     s64i file_size; // заполняется в функции scan_file()
     u64i scanbuf_offset; // текущее смещение в буфере
-    u64i resource_offset; // начало ресурса; заполняется recognizer'ом, если ресурс найден (если размер не 0)
+    u64i resource_offset; // начало ресурса; заполняется recognizer'ом, когда ресурс найден (если размер не 0)
     void update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes);
     bool enough_room_to_continue(u64i min_size); // достаточно ли места min_size до конца файла, чтобы проверить заголовок сигнатуры
     uchar *mmf_scanbuf; // memry mapped file scanning buffer
@@ -80,7 +80,9 @@ public:
     RECOGNIZE_FUNC_DECL_RETURN recognize_riff RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_mid RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_iff RECOGNIZE_FUNC_HEADER;
-    // RECOGNIZE_FUNC_DECL_RETURN recognize_gif RECOGNIZE_FUNC_HEADER;
+    RECOGNIZE_FUNC_DECL_RETURN recognize_pcx RECOGNIZE_FUNC_HEADER;
+    RECOGNIZE_FUNC_DECL_RETURN recognize_gif RECOGNIZE_FUNC_HEADER;
+
     // RECOGNIZE_FUNC_DECL_RETURN recognize_tiff_ii RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_tiff_mm RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_tga_tc32 RECOGNIZE_FUNC_HEADER;

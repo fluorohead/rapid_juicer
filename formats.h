@@ -83,22 +83,6 @@ struct FileFormat
 
 extern QMap <QString, FileFormat> fformats;
 
-// для структуры Message.msg_type
-#define MSG_NONE          0x0
-#define MSG_RESFOUND      1
-#define MSG_OPEN_ERROR    2
-#define MSG_UNKNOWN_ERROR 0xFFFFFFFFFFFFFFFF
-
-struct Message
-{
-    u32i    msg_type;
-    QString file_name;
-    QString format_name;
-    s64i    offset;
-    u64i    length;
-    QString info;
-};
-
 void indexFilesFormats();
 
 #endif // FORMATS_H

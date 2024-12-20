@@ -90,7 +90,7 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     // |          |
     // V          V
     { "bmp",      { "Microsoft Windows Bitmap", "", "bmp", {CAT_IMAGE, CAT_WIN, CAT_PERFRISK}, CAT_RASTER, {"bmp"}, 0, "" } },
-    { "pcx",      { "PC Paintbrush", "only v4 and v5", "pcx", {CAT_IMAGE, CAT_DOS, CAT_OUTDATED}, CAT_RASTER, {"pcx4_8", "pcx4_24", "pcx5_8", "pcx5_24"}, 0, "" } },
+    { "pcx",      { "Zsoft PC Paintbrush", "only v3.0", "pcx", { CAT_IMAGE, CAT_DOS, CAT_OUTDATED }, CAT_RASTER, { "pcx_05" }, 0, "" } },
     { "png",      { "Portable Network Graphics", "", "png", {CAT_IMAGE, CAT_WEB, CAT_NONE}, CAT_RASTER, {"png"}, 0, "" } },
     { "avi",      { "Audio-Video Interleaved", "RIFF container", "avi", {CAT_VIDEO, CAT_NONE, CAT_NONE}, CAT_NONE, {"riff"}, 0, "" } },
     { "wav",      { "Wave Audio Data", "RIFF container", "wav", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_NONE, {"riff"}, 0, "" } },
