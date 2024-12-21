@@ -75,7 +75,7 @@ public:
     void scan_file_v4(const QString &file_name); // по dword-сигнатурам через switch-case и file mapping
 
     RECOGNIZE_FUNC_DECL_RETURN recognize_special RECOGNIZE_FUNC_HEADER;
-    // RECOGNIZE_FUNC_DECL_RETURN recognize_bmp RECOGNIZE_FUNC_HEADER;
+    RECOGNIZE_FUNC_DECL_RETURN recognize_bmp RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_png RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_riff RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_mid RECOGNIZE_FUNC_HEADER;
@@ -88,8 +88,7 @@ public:
     // RECOGNIZE_FUNC_DECL_RETURN recognize_tiff_ii RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_tiff_mm RECOGNIZE_FUNC_HEADER;
     // RECOGNIZE_FUNC_DECL_RETURN recognize_tga_tc32 RECOGNIZE_FUNC_HEADER;
-    // RECOGNIZE_FUNC_DECL_RETURN recognize_jfif_soi RECOGNIZE_FUNC_HEADER;
-    // RECOGNIZE_FUNC_DECL_RETURN recognize_jfif_eoi RECOGNIZE_FUNC_HEADER; // всегда должна возвращать 0 (или 2? обдумать)
+
 signals:
     void txFileProgress(QString file_name, s64i percentage_value);
     void txResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);

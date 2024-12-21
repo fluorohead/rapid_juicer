@@ -20,8 +20,7 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_special } }, // "II\0x2A\0x00"
     { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_special } }, // "MM\0x00\0x2A"
     { "tga_tc32",   { 0x0000000000020000, 4, Engine::recognize_special } }, // "\0x00\0x00\0x02\0x00"
-    { "jfif_soi",   { 0x00000000E0FFD8FF, 4, Engine::recognize_special } }, // "\0xFF\0xD8\0xFF\0xE0"
-    { "jfif_eoi",   { 0x000000000000D9FF, 2, Engine::recognize_special } }, // "\0xFF\0xD9" маркер конца изображения
+    { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_special } }, // "\0xFF\0xD8\0xFF\0xE0"
     { "mid",        { 0x000000006468544D, 4, Engine::recognize_special } }, // "MThd"
 };
 
@@ -343,15 +342,16 @@ void Engine::scan_file_v4(const QString &file_name)
             /// сравнение с сигнатурами
             {
         words:
-            switch ((u16i)analyzed_dword) // усечение старших 16 бит, чтобы остались только младшие 16
+            switch ((u16i)analyzed_dword) // "усечение" старших 16 бит, чтобы остались только младшие 16
             {
             case 0x050A: // PCX
                 // ToDo: можно здесь же проверить на encoding==1, не вызывая recognizer
                 resource_size = recognize_pcx(this);
                 if ( resource_size ) goto end;
                 break;
-            case 0x4D42:
-                resource_size = recognize_special(this);
+            case 0x4D42: // BMP
+                // ToDo: можно здесь же проверить поля заголовка, не вызывая recognizer
+                resource_size = recognize_bmp(this);
                 if ( resource_size ) goto end;
                 break;
             case 0xD9FF:
@@ -487,6 +487,52 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_special RECOGNIZE_FUNC_HEADER
     return 0;
 }
 
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct FileHeader
+    {
+        u16i file_type; // "BM"
+        u32i file_size;
+        u32i reserved;  // u16i reserved1 + u16i reserved2; = 0
+        u32i bitmap_offset;
+        // включая BitmapHeader
+        u32i bitmapheader_size; // 12, 40, 108
+        s32i width;
+        s32i height;
+        u16i planes;
+        u16i bits_per_pixel; // 1, 4, 8, 16, 24, 32
+        //
+    };
+#pragma pack(pop)
+    static const u32i bmp_id = fformats["bmp"].index;
+    static constexpr u64i min_room_need = sizeof(FileHeader);
+    static const QSet <u32i> VALID_BMP_HEADER_SIZE { 12, 40, 108 };
+    static const QSet <u16i> VALID_BITS_PER_PIXEL { 1, 4, 8, 16, 24, 32 };
+    if ( !e->selected_formats[bmp_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    FileHeader *info_header = (FileHeader*)(&buffer[base_index]);
+    if ( info_header->reserved != 0 ) return 0;
+    if ( !VALID_BMP_HEADER_SIZE.contains(info_header->bitmapheader_size) ) return 0;
+    if ( info_header->planes != 1 ) return 0;
+    if ( !VALID_BITS_PER_PIXEL.contains(info_header->bits_per_pixel) ) return 0;
+    s64i file_size = e->file_size;
+    u64i last_index = base_index + info_header->file_size;
+    qInfo() << "here";
+    if ( last_index > file_size ) return 0; // неверное поле file_size
+    QString info = QString("%1x%2 %3-bpp").arg( QString::number(std::abs(info_header->width)),
+                                                QString::number(std::abs(info_header->height)),
+                                                QString::number(info_header->bits_per_pixel));
+    u64i resource_size = last_index - base_index;
+    e->resource_offset = base_index;
+    emit e->txResourceFound("bmp", e->file.fileName(), base_index, resource_size, info);
+    return resource_size;
+}
+
+
 RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
@@ -514,7 +560,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
         u32i crc;
     };
 #pragma pack(pop)
-    static const u32i format_id = fformats["png"].index;
+    static const u32i png_id = fformats["png"].index;
     static const u64i min_room_need = sizeof(FileHeader) + sizeof(ChunkHeader) + sizeof(IHDRData) + sizeof(CRC);
     static const QSet <u8i>  VALID_BIT_DEPTH  {1, 2, 4, 8, 16};
     static const QSet <u8i>  VALID_COLOR_TYPE {0, 2, 3, 4, 6};
@@ -525,7 +571,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
                                                    0x42475273 /*sRGB*/, 0x52455473 /*sTER*/, 0x4C414370 /*pCAL*/, 0x47495364 /*dSIG*/, 0x50434369 /*iCCP*/, 0x50434963 /*iICP*/, 0x7643446D /*mDCv*/,
                                                    0x694C4C63 /*cLLi*/, 0x74585469 /*iTXt*/, 0x744C5073 /*sPLt*/, 0x66495865 /*eXIf*/, 0x52444849 /*iHDR*/};
 
-    if ( ( !e->selected_formats[format_id] ) ) return 0;
+    if ( ( !e->selected_formats[png_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -1031,7 +1077,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         u16i len;
         u32i identifier_4b;
         u8i  identifier_1b;
-        u8i  identifier[5];
         u16i version;
         u8i  units;
         u16i xdens, ydens;
@@ -1040,6 +1085,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
 #pragma pack(pop)
     static u32i jpg_id {fformats["jpg"].index};
     static constexpr u64i min_room_need = sizeof(JFIF_Header);
+    static const QSet <u16i> VALID_VERSIONS  { 0x0100, 0x0101, 0x0102 };
+    static const QSet <u8i> VALID_UNITS { 0x00, 0x01, 0x02 };
     if ( ( !e->selected_formats[jpg_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
@@ -1049,16 +1096,16 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
     if ( be2le(info_header->len) != 16 ) return 0;
     if ( info_header->identifier_4b != 0x4649464A ) return 0;
     if ( info_header->identifier_1b != 0 ) return 0;
-    qInfo() << "identifier = JFIF is ok";
-    u64i last_index = base_index + sizeof(JFIF_Header);
-    if ( last_index >= file_size ) return 0; // капитуляция, если сразу за заголовком файл закончился
+    if ( !VALID_VERSIONS.contains(be2le(info_header->version)) ) return 0;
+    if ( !VALID_UNITS.contains(info_header->units) ) return 0;
+    u64i last_index = base_index + sizeof(JFIF_Header) + 3 * (info_header->xthumb * info_header->ythumb);
+    if ( last_index >= file_size ) return 0; // капитуляция, если сразу за заголовком (или thumbnail'ом) файл закончился
     while(true) // ищем SOS (start of scan) \0xFF\0xDA
     {
         if (last_index + 2 > file_size) return 0; // не нашли SOS
         if ( *((u16i*)(&buffer[last_index])) == 0xDAFF ) break; // нашли SOS
         ++last_index;
     }
-    qInfo() << "found SOS at:" << last_index;
     last_index += 2; // на размер SOS-идентификатора
     while(true) // ищем EOI (end of image) \0xFF\0xD9
     {
@@ -1066,7 +1113,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         if ( *((u16i*)(&buffer[last_index])) == 0xD9FF ) break; // нашли SOS
         ++last_index;
     }
-    qInfo() << "found EOI at:" << last_index;
     last_index += 2; // на размер EOI-идентификатора
     u64i resource_size = last_index - base_index;
     emit e->txResourceFound("jpg", e->file.fileName(), base_index, resource_size, "");
