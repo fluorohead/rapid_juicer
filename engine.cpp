@@ -318,7 +318,7 @@ void Engine::scan_file_v4(const QString &file_name)
     mmf_scanbuf = file.map(0, file_size);
     if ( mmf_scanbuf == nullptr )
     {
-        qInfo() << "unsuccesfull file to memory mapping";
+        qInfo() << "unsuccesful file to memory mapping";
         return;
     }
     ////// объявление рабочих переменных на стеке (так эффективней, чем в классе) //////
@@ -345,7 +345,7 @@ void Engine::scan_file_v4(const QString &file_name)
         words:
             switch ((u16i)analyzed_dword) // усечение старших 16 бит, чтобы остались только младшие 16
             {
-            case 0x050A:
+            case 0x050A: // PCX
                 // ToDo: можно здесь же проверить на encoding==1, не вызывая recognizer
                 resource_size = recognize_pcx(this);
                 if ( resource_size ) goto end;
@@ -390,22 +390,22 @@ void Engine::scan_file_v4(const QString &file_name)
                 case 0x2A004D4D:
                     recognize_special(this);
                     break;
-                case 0x38464947:
+                case 0x38464947: // GIF
                     resource_size = recognize_gif(this);
                     break;
-                case 0x46464952:
+                case 0x46464952: // RIFF
                     resource_size = recognize_riff(this);
                     break;
-                case 0x474E5089:
+                case 0x474E5089: // PNG
                     resource_size = recognize_png(this);
                     break;
-                case 0x4D524F46:
+                case 0x4D524F46: // IFF
                     resource_size = recognize_iff(this);
                     break;
                 case 0xE0FFD8FF:
                     recognize_special(this);
                     break;
-                case 0x6468544D:
+                case 0x6468544D: // MID
                     resource_size = recognize_mid(this);
                     break;
             }
@@ -886,25 +886,25 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     };
     struct LocalImageDescriptor // Local Image Descriptor
     {
-        u8i  sep_or_introducer; // 0x2C
+        u8i  separator; // 0x2C
         u16i left, top, width, height;
         u8i  packed;
         u8i  lzw_min_code_size;
     };
-    struct CtrlExtension
+    struct ControlExtension
     {
-        u8i sep_or_introducer; // 0x21
-        u8i label, blocksize, packed;
+        u8i separator; // 0x21
+        u8i label;
     };
-    struct Zavershitel
+    struct Trailer
     {
-        u8i sep_or_introducer; // 0x3B
+        u8i separator; // 0x3B
     };
 #pragma pack(pop)
     static u32i gif_id {fformats["gif"].index};
     static constexpr u64i min_room_need = sizeof(FileHeader) + 1; // где +1 на u8i sep_or_introducer
     static const QSet <u16i> VALID_VERSIONS  { 0x6137 /*7a*/, 0x6139 /*9a*/ };
-    static const QSet <u8i>  EXTS_TO_PROCESS { 0x01, 0xCE, 0xFE, 0xFF };
+    static const QSet <u8i>  EXT_LABELS_TO_PROCESS { 0x01, 0xCE, 0xFE, 0xFF };
     if ( ( !e->selected_formats[gif_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
@@ -913,41 +913,83 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     FileHeader *info_header = (FileHeader*)(&buffer[base_index]);
     u64i colors_num = 1ULL << ((info_header->packed & 0b00000111) + 1);
     bool global_palette = info_header->packed >> 7;
-    u64i last_index = base_index + sizeof(FileHeader) + 3ULL * colors_num * global_palette; // выставляем last_index на первый вероятный sep_or_introducer
+    u64i last_index = base_index + sizeof(FileHeader) + 3ULL * colors_num * global_palette; // перескок через глобальную цветовую таблицу, если она есть; выставляем last_index на первый вероятный separator
     u8i block_size;
     LocalImageDescriptor *lid_info_header;
-    // while (true)
-    // {
-        if ( last_index >= file_size ) return 0; // если не осталось места для sep_or_introducer
+    ControlExtension *ce_info_header;
+    while (true)
+    {
+        if ( last_index >= file_size ) return 0; // если не осталось места для separator
         switch(buffer[last_index])
         {
-        case 0x2C:
+        case 0x2C: // Local Image Descriptor
+        {
             if ( last_index + sizeof(LocalImageDescriptor) > file_size ) return 0;
             lid_info_header = (LocalImageDescriptor*)(&buffer[last_index]);
-            last_index += ( sizeof(LocalImageDescriptor) +  ( 3ULL * ( 1ULL << ((lid_info_header->packed & 0b00000111) + 1)) * (lid_info_header->packed >> 7) ) );
+            last_index += ( sizeof(LocalImageDescriptor) +  ( 3ULL * ( 1ULL << ((lid_info_header->packed & 0b00000111) + 1)) * (lid_info_header->packed >> 7) ) ); // перескок через локальную цветовую таблицу, если она есть
             // теперь last_index стоит на данных, а точнее на счётчик первого блока данных
             while(true) // читаем данные итерациями : в начале каждого блока данных стоит счётчик u8i с размером блока; если размер = 0, значит это последний блок
             {
                 if ( last_index >= file_size ) return 0; // капитуляция, если не осталось места для счётчика блока //// по идее тут можно попытаться сохранить усечённый файл, но пока не будем с этим заморачиваться
                 block_size = buffer[last_index];
-                ++last_index; // передвинули last_index на данные, либо на следующий sep_or_introducer, либо вообще на LID/CtrlExt/Zavershitel
+                ++last_index; // передвинули last_index на данные, либо на следующий separator
                 if ( block_size == 0 ) break; // данные завершились
                 last_index += block_size; // если не завершились, то передвинулись на следующий счётчик блока
             }
-            qInfo() << "last_index stopped at:" << last_index;
             break;
-        case 0x21:
+        }
+        case 0x21: // Control extensions
+        {
+            if ( last_index + sizeof(ControlExtension) > file_size ) return 0;
+            ce_info_header = (ControlExtension*)(&buffer[last_index]);
+            last_index += sizeof(ControlExtension);
+            switch(ce_info_header->label) // тут будут перескоки на начало данных label'а, либо уже на следующий separator, если extension = 0xF9
+            {
+            case 0xF9: // graphics control extension
+                last_index += 6; //ok // перескочили на следующий separator
+                break;
+            case 0xFE: // commentary extension
+                last_index += 0; // ok
+                break;
+            case 0xFF: // app extension
+                last_index += 12; // ok
+                break;
+            case 0x01: // plain text extension
+                last_index += 13; //ok
+                break;
+            case 0xCE: // gifsicle frame's name
+                last_index += 0;
+            default:
+                // неизвестный label, капитуляция //// по идее тут можно попытаться сохранить усечённый файл, но пока не будем с этим заморачиваться
+                return 0;
+            }
+            if ( !EXT_LABELS_TO_PROCESS.contains(ce_info_header->label) ) break;
+            while(true)
+            {
+                if ( last_index >= file_size ) return 0; // капитуляция, если не осталось ни одного байта для тела label'а
+                block_size = buffer[last_index];
+                ++last_index; // передвинули last_index на данные, либо на следующий separator
+                if ( block_size == 0 ) break; // данные завершились
+                last_index += block_size; // если не завершились, то передвинулись на следующий счётчик блока
+            }
             break;
-        case 0x3B:
+        }
+        case 0x3B: // trailer (завершитель файла, самый последний байт любого правильного GIF'а)
+            // тут надо выйти из while, потому что достигли конца ресурса, но сразу из case не получится, поэтому ниже есть if
             break;
+        default:  // неизвестный separator
+            return 0;
         }
         if ( buffer[last_index] == 0x3B )
         {
             ++last_index;
-            break; // достигли конечного дескриптора; выход из while
-
+           break; // достигли конечного дескриптора (trailer); выход из while
         }
-    // }
-
-    return 0;
+    }
+    u64i resource_size = last_index - base_index;
+    QString info = QString("%1x%2").arg(QString::number(info_header->width),
+                                        QString::number(info_header->height));
+    emit e->txResourceFound("gif", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
 }

@@ -95,6 +95,8 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "avi",      { "Audio-Video Interleaved", "RIFF container", "avi", {CAT_VIDEO, CAT_NONE, CAT_NONE}, CAT_NONE, {"riff"}, 0, "" } },
     { "wav",      { "Wave Audio Data", "RIFF container", "wav", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_NONE, {"riff"}, 0, "" } },
     { "rmi",      { "MIDI music","RIFF container", "rmi", {CAT_MUSIC, CAT_WIN, CAT_NONE}, CAT_MIDI, {"riff"}, 0, "" } },
+    { "mid",      { "Standard MIDI music", "", "mid", { CAT_MUSIC, CAT_NONE, CAT_NONE }, CAT_MIDI, { "mid" }, 0, "" } },
+    { "xmi",      { "Extended MIDI music", "RIFF container", "xmi", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_MIDI, { "riff" }, 0, "" } },
     { "lbm",      { "Interleaved Bitmap", "IFF container", "lbm", { CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED }, CAT_RASTER | CAT_DOS, { "iff" }, 0, "" } },
     { "gif",      { "Graphics Interchange Format", "", "gif", {CAT_IMAGE, CAT_WEB, CAT_NONE}, CAT_RASTER, {"gif"}, 0, "" } },
     { "tif_ii",   { "Tag Image File Format", "Intel byte order", "tif", {CAT_IMAGE, CAT_PERFRISK, CAT_NONE}, CAT_RASTER | CAT_INTELX86, {"tiff_ii"}, 0, "" } },
@@ -102,7 +104,6 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "tga", {CAT_IMAGE, CAT_OUTDATED, CAT_NONE}, CAT_RASTER, {"tga_tc32"}, 0, "" } },
     { "jpg",      { "JPEG File Interchange Format", "", "jpg", {CAT_IMAGE, CAT_NONE, CAT_NONE}, CAT_RASTER, {"jfif_soi", "jfif_eoi"}, 0, "" } },
     { "animcur",  { "Windows Animated Cursor", "RIFF container", "ani", {CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_RASTER, {"riff"}, 0, "" } },
-    { "mid",      { "Standard MIDI music", "", "mid", { CAT_MUSIC, CAT_NONE, CAT_NONE }, CAT_MIDI, { "mid" }, 0, "" } },
     { "aif",      { "Audio Interchange Format", "IFF container", "aif", { CAT_AUDIO, CAT_AMIGA, CAT_NONE }, CAT_NONE, { "aif" }, 0, "" } },
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
