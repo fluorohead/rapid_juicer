@@ -402,8 +402,8 @@ void Engine::scan_file_v4(const QString &file_name)
                 case 0x4D524F46: // IFF
                     resource_size = recognize_iff(this);
                     break;
-                case 0xE0FFD8FF:
-                    recognize_special(this);
+                case 0xE0FFD8FF: // JPG
+                    resource_size = recognize_jpg(this);
                     break;
                 case 0x6468544D: // MID
                     resource_size = recognize_mid(this);
@@ -783,7 +783,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     u64i resource_size = last_index - base_index;
     switch (((ChunkHeader*)(&buffer[base_index]))->format_type)
     {
-    case 0x4D424C49: // "ILBM"
+    case 0x4D424C49: // "ILBM" picture
     {
         if ( ( !e->selected_formats[lbm_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(ILBM_InfoHeader)) ) return 0;
@@ -796,7 +796,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         e->resource_offset = base_index;
         return resource_size;
     }
-    case 0x46464941: // "AIFF"
+    case 0x46464941: // "AIFF" sound
     {
         if ( ( !e->selected_formats[aif_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(AIFF_CommonInfoHeader)) ) return 0;
@@ -808,7 +808,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         e->resource_offset = base_index;
         return resource_size;
     }
-    case 0x52494458: // "XDIR"
+    case 0x52494458: // "XDIR" midi music
     {
         if ( ( !e->selected_formats[xmi_id] ) ) return 0;
         // у формата XMI особое строение, поэтому last_index сейчас стоит не на конце ресурса, а на структуре "CAT "
@@ -928,7 +928,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     static u32i gif_id {fformats["gif"].index};
-    static constexpr u64i min_room_need = sizeof(FileHeader) + 1; // где +1 на u8i sep_or_introducer
+    static constexpr u64i min_room_need = sizeof(FileHeader) + 1; // где +1 на u8i separator
     static const QSet <u16i> VALID_VERSIONS  { 0x6137 /*7a*/, 0x6139 /*9a*/ };
     static const QSet <u8i>  EXT_LABELS_TO_PROCESS { 0x01, 0xCE, 0xFE, 0xFF };
     if ( ( !e->selected_formats[gif_id] ) ) return 0;
@@ -1016,6 +1016,60 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     QString info = QString("%1x%2").arg(QString::number(info_header->width),
                                         QString::number(info_header->height));
     emit e->txResourceFound("gif", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct JFIF_Header
+    {
+        u16i soi;
+        u16i app0_marker;
+        u16i len;
+        u32i identifier_4b;
+        u8i  identifier_1b;
+        u8i  identifier[5];
+        u16i version;
+        u8i  units;
+        u16i xdens, ydens;
+        u8i  xthumb, ythumb;
+    };
+#pragma pack(pop)
+    static u32i jpg_id {fformats["jpg"].index};
+    static constexpr u64i min_room_need = sizeof(JFIF_Header);
+    if ( ( !e->selected_formats[jpg_id] ) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    s64i file_size = e->file_size;
+    JFIF_Header *info_header = (JFIF_Header*)(&buffer[base_index]);
+    if ( be2le(info_header->len) != 16 ) return 0;
+    if ( info_header->identifier_4b != 0x4649464A ) return 0;
+    if ( info_header->identifier_1b != 0 ) return 0;
+    qInfo() << "identifier = JFIF is ok";
+    u64i last_index = base_index + sizeof(JFIF_Header);
+    if ( last_index >= file_size ) return 0; // капитуляция, если сразу за заголовком файл закончился
+    while(true) // ищем SOS (start of scan) \0xFF\0xDA
+    {
+        if (last_index + 2 > file_size) return 0; // не нашли SOS
+        if ( *((u16i*)(&buffer[last_index])) == 0xDAFF ) break; // нашли SOS
+        ++last_index;
+    }
+    qInfo() << "found SOS at:" << last_index;
+    last_index += 2; // на размер SOS-идентификатора
+    while(true) // ищем EOI (end of image) \0xFF\0xD9
+    {
+        if (last_index + 2 > file_size) return 0; // не нашли SOS
+        if ( *((u16i*)(&buffer[last_index])) == 0xD9FF ) break; // нашли SOS
+        ++last_index;
+    }
+    qInfo() << "found EOI at:" << last_index;
+    last_index += 2; // на размер EOI-идентификатора
+    u64i resource_size = last_index - base_index;
+    emit e->txResourceFound("jpg", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }

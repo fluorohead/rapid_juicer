@@ -33,7 +33,7 @@ extern const u64i CAT_3D;
 extern const u64i CAT_MUSIC;
 extern const u64i CAT_OTHER;
 
-// base category (2nd or 3rd place)
+// base category (2nd or 3rd place) what platform?
 extern const u64i CAT_DOS;
 extern const u64i CAT_WIN;
 extern const u64i CAT_MAC;

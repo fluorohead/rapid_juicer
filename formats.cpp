@@ -104,7 +104,7 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "tga", {CAT_IMAGE, CAT_OUTDATED, CAT_NONE}, CAT_RASTER, {"tga_tc32"}, 0, "" } },
     { "jpg",      { "JPEG File Interchange Format", "", "jpg", {CAT_IMAGE, CAT_NONE, CAT_NONE}, CAT_RASTER, {"jfif_soi", "jfif_eoi"}, 0, "" } },
     { "animcur",  { "Windows Animated Cursor", "RIFF container", "ani", {CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_RASTER, {"riff"}, 0, "" } },
-    { "aif",      { "Audio Interchange Format", "IFF container", "aif", { CAT_AUDIO, CAT_AMIGA, CAT_NONE }, CAT_NONE, { "aif" }, 0, "" } },
+    { "aif",      { "Audio Interchange Format", "IFF container", "aif", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "aif" }, 0, "" } },
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 
