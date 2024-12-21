@@ -96,7 +96,7 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "wav",      { "Wave Audio Data", "RIFF container", "wav", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_NONE, {"riff"}, 0, "" } },
     { "rmi",      { "MIDI music","RIFF container", "rmi", {CAT_MUSIC, CAT_WIN, CAT_NONE}, CAT_MIDI, {"riff"}, 0, "" } },
     { "mid",      { "Standard MIDI music", "", "mid", { CAT_MUSIC, CAT_NONE, CAT_NONE }, CAT_MIDI, { "mid" }, 0, "" } },
-    { "xmi",      { "Extended MIDI music", "RIFF container", "xmi", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_MIDI, { "riff" }, 0, "" } },
+    { "xmi",      { "eXtended MIDI music (MSS)", "IFF container", "xmi", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_MIDI, { "iff" }, 0, "" } },
     { "lbm",      { "Interleaved Bitmap", "IFF container", "lbm", { CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED }, CAT_RASTER | CAT_DOS, { "iff" }, 0, "" } },
     { "gif",      { "Graphics Interchange Format", "", "gif", {CAT_IMAGE, CAT_WEB, CAT_NONE}, CAT_RASTER, {"gif"}, 0, "" } },
     { "tif_ii",   { "Tag Image File Format", "Intel byte order", "tif", {CAT_IMAGE, CAT_PERFRISK, CAT_NONE}, CAT_RASTER | CAT_INTELX86, {"tiff_ii"}, 0, "" } },

@@ -615,19 +615,25 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     static u32i rmi_id {fformats["rmi"].index};
     static u32i ani_id {fformats["animcur"].index};
     static const u64i min_room_need = sizeof(ChunkHeader);
-    static const QSet <u64i> VALID_SUBCHUNK_TYPE { 0x5453494C20495641 /*AVI LIST*/, 0x20746D6645564157 /*WAVEfmt */, 0x6174616444494D52 /*RMIDdata*/, 0x5453494C4E4F4341 /*ACONLIST*/, 0x68696E614E4F4341 /*ACONanih*/};
+    static const QSet <u64i> VALID_SUBCHUNK_TYPE {  0x5453494C20495641 /*AVI LIST*/,
+                                                    0x20746D6645564157 /*WAVEfmt */,
+                                                    0x6174616444494D52 /*RMIDdata*/,
+                                                    0x5453494C4E4F4341 /*ACONLIST*/,
+                                                    0x68696E614E4F4341 /*ACONanih*/
+                                                    };
+
     if ( ( !e->selected_formats[avi_id] ) and ( !e->selected_formats[wav_id] ) and ( e->selected_formats[rmi_id] ) and ( e->selected_formats[ani_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
-    u64i last_index = sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + (*((ChunkHeader*)(&buffer[base_index]))).chunk_size;
-    if ( base_index + last_index > file_size ) return 0; // неверное поле chunk_size
+    u64i last_index = base_index + sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + (*((ChunkHeader*)(&buffer[base_index]))).chunk_size; // сразу переставляем last_index в конец ресурса
+    if ( last_index > file_size ) return 0; // неверное поле chunk_size
     if ( !VALID_SUBCHUNK_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->subchunk_id) ) return 0; // проверка на валидные id сабчанков
     u64i resource_size = last_index - base_index;
     switch (((ChunkHeader*)(&buffer[base_index]))->subchunk_id)
     {
-    case 0x5453494C20495641: // avi
+    case 0x5453494C20495641: // avi, "AVI LIST" subchunk
     {
         if ( ( !e->selected_formats[avi_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(AviInfoHeader)) ) return 0;
@@ -639,7 +645,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         e->resource_offset = base_index;
         return resource_size;
     }
-    case 0x20746D6645564157: // wav
+    case 0x20746D6645564157: // wav, "WAVEfmt " subchunk
     {
         if ( ( !e->selected_formats[wav_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(WavInfoHeader)) ) return 0;
@@ -653,7 +659,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         e->resource_offset = base_index;
         return resource_size;
     }
-    case 0x6174616444494D52: // rmi
+    case 0x6174616444494D52: // rmi - midi data encapsulated in riff, RMIDdata subchunk
     {
         if ( ( !e->selected_formats[rmi_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(MidiInfoHeader)) ) return 0;
@@ -706,7 +712,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
     s64i file_size = e->file_size;
     HeaderData *info_header = (HeaderData*)(&buffer[base_index + sizeof(MidiChunk)]);
     u64i last_index = base_index + be2le((*((MidiChunk*)(&buffer[base_index]))).size) + sizeof(MidiChunk); // сразу переставляем last_index после заголовка на первый чанк типа MTrk
-    if ( last_index > file_size ) return 0; // прыгнули за пределы файла => явно неверное поле size в заголовке
+    if ( last_index >= file_size ) return 0; // прыгнули за пределы файла => явно неверное поле size в заголовке
     while (true)
     {
         if ( file_size - last_index < sizeof(MidiChunk) ) break; // не хватает места для анализа очередного чанка => достигли конца ресурса
@@ -731,12 +737,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     {
         u32i chunk_id; // "FORM"
         u32i chunk_size; // need BE<>LE swap
-        u32i format_type; // "ILBM", "AIFF"
+        u32i format_type; // "ILBM", "AIFF", "XDIR"
     };
-    struct BitmapInfoHeader
+    struct ILBM_InfoHeader
     {
         u32i local_chunk_id; // "BMHD"
-        u32i size;
+        u32i size; // need BE<>LE swap
         u16i width;
         u16i height;
         u16i left, top;
@@ -748,25 +754,31 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     struct AIFF_CommonInfoHeader
     {
         u32i local_chunk_id; // "COMM"
-        u32i size;
+        u32i size; // need BE<>LE swap
         u16i channels;
         u32i sample_frames;
         u16i sample_size;
         u64i sample_rate_64bits_extended; // оба поля хранят "80 bit IEEE Standard 754 floating point number"
         u16i sample_rate_16bits_extended; //
     };
+    struct XDIR_CatInfoHeader
+    {
+        u32i cat_signature; // "CAT "
+        u32i size; // need BE<>LE swap
+    };
 #pragma pack(pop)
     static u32i lbm_id {fformats["lbm"].index};
     static u32i aif_id {fformats["aif"].index};
+    static u32i xmi_id {fformats["xmi"].index};
     static const u64i min_room_need = sizeof(ChunkHeader);
-    static const QSet <u32i> VALID_FORMAT_TYPE { 0x4D424C49 /*ILBM*/, 0x46464941 /*AIFF*/ };
-    if ( ( !e->selected_formats[lbm_id] ) ) return 0;
+    static const QSet <u32i> VALID_FORMAT_TYPE { 0x4D424C49 /*ILBM*/, 0x46464941 /*AIFF*/, 0x52494458 /*XDIR*/ };
+    if ( ( !e->selected_formats[lbm_id] ) and ( !e->selected_formats[aif_id] ) and ( !e->selected_formats[xmi_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
-    u64i last_index = sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + be2le((*((ChunkHeader*)(&buffer[base_index]))).chunk_size);
-    if ( base_index + last_index > file_size ) return 0; // неверное поле chunk_size
+    u64i last_index = base_index + sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + be2le((*((ChunkHeader*)(&buffer[base_index]))).chunk_size); // сразу переставляем last_index в конец ресурса (но для XMI это лишь начало структуры CAT
+    if ( last_index > file_size ) return 0; // неверное поле chunk_size
     if ( !VALID_FORMAT_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->format_type) ) return 0; // проверка на валидные форматы
     u64i resource_size = last_index - base_index;
     switch (((ChunkHeader*)(&buffer[base_index]))->format_type)
@@ -774,8 +786,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     case 0x4D424C49: // "ILBM"
     {
         if ( ( !e->selected_formats[lbm_id] ) ) return 0;
-        if ( resource_size < (sizeof(ChunkHeader) + sizeof(BitmapInfoHeader)) ) return 0;
-        BitmapInfoHeader *bitmap_info_header = (BitmapInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        if ( resource_size < (sizeof(ChunkHeader) + sizeof(ILBM_InfoHeader)) ) return 0;
+        ILBM_InfoHeader *bitmap_info_header = (ILBM_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
         if ( bitmap_info_header->local_chunk_id != 0x44484D42 /*BMHD*/ ) return 0;
         QString info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
                                                         QString::number(be2le(bitmap_info_header->height)),
@@ -793,6 +805,20 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         if ( aiff_info_header->local_chunk_id == 0x4D4D4F43 ) info = QString("%1-bit %2-ch").arg(   QString::number(be2le(aiff_info_header->sample_size)),
                                                                                                     QString::number(be2le(aiff_info_header->channels)));
         emit e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x52494458: // "XDIR"
+    {
+        if ( ( !e->selected_formats[xmi_id] ) ) return 0;
+        // у формата XMI особое строение, поэтому last_index сейчас стоит не на конце ресурса, а на структуре "CAT "
+        if ( last_index + sizeof(XDIR_CatInfoHeader) > file_size ) return 0;
+        XDIR_CatInfoHeader* cat_info_header = (XDIR_CatInfoHeader*)(&buffer[last_index]);
+        if ( cat_info_header->cat_signature != 0x20544143 /*CAT */) return 0;
+        last_index += (be2le(cat_info_header->size) + sizeof(XDIR_CatInfoHeader));
+        if ( last_index > file_size) return 0;
+        u64i resource_size = last_index - base_index;
+        emit e->txResourceFound("xmi", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
