@@ -3,7 +3,7 @@
 #include <QThread>
 #include <QDebug>
 #include <QDateTime>
-
+#include <QByteArray>
 extern const QMap <u32i, QString> wave_codecs;
 
 QMap <QString, Signature> signatures { // в QMap значения будут автоматически упорядочены по ключам
@@ -11,17 +11,19 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     // |
     // V                        00RREEZZ
     { "special",    { 0x000000003052455A, 4, Engine::recognize_special } }, // "ZER0" zero-phase buffer filler
-    { "bmp",        { 0x0000000000004D42, 2, Engine::recognize_special } }, // "BM"
-    { "pcx_05",     { 0x000000000000050A, 2, Engine::recognize_special } }, // "\0x0A\x05"
-    { "png",        { 0x00000000474E5089, 4, Engine::recognize_special } }, // "\x89PNG"
-    { "riff",       { 0x0000000046464952, 4, Engine::recognize_special } }, // "RIFF"
-    { "iff",        { 0x000000004D524F46, 4, Engine::recognize_special } }, // "FORM"
-    { "gif",        { 0x0000000038464947, 4, Engine::recognize_special } }, // "GIF8"
+    { "bmp",        { 0x0000000000004D42, 2, Engine::recognize_bmp     } }, // "BM"
+    { "pcx_05",     { 0x000000000000050A, 2, Engine::recognize_pcx     } }, // "\0x0A\x05"
+    { "png",        { 0x00000000474E5089, 4, Engine::recognize_png     } }, // "\x89PNG"
+    { "riff",       { 0x0000000046464952, 4, Engine::recognize_riff    } }, // "RIFF"
+    { "iff",        { 0x000000004D524F46, 4, Engine::recognize_iff     } }, // "FORM"
+    { "gif",        { 0x0000000038464947, 4, Engine::recognize_gif     } }, // "GIF8"
     { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_special } }, // "II\0x2A\0x00"
     { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_special } }, // "MM\0x00\0x2A"
     { "tga_tc32",   { 0x0000000000020000, 4, Engine::recognize_special } }, // "\0x00\0x00\0x02\0x00"
-    { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_special } }, // "\0xFF\0xD8\0xFF\0xE0"
-    { "mid",        { 0x000000006468544D, 4, Engine::recognize_special } }, // "MThd"
+    { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_jpg     } }, // "\0xFF\0xD8\0xFF\0xE0"
+    { "mid",        { 0x000000006468544D, 4, Engine::recognize_mid     } }, // "MThd"
+    { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod_mk  } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
+    { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm      } }, // "Exte"
 };
 
 const u32i Engine::special_signature = signatures["special"].as_u64i;
@@ -327,18 +329,18 @@ void Engine::scan_file_v4(const QString &file_name)
     u64i iteration;
     u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
     u64i tale_size = file_size % granularity;
-    u64i max_iterations = file_size / granularity + ((tale_size == 0) ? 0 : 1);
+    u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
     u64i resource_size = 0;
-    qInfo() << "max_iterations:" << max_iterations;
     //////////////////////////////////////////////////////////////
 
     for (iteration = 1; iteration <= max_iterations; ++iteration)
     {
         start_offset = last_offset;
-        last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : (last_offset += tale_size);
+        last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : (last_offset += (tale_size - 3)); // -3, а не -4, потому что last_offset не включительно
         for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
         {
             analyzed_dword = *(u32i*)(mmf_scanbuf + scanbuf_offset);
+            resource_size = 0;
             /// сравнение с сигнатурами
             {
         words:
@@ -384,11 +386,15 @@ void Engine::scan_file_v4(const QString &file_name)
                     break;
             }
             goto end;
+
         second_half:
             switch (analyzed_dword)
             {
                 case 0x2A004D4D:
                     recognize_special(this);
+                    break;
+                case 0x2E4B2E4D: // MOD "M.K."
+                    resource_size = recognize_mod_mk(this);
                     break;
                 case 0x38464947: // GIF
                     resource_size = recognize_gif(this);
@@ -402,11 +408,14 @@ void Engine::scan_file_v4(const QString &file_name)
                 case 0x4D524F46: // IFF
                     resource_size = recognize_iff(this);
                     break;
-                case 0xE0FFD8FF: // JPG
-                    resource_size = recognize_jpg(this);
-                    break;
                 case 0x6468544D: // MID
                     resource_size = recognize_mid(this);
+                    break;
+                case 0x65747845: // XM
+                    resource_size = recognize_xm(this);
+                    break;
+                case 0xE0FFD8FF: // JPG
+                    resource_size = recognize_jpg(this);
                     break;
             }
         end:
@@ -441,7 +450,7 @@ void Engine::scan_file_v4(const QString &file_name)
             default:; // сюда в случае WalkerCommand::Run
         }
         update_file_progress(file_name, file_size, scanbuf_offset); // посылаем сигнал обновить progress bar для файла
-     }
+    }
 
     qInfo() << "closing file";
     qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
@@ -478,11 +487,11 @@ bool Engine::enough_room_to_continue(u64i min_size)
 
 // функция-заглушка для обработки технической сигнатуры
 RECOGNIZE_FUNC_RETURN Engine::recognize_special RECOGNIZE_FUNC_HEADER
-{
+{/*
     if ( e->enough_room_to_continue(10) )
     {
         ++(e->hits);
-    }
+    }*/
 
     return 0;
 }
@@ -1118,4 +1127,156 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
     emit e->txResourceFound("jpg", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_mod_mk RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct SampleDescriptor
+    {
+        u8i  name[22];
+        u16i len;
+        u8i  finetune;
+        u8i  volume;
+        u16i repeat_offset;
+        u16i repeat_len;
+    };
+    struct MOD_31_Header // header with 31 samples info
+    {
+        u8i  song_name[20];
+        SampleDescriptor sample_descriptors[31];
+        u8i  patterns_number;
+        u8i  end_jump_position;
+        u8i  pattern_table[128];
+    };
+#pragma pack(pop)
+    static u32i mod_mk_id {fformats["mod_m.k."].index};
+    if ( ( !e->selected_formats[mod_mk_id] ) ) return 0;
+    if ( e->scanbuf_offset < sizeof(MOD_31_Header) ) return 0;
+    uchar *buffer = e->mmf_scanbuf;
+    u32i signature = *((u32i*)(&buffer[e->scanbuf_offset]));
+    u64i base_index = e->scanbuf_offset - sizeof(MOD_31_Header);
+    MOD_31_Header *info_header = (MOD_31_Header*)(&buffer[base_index]);
+    u64i samples_block_size = 0;
+    for (int sample_id = 0; sample_id < 31; ++sample_id) // калькуляция размера блока сэмплов
+    {
+        samples_block_size += be2le(info_header->sample_descriptors[sample_id].len);
+    }
+    samples_block_size *= 2; // т.к. размер указывается в словах word (u16i)
+    u8i most_pattern_number = 0;
+    for (int pattern_id = 0; pattern_id < 128; ++pattern_id) // калькуляция количества уникальных паттернов на основе их номеров
+    {
+        if ( info_header->pattern_table[pattern_id] > most_pattern_number ) most_pattern_number = info_header->pattern_table[pattern_id];
+    }
+    // нашли самый большой номер -> это общее количество паттернов минус 1
+    most_pattern_number += 1; // поэтому +1
+    u64i steps_in_pattern;
+    u64i channels;
+    u64i one_note_size;
+    switch(signature)
+    {
+    case 0x2E4B2E4D: // "M.K." - 64 steps, 4 channels, one note is 4 bytes
+        steps_in_pattern = 64;
+        channels = 4;
+        one_note_size = 4;
+        break;
+    }
+    u64i patterns_block_size = (steps_in_pattern * channels * one_note_size) * most_pattern_number;
+    u64i last_index = base_index + sizeof(MOD_31_Header) + 4 /*signature size*/ + patterns_block_size + samples_block_size;
+    if ( last_index > e->file_size) return 0; // капитуляция при неверном размере; обрезанные не сохраняем
+    u64i resource_size = last_index - base_index;
+    int song_name_len;
+    for (song_name_len = 0; song_name_len < 20; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
+    {
+        if ( info_header->song_name[song_name_len] == 0 ) break;
+    }
+    QString info = QString("%1-ch, song name: '%2'").arg(   QString::number(channels),
+                                                            QString(QByteArray((char*)(info_header->song_name), song_name_len))
+                                                        );
+    emit e->txResourceFound("mod", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct XM_Header
+    {
+        /// размер этих полей 60 байт
+        u64i sign1; // "Extended"
+        u64i sign2; // " Module:"
+        u8i  sign3; // 0x20 "space"
+        u8i  module_name[20];
+        u8i  ox1a; // 0x1A
+        u8i  tracker_name[20];
+        u16i version; // 0x0104
+        ///
+        u32i header_size;
+        u16i song_len;
+        u16i song_restart_pos;
+        u16i channels_number;
+        u16i patterns_number;
+        u16i instruments_number;
+        u16i flags;
+        u16i default_tempo;
+        u16i default_bpm;
+        u8i  pattern_order_table[256];
+    };
+    struct PatternHeader
+    {
+        u32i header_size;
+        u8i  packing_type;
+        u16i rows_number;
+        u16i packed_pattern_data_size;
+    };
+    struct InstrumentHeader
+    {
+        u32i header_size;
+        u8i  instrument_name[22];
+        u8i  instrument_type;
+        u16i samples_number;
+    };
+#pragma pack(pop)
+    static u32i xm_id {fformats["xm"].index};
+    static constexpr u64i min_room_need = sizeof(XM_Header);
+    if ( ( !e->selected_formats[xm_id] ) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    s64i file_size = e->file_size;
+    XM_Header *info_header = (XM_Header*)(&buffer[base_index]);
+    if ( info_header->sign1 != 0x6465646E65747845 ) return 0;
+    if ( info_header->sign2 != 0x3A656C75646F4D20 ) return 0;
+    if ( info_header->sign3 != 0x20 ) return 0;
+    if ( info_header->ox1a != 0x1A ) return 0;
+    if ( info_header->version != 0x0104 ) return 0;
+    if ( info_header->header_size < 276 ) return 0;
+    if ( info_header->channels_number == 0 ) return 0;
+    if ( info_header->channels_number > 64 ) return 0;
+    if ( info_header->patterns_number == 0 ) return 0;
+    if ( info_header->patterns_number > 256 ) return 0;
+    if ( info_header->instruments_number > 128 ) return 0;
+    qInfo() << "instruments number:" << info_header->instruments_number;
+    u64i last_index = base_index + 60 + info_header->header_size; // переставили last_index на заголовок самого первого паттерна
+    PatternHeader *pattern_header;
+    for (u16i i = 0; i < info_header->patterns_number; ++i) // идём по паттернам
+    {
+        if ( last_index + sizeof(PatternHeader) > file_size ) return 0; // недостаточно места для анализа заголовка паттерна
+        pattern_header = (PatternHeader*)(&buffer[last_index]);
+        if ( pattern_header->rows_number > 256 ) return 0; // чё-то не то, надо капитулировать
+        last_index += (pattern_header->header_size + pattern_header->packed_pattern_data_size); // переставили last_index на следующий pattern header или, если паттерны закончились, на заголовки инструментов
+    }
+    qInfo() << "instrument headers start at:" << last_index;
+    InstrumentHeader *instrument_header;
+    // for (u16i i = 0; i < info_header->instruments_number; ++i) // идём по инструментам
+    // {
+        if ( last_index + sizeof(InstrumentHeader) > file_size ) return 0; // недостаточно места для анализа заголовка инструмента
+        instrument_header = (InstrumentHeader*)(&buffer[last_index]);
+        last_index += (instrument_header->header_size);
+        qInfo() << "next_instrument starts at: " << last_index;
+
+
+
+    return 0;
 }

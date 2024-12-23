@@ -252,7 +252,15 @@ void WalkerThread::run()
                         qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : \"for\" in lambda : scanning file \""<< file_infolist[idx].absoluteFilePath();
 
                         //// тут запуск поискового движка
-                        engine->scan_file_v1(file_infolist[idx].absoluteFilePath());
+                        //engine->scan_file_v1(file_infolist[idx].absoluteFilePath());
+
+                        /////  запуск поискового движка
+                        s64i fix_msecs = QDateTime::currentMSecsSinceEpoch();
+                        engine->scan_file_v4(file_infolist[idx].absoluteFilePath());
+                        qInfo() << "scan_file worked for:" << (QDateTime::currentMSecsSinceEpoch() - fix_msecs) << "msecs";
+                        /////
+
+
                         if ( command == WalkerCommand::Stop ) // функция scan_file завершилась по команде Stop => выходим из while (и потом сразу из lambda for, а потом сразу из главного for)
                         {
                             qInfo() << " >>>> WalkerThread : received Stop command, when Engine was running! (in lambda)";
