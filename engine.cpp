@@ -330,13 +330,15 @@ void Engine::scan_file_v4(const QString &file_name)
     u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
     u64i tale_size = file_size % granularity;
     u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
+    u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
     u64i resource_size = 0;
     //////////////////////////////////////////////////////////////
 
     for (iteration = 1; iteration <= max_iterations; ++iteration)
     {
         start_offset = last_offset;
-        last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : (last_offset += (tale_size - 3)); // -3, а не -4, потому что last_offset не включительно
+        last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : absolute_last_offset;
+
         for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
         {
             analyzed_dword = *(u32i*)(mmf_scanbuf + scanbuf_offset);
@@ -903,9 +905,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_pcx RECOGNIZE_FUNC_HEADER
     static const u64i min_room_need = sizeof(PcxHeader);
     if ( ( !e->selected_formats[pcx_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
-    // дополнительный анализ заголовка
     PcxHeader* pcx_info_header = (PcxHeader*)(&(e->mmf_scanbuf[e->scanbuf_offset]));
-    if ( !pcx_info_header->encoding ) return 0; // если != 1
+    if ( pcx_info_header->encoding != 1 ) return 0;
     switch ( pcx_info_header->bits_per_plane )
     {
     case 1: case 2: case 4: case 8: case 24:
@@ -1230,12 +1231,39 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
         u16i rows_number;
         u16i packed_pattern_data_size;
     };
-    struct InstrumentHeader
+    struct InstrHeader
     {
-        u32i header_size;
+        u32i header_size; // по сути указывает инкрементальный jump отсюда на начало заголовков сэммлов
         u8i  instrument_name[22];
         u8i  instrument_type;
         u16i samples_number;
+    };
+    struct ExtInstrHeader
+    {
+        u32i sample_header_size;
+        u8i  sample_nums_for_notes[96];
+        u8i  volume_envelope[48];
+        u8i  panning_envelope[48];
+        u8i  volume_points_num, panning_points_num;
+        u8i  vol_sustain_point, vol_loop_start_point, vol_loop_end_point;
+        u8i  pan_sustain_point, pan_loop_start_point, pan_loop_end_point;
+        u8i  vol_type, pan_type;
+        u8i  vibrato_type, vibrato_sweep, vibrato_depth, vibrato_rate;
+        u16i vol_fadeout;
+        u16i reserved;
+    };
+    struct SampleHeader
+    {
+        u32i sample_len;
+        u32i loop_start;
+        u32i loop_len;
+        u8i  volume;
+        u8i  finetune;
+        u8i  type;
+        u8i  panning;
+        u8i  note_number;
+        u8i  reserved;
+        u8i  name[22];
     };
 #pragma pack(pop)
     static u32i xm_id {fformats["xm"].index};
@@ -1257,7 +1285,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
     if ( info_header->patterns_number == 0 ) return 0;
     if ( info_header->patterns_number > 256 ) return 0;
     if ( info_header->instruments_number > 128 ) return 0;
-    qInfo() << "instruments number:" << info_header->instruments_number;
+    //qInfo() << "instruments number:" << info_header->instruments_number;
     u64i last_index = base_index + 60 + info_header->header_size; // переставили last_index на заголовок самого первого паттерна
     PatternHeader *pattern_header;
     for (u16i i = 0; i < info_header->patterns_number; ++i) // идём по паттернам
@@ -1267,16 +1295,54 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
         if ( pattern_header->rows_number > 256 ) return 0; // чё-то не то, надо капитулировать
         last_index += (pattern_header->header_size + pattern_header->packed_pattern_data_size); // переставили last_index на следующий pattern header или, если паттерны закончились, на заголовки инструментов
     }
-    qInfo() << "instrument headers start at:" << last_index;
-    InstrumentHeader *instrument_header;
-    // for (u16i i = 0; i < info_header->instruments_number; ++i) // идём по инструментам
-    // {
-        if ( last_index + sizeof(InstrumentHeader) > file_size ) return 0; // недостаточно места для анализа заголовка инструмента
-        instrument_header = (InstrumentHeader*)(&buffer[last_index]);
-        last_index += (instrument_header->header_size);
-        qInfo() << "next_instrument starts at: " << last_index;
+    // qInfo() << "instrument headers start at:" << last_index;
+    InstrHeader *instr_header;
+    ExtInstrHeader *ext_instr_header;
+    SampleHeader *sample_header;
+    u64i sample_block_size;
+    // здесь last_index уже стоит на самом первом заголовке InstHeader
+    for (u16i i = 0; i < info_header->instruments_number; ++i) // идём по инструментам
+    {
+        sample_block_size = 0; // обнуление размера блока сэмплов для каждого инструмента
+        if ( last_index + sizeof(InstrHeader) > file_size ) return 0; // недостаточно места для анализа заголовка инструмента
+        instr_header = (InstrHeader*)(&buffer[last_index]);
+        //qInfo() << ":: instrument id:" << i << "at offset:" << QString::number(last_index, 16) << " has" << instr_header->samples_number << "samples";
+        if ( instr_header->samples_number > 0 ) // значит дальше есть ExtInstrHeader и заголовки сэмплов, за которыми идут сами сэмплы
+        {
+            ext_instr_header = (ExtInstrHeader*)(&buffer[last_index + sizeof(InstrHeader)]); // из расширенного заголовка нам нужно поле sample_header_size для дальнеших рассчётов
+            if ( last_index + sizeof(InstrHeader) + sizeof(ExtInstrHeader) > file_size ) return 0; // недостаточно места для анализа расширенного заголовка
+            last_index += instr_header->header_size; // прыгаем на заголовок самого первого сэмпла
+            for (u16i s = 0; s < instr_header->samples_number; ++s) // идём по заголовкам сэмплов
+            {
+                if ( last_index + ext_instr_header->sample_header_size > file_size ) return 0; // не хватает места на заголовок сэмпла
+                sample_header = (SampleHeader*)(&buffer[last_index]);
+                sample_block_size += sample_header->sample_len;
+                //qInfo() << " ---> sample id:" << s << "; size:" << sample_header->sample_len;
+                last_index += ext_instr_header->sample_header_size;
+            }
+            // после выхода из for индекс last_index стоит на блоке сэмплов
+            //qInfo() << "sample_block_size:" << sample_block_size;
+            if ( last_index + sample_block_size > file_size ) return 0; // не хватает места на сэмплы
 
-
-
-    return 0;
+            last_index += sample_block_size; // индексируем last_index, переставляя его на заголовок следующего инструмента, либо в конец файла, если больше нет инструментов
+        }
+        else // если нет сэмплов в инструменте, то просто прыгаем на следующий инструмент
+        {
+            last_index += instr_header->header_size;
+        }
+    }
+    // если дошли сюда, значит достигли конца ресурса
+    if ( last_index > file_size ) return 0; // последняя проверка
+    u64i resource_size = last_index - base_index;
+    int song_name_len;
+    for (song_name_len = 0; song_name_len < 20; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
+    {
+        if ( info_header->module_name[song_name_len] == 0 ) break;
+    }
+    QString info = QString("%1-ch, song name: '%2'").arg(   QString::number(info_header->channels_number),
+                                                            QString(QByteArray((char*)(info_header->module_name), song_name_len))
+                                                         );
+    emit e->txResourceFound("xm", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
 }
