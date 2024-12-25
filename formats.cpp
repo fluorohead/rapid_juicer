@@ -106,7 +106,8 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "animcur",  { "Windows Animated Cursor", "RIFF container", "ani", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
     { "aif",      { "Audio Interchange Format", "IFF container", "aif", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "aif" }, 0, "" } },
     { "mod_m.k.", { "Tracker Module", "most popular 'M.K.'", "mod", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_NONE, { "mod_m.k." }, 0, "" } },
-    { "xm",       { "FastTracker II Module" , "", "xm", { CAT_AUDIO, CAT_MUSIC, CAT_NONE }, CAT_NONE, { "xm" }, 0, "" } }
+    { "xm",       { "FastTracker II Module" , "", "xm", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "xm" }, 0, "" } },
+    { "s3m",      { "ScreamTracker 3 Module", "", "s3m", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "s3m" }, 0, "" } }
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 

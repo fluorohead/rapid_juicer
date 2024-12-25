@@ -24,6 +24,7 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "mid",        { 0x000000006468544D, 4, Engine::recognize_mid     } }, // "MThd"
     { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod_mk  } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
     { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm      } }, // "Exte"
+    { "s3m",        { 0x000000004D524353, 4, Engine::recognize_s3m     } }, // "SCRM"
 };
 
 const u32i Engine::special_signature = signatures["special"].as_u64i;
@@ -401,13 +402,16 @@ void Engine::scan_file_v4(const QString &file_name)
                 case 0x38464947: // GIF
                     resource_size = recognize_gif(this);
                     break;
-                case 0x46464952: // RIFF
+                case 0x46464952: // RIFF "RIFF"
                     resource_size = recognize_riff(this);
                     break;
                 case 0x474E5089: // PNG
                     resource_size = recognize_png(this);
                     break;
-                case 0x4D524F46: // IFF
+                case 0x4D524353: // S3M "SCRM"
+                    resource_size = recognize_s3m(this);
+                    break;
+                case 0x4D524F46: // IFF "FORM"
                     resource_size = recognize_iff(this);
                     break;
                 case 0x6468544D: // MID
@@ -1214,14 +1218,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
         u16i version; // 0x0104
         ///
         u32i header_size;
-        u16i song_len;
-        u16i song_restart_pos;
-        u16i channels_number;
-        u16i patterns_number;
-        u16i instruments_number;
-        u16i flags;
-        u16i default_tempo;
-        u16i default_bpm;
+        u16i song_len, song_restart_pos, channels_number, patterns_number, instruments_number;
+        u16i flags, default_tempo, default_bpm;
         u8i  pattern_order_table[256];
     };
     struct PatternHeader
@@ -1320,7 +1318,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
                 //qInfo() << " ---> sample id:" << s << "; size:" << sample_header->sample_len;
                 last_index += ext_instr_header->sample_header_size;
             }
-            // после выхода из for индекс last_index стоит на блоке сэмплов
+            // после выхода из цикла по заголовком сэмплов last_index стоит уже на блоке самих сэмплов
             //qInfo() << "sample_block_size:" << sample_block_size;
             if ( last_index + sample_block_size > file_size ) return 0; // не хватает места на сэмплы
 
@@ -1343,6 +1341,84 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
                                                             QString(QByteArray((char*)(info_header->module_name), song_name_len))
                                                          );
     emit e->txResourceFound("xm", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct S3M_Header
+    {
+        u8i  song_name[28];
+        u8i  ox1a; // 0x1A
+        u8i  type;
+        u16i not_used, ordnum, insnum, patnum, flags, created_with_version, format_version;
+        u32i signature; // "SCRM"
+        u8i  global_vol, master_vol, initial_speed, initial_tempo;
+        u8i  reserved[10];
+        u16i special_ptr;
+        u8i  channel_settings[32];
+    };
+    struct SampleHeader
+    {
+        u8i  type;
+        u8i  dos_filename[12];
+        u8i  unknow;
+        u16i memseg;
+        u32i len, loop_begin, loop_end;
+        u8i  volume;
+        u8i  reserved2;
+        u8i  pack, flags;
+        u32i middle_c_herz;
+        u8i  reserved3[4];
+        u16i int_gp, int_512;
+        u32i int_last_used;
+        u8i  sample_name[28];
+        u32i signature; // "SCRS"
+    };
+#pragma pack(pop)
+    static u32i s3m_id {fformats["s3m"].index};
+    static const u64i min_room_need = 52;
+    if ( ( !e->selected_formats[s3m_id] ) ) return 0;
+    if ( e->scanbuf_offset < 44 ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0; // хватит ли места, начиная с поля signature?
+    uchar *buffer = e->mmf_scanbuf;
+    u64i base_index = e->scanbuf_offset - 44;
+    S3M_Header *info_header = (S3M_Header*)(&buffer[base_index]);
+    if ( info_header->ox1a != 0x1A ) return 0;
+    if ( info_header->type != 16 ) return 0;
+    if ( info_header->ordnum % 2 != 0 ) return 0; // длина списка воспроизведения всегда д.б. чётной
+    if ( info_header->insnum == 0 ) return 0; // модуль без инструментов не имеет смысла
+    u64i after_header_block_size = info_header->ordnum + info_header->insnum * 2 + info_header->patnum * 2; // блок с Orders + instruments parapointers + pattern parapointers
+    s64i file_size = e->file_size;
+    if ( base_index + sizeof(S3M_Header) + after_header_block_size > file_size ) return 0; // не хватает места под orders + parapointers
+    QMap<u16i, u32i> smp_pp_db; // бд парапойнтеров на сами сэмплы; ключ - парапойнтер, значение - размер блока по адресу парапойнтера
+    SampleHeader *sample_header;
+    u64i pointer32; // для преобразования парапойнтера через *16
+    u16i *parapointer = (u16i*)(&buffer[base_index + sizeof(S3M_Header) + info_header->ordnum]); // формируем указатель на [0] индекс списка instrument parapointers
+    for (u16i pp_idx = 0; pp_idx < info_header->insnum; ++pp_idx) // и идём по этому списку
+    {
+        pointer32 = parapointer[pp_idx] * 16; // абсолютное смещение в файле ресура (но не в файле поиска, т.к. ресурс может быть со смещением)
+        if ( base_index + pointer32 + sizeof(SampleHeader) > file_size ) return 0; // заголовок сэмпла не помещается в файл? -> капитуляция
+        sample_header = (SampleHeader*)(&buffer[base_index + pointer32]);
+        if ( sample_header->signature == 0x53524353 ) // надо проверить на сигнатуру, потому что треккер сохраняет даже инструменты без сэмпла только ради отображения sample name, где обычно располагаются комментарии
+        {
+            if ( base_index + sample_header->memseg * 16 + sample_header->len > file_size ) return 0; // не хватает места под сэмпл
+            smp_pp_db[sample_header->memseg] = sample_header->len;
+        }
+    }
+    // список smp_pp_db упорядочен по ключам : самый старший ключ - наиболее дальний парапойнтер в ресурсе, его значение - длина блока
+    u64i last_index = base_index + smp_pp_db.lastKey() * 16 + smp_pp_db[smp_pp_db.lastKey()];
+    if ( last_index > file_size ) return 0;
+    u64i resource_size = last_index - base_index;
+    int song_name_len;
+    for (song_name_len = 0; song_name_len < 28; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
+    {
+        if ( info_header->song_name[song_name_len] == 0 ) break;
+    }
+    QString info = QString("song name: '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    emit e->txResourceFound("s3m", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
