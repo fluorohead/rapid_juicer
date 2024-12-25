@@ -330,8 +330,11 @@ void Engine::scan_file_v4(const QString &file_name)
     u64i iteration;
     u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
     u64i tale_size = file_size % granularity;
+    qInfo() << "tale_size:" << tale_size;
     u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
+    qInfo() << "max_iterations:" << max_iterations;
     u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
+    qInfo() << "absolute_last_offset" << absolute_last_offset;
     u64i resource_size = 0;
     //////////////////////////////////////////////////////////////
 
@@ -339,6 +342,7 @@ void Engine::scan_file_v4(const QString &file_name)
     {
         start_offset = last_offset;
         last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : absolute_last_offset;
+        qInfo() << "last_offset:" << last_offset;
 
         for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
         {
@@ -1353,9 +1357,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         u8i  song_name[28];
         u8i  ox1a; // 0x1A
         u8i  type;
-        u16i not_used, ordnum, insnum, patnum, flags, created_with_version, format_version;
+        u16i not_used, ordnum, insnum, patnum, flags, cr_with_ver, fmt_ver;
         u32i signature; // "SCRM"
-        u8i  global_vol, master_vol, initial_speed, initial_tempo;
+        u8i  global_vol, initial_speed, initial_tempo, master_vol;
         u8i  reserved[10];
         u16i special_ptr;
         u8i  channel_settings[32];
@@ -1378,6 +1382,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         u32i signature; // "SCRS"
     };
 #pragma pack(pop)
+    // предполагается, что порядок организации ресурса всегда такой же, как указано в файле s3m.txt
+    // - header
+    // - instruments in order
+    // - patterns in order
+    // - samples in order
+    // поэтому задача отследить смещение данных самого дальнего сэмпла и его размер
     static u32i s3m_id {fformats["s3m"].index};
     static const u64i min_room_need = 52;
     if ( ( !e->selected_formats[s3m_id] ) ) return 0;
@@ -1393,7 +1403,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     u64i after_header_block_size = info_header->ordnum + info_header->insnum * 2 + info_header->patnum * 2; // блок с Orders + instruments parapointers + pattern parapointers
     s64i file_size = e->file_size;
     if ( base_index + sizeof(S3M_Header) + after_header_block_size > file_size ) return 0; // не хватает места под orders + parapointers
-    QMap<u16i, u32i> smp_pp_db; // бд парапойнтеров на сами сэмплы; ключ - парапойнтер, значение - размер блока по адресу парапойнтера
+    QMap<u16i, u32i> pp_db; // бд парапойнтеров на тела сэмплов (либо на тела паттернов, если сэмплов не было); ключ - парапойнтер, значение - размер блока по адресу парапойнтера
     SampleHeader *sample_header;
     u64i pointer32; // для преобразования парапойнтера через *16
     u16i *parapointer = (u16i*)(&buffer[base_index + sizeof(S3M_Header) + info_header->ordnum]); // формируем указатель на [0] индекс списка instrument parapointers
@@ -1405,11 +1415,30 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         if ( sample_header->signature == 0x53524353 ) // надо проверить на сигнатуру, потому что треккер сохраняет даже инструменты без сэмпла только ради отображения sample name, где обычно располагаются комментарии
         {
             if ( base_index + sample_header->memseg * 16 + sample_header->len > file_size ) return 0; // не хватает места под сэмпл
-            smp_pp_db[sample_header->memseg] = sample_header->len;
+            pp_db[sample_header->memseg] = sample_header->len;
         }
     }
+    u64i last_index = file_size + 1; // выставляем заведомо плохое значение : оно изменится (или нет) в следующем блоке if
     // список smp_pp_db упорядочен по ключам : самый старший ключ - наиболее дальний парапойнтер в ресурсе, его значение - длина блока
-    u64i last_index = base_index + smp_pp_db.lastKey() * 16 + smp_pp_db[smp_pp_db.lastKey()];
+    if ( pp_db.count() == 0 ) // а были ли сэмплы? иногда присутствуют лишь Adblib-инструменты "SCRI", у которых есть только заголовок и нет тела, поэтому последними в файле идут паттерны -> надо отследить последний паттерн
+    {
+        parapointer = (u16i*)(&buffer[base_index + sizeof(S3M_Header) + info_header->ordnum + info_header->insnum * 2]); // формируем указатель на [0] индекс списка pattern parapointers
+        for (u16i pp_idx = 0; pp_idx < info_header->patnum; ++pp_idx) // и идём по этому списку
+        {
+            pointer32 = parapointer[pp_idx] * 16; // абсолютное смещение в файле ресура (но не в файле поиска, т.к. ресурс может быть со смещением)
+            if ( base_index + pointer32 + 2 > file_size ) return 0; // заголовок паттерна (а именно поле Length) не помещается в файл? -> капитуляция
+            pp_db[parapointer[pp_idx]] = 10240 + 2; // грубо принимаем, что паттерн в распакованном виде не более 1024 байт + 2 байта на поле Length
+        }
+        if ( pp_db.count() == 0 ) return 0; // ресурс без сэмплов и без паттернов не имеет смыслы -> капитуляция
+        if ( pp_db.lastKey() * 16 < sizeof(S3M_Header) + after_header_block_size ) return 0; // проверка парапойнтера на корректность: вдруг он залез вообще на начало ресурса куда-то в заголовок?
+        last_index = base_index + pp_db.lastKey() * 16 + pp_db[pp_db.lastKey()];
+        if ( last_index > file_size ) last_index = file_size; // т.к. мы брали размер паттерна грубо 10K, то возможен выход за пределы скан-файла -> обрезаем last_index по границе файла
+    }
+    else // сэмплы есть, значит отслеживаем по бд сэмплов самый последний
+    {
+        if ( pp_db.lastKey() * 16 < sizeof(S3M_Header) + after_header_block_size ) return 0; // проверка парапойнтера на корректность: вдруг он залез вообще на начало ресурса куда-то в заголовок?
+        last_index = base_index + pp_db.lastKey() * 16 + pp_db[pp_db.lastKey()];
+    }
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
     int song_name_len;
