@@ -25,6 +25,7 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod_mk  } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
     { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm      } }, // "Exte"
     { "s3m",        { 0x000000004D524353, 4, Engine::recognize_s3m     } }, // "SCRM"
+    { "it",         { 0x000000004D504D49, 4, Engine::recognize_it      } }, // "IMPM"
 };
 
 const u32i Engine::special_signature = signatures["special"].as_u64i;
@@ -330,11 +331,11 @@ void Engine::scan_file_v4(const QString &file_name)
     u64i iteration;
     u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
     u64i tale_size = file_size % granularity;
-    qInfo() << "tale_size:" << tale_size;
+    // qInfo() << "tale_size:" << tale_size;
     u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
-    qInfo() << "max_iterations:" << max_iterations;
+    // qInfo() << "max_iterations:" << max_iterations;
     u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
-    qInfo() << "absolute_last_offset" << absolute_last_offset;
+    // qInfo() << "absolute_last_offset" << absolute_last_offset;
     u64i resource_size = 0;
     //////////////////////////////////////////////////////////////
 
@@ -342,7 +343,7 @@ void Engine::scan_file_v4(const QString &file_name)
     {
         start_offset = last_offset;
         last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : absolute_last_offset;
-        qInfo() << "last_offset:" << last_offset;
+        // qInfo() << "last_offset:" << last_offset;
 
         for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
         {
@@ -411,6 +412,9 @@ void Engine::scan_file_v4(const QString &file_name)
                     break;
                 case 0x474E5089: // PNG
                     resource_size = recognize_png(this);
+                    break;
+                case 0x4D504D49: // IT "IMPM"
+                    resource_size = recognize_it(this);
                     break;
                 case 0x4D524353: // S3M "SCRM"
                     resource_size = recognize_s3m(this);
@@ -1355,7 +1359,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     struct S3M_Header
     {
         u8i  song_name[28];
-        u8i  ox1a; // 0x1A
+        u8i  Ox1A; // 0x1A
         u8i  type;
         u16i not_used, ordnum, insnum, patnum, flags, cr_with_ver, fmt_ver;
         u32i signature; // "SCRM"
@@ -1371,9 +1375,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         u8i  unknow;
         u16i memseg;
         u32i len, loop_begin, loop_end;
-        u8i  volume;
-        u8i  reserved2;
-        u8i  pack, flags;
+        u8i  volume, reserved2, pack, flags;
         u32i middle_c_herz;
         u8i  reserved3[4];
         u16i int_gp, int_512;
@@ -1382,7 +1384,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         u32i signature; // "SCRS"
     };
 #pragma pack(pop)
-    // предполагается, что порядок организации ресурса всегда такой же, как указано в файле s3m.txt
+    // предполагается, что порядок организации ресурса всегда такой же, как указано в файле s3m-form.txt
     // - header
     // - instruments in order
     // - patterns in order
@@ -1390,16 +1392,17 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     // поэтому задача отследить смещение данных самого дальнего сэмпла и его размер
     static u32i s3m_id {fformats["s3m"].index};
     static const u64i min_room_need = 52;
+    static const QSet <u32i> VALID_INSTR_SIGNATURE { 0x53524353 /*SCRS*/, 0x49524353 /*SCRI*/, 0x00000000 /*empty instrument*/};
     if ( ( !e->selected_formats[s3m_id] ) ) return 0;
     if ( e->scanbuf_offset < 44 ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0; // хватит ли места, начиная с поля signature?
     uchar *buffer = e->mmf_scanbuf;
     u64i base_index = e->scanbuf_offset - 44;
     S3M_Header *info_header = (S3M_Header*)(&buffer[base_index]);
-    if ( info_header->ox1a != 0x1A ) return 0;
+    if ( info_header->Ox1A != 0x1A ) return 0;
     if ( info_header->type != 16 ) return 0;
     if ( info_header->ordnum % 2 != 0 ) return 0; // длина списка воспроизведения всегда д.б. чётной
-    if ( info_header->insnum == 0 ) return 0; // модуль без инструментов не имеет смысла
+    // if ( info_header->insnum == 0 ) return 0; // модуль без инструментов не имеет смысла?
     u64i after_header_block_size = info_header->ordnum + info_header->insnum * 2 + info_header->patnum * 2; // блок с Orders + instruments parapointers + pattern parapointers
     s64i file_size = e->file_size;
     if ( base_index + sizeof(S3M_Header) + after_header_block_size > file_size ) return 0; // не хватает места под orders + parapointers
@@ -1412,7 +1415,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         pointer32 = parapointer[pp_idx] * 16; // абсолютное смещение в файле ресура (но не в файле поиска, т.к. ресурс может быть со смещением)
         if ( base_index + pointer32 + sizeof(SampleHeader) > file_size ) return 0; // заголовок сэмпла не помещается в файл? -> капитуляция
         sample_header = (SampleHeader*)(&buffer[base_index + pointer32]);
-        if ( sample_header->signature == 0x53524353 ) // надо проверить на сигнатуру, потому что треккер сохраняет даже инструменты без сэмпла только ради отображения sample name, где обычно располагаются комментарии
+        if ( !VALID_INSTR_SIGNATURE.contains(sample_header->signature) ) return 0; // неверная сигнатура заголовка инструмента
+        if ( sample_header->signature == 0x53524353 ) // надо проверить на сигнатуру, потому что треккер сохраняет даже инструменты без сэмпла только ради отображения sample name, где располагаются комментарии
         {
             if ( base_index + sample_header->memseg * 16 + sample_header->len > file_size ) return 0; // не хватает места под сэмпл
             pp_db[sample_header->memseg] = sample_header->len;
@@ -1425,7 +1429,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         parapointer = (u16i*)(&buffer[base_index + sizeof(S3M_Header) + info_header->ordnum + info_header->insnum * 2]); // формируем указатель на [0] индекс списка pattern parapointers
         for (u16i pp_idx = 0; pp_idx < info_header->patnum; ++pp_idx) // и идём по этому списку
         {
-            pointer32 = parapointer[pp_idx] * 16; // абсолютное смещение в файле ресура (но не в файле поиска, т.к. ресурс может быть со смещением)
+            pointer32 = parapointer[pp_idx] * 16; // абсолютное смещение в файле ресурса (но не в файле поиска, т.к. ресурс может быть со смещением)
             if ( base_index + pointer32 + 2 > file_size ) return 0; // заголовок паттерна (а именно поле Length) не помещается в файл? -> капитуляция
             pp_db[parapointer[pp_idx]] = 10240 + 2; // грубо принимаем, что паттерн в распакованном виде не более 1024 байт + 2 байта на поле Length
         }
@@ -1446,8 +1450,122 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("song name: '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     emit e->txResourceFound("s3m", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct IT_Header
+    {
+        u32i signature;
+        u8i  song_name[26];
+        u16i philiht, ordnum, insnum, smpnum, patnum;
+        u16i cr_with_ver, compat_ver, flags, special;
+        u8i  gv, mv, is, it, sep, pwd;
+        u16i message_len;
+        u32i message_offset;
+        u32i reserved;
+        u8i  channel_panning[64];
+        u8i  channel_volumes[64];
+    };
+    struct SampleHeader
+    {
+        u32i signature; // "IMPS"
+        u8i  dos_filename[12];
+        u8i  Ox00, gvl, flag, vol;
+        u8i  sample_name[26];
+        u8i  cvt, dfp;
+        u32i len, loop_begin, loop_end, c5_speed;
+        u32i sus_loop_begin, sus_loop_end;
+        u32i sample_pointer;
+        u8i  vis, vid, vir, vit;
+    };
+    struct PatternHeader
+    {
+        u16i len;
+        u16i rows;
+        u8i  reserved[4];
+    };
+#pragma pack(pop)
+    static u32i it_id {fformats["it"].index};
+    static constexpr u64i min_room_need = sizeof(IT_Header);
+    if ( ( !e->selected_formats[it_id] ) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    IT_Header *info_header = (IT_Header*)(&buffer[base_index]);
+    if ( ( info_header->smpnum == 0 ) and ( info_header->patnum == 0 ) ) return 0; // модуль без сэмплов и одновременно без паттернов не имеет смысла
+    if ( info_header->gv > 128 ) return 0; // global volume
+    if ( info_header->mv > 128 ) return 0; // mixing volume
+    if ( info_header->sep > 128 ) return 0; // panning separation
+    u64i after_header_block_size = info_header->ordnum + info_header->insnum * 4 + info_header->smpnum * 4 + info_header->patnum * 4; // блок с Orders + instruments offset + sample headers offset + pattern offset
+    s64i file_size = e->file_size;
+    if ( base_index + sizeof(IT_Header) + after_header_block_size > file_size ) return 0; // не хватает места для orders + offsets
+    QMap<u32i, u32i> offsets_db; // бд указателей на тела сэмплов (либо на тела паттернов, если сэмплов не было); ключ - смещение, значение - размер блока по адресу смещения
+    // qInfo() << "   ---> number of samples:" << info_header->smpnum;
+    // qInfo() << "   ---> list of sample header offsets starts at: 0x" << QString::number(base_index + sizeof(IT_Header) + info_header->ordnum + info_header->insnum * 4, 16);
+    u32i *pointer = (u32i*)&buffer[base_index + sizeof(IT_Header) + info_header->ordnum + info_header->insnum * 4];
+    SampleHeader *sample_header;
+    u64i multiplier; // 1 - 8bit, 2 - 16bit'ный сэмпл
+    for (u16i idx = 0; idx < info_header->smpnum; ++idx)
+    {
+        if ( base_index + pointer[idx] + sizeof(SampleHeader) > file_size ) return 0; // нет места для анализа заголовка сэмпла
+        sample_header = (SampleHeader*)&buffer[base_index + pointer[idx]];
+        if ( sample_header->signature != 0x53504D49 ) return 0; // нет сигнатуры сэмпла
+        multiplier = ((sample_header->flag & 2) == 2) ? 2 : 1;
+        //qInfo() << "sample id:" << idx << " sample_pointer:" << sample_header->sample_pointer << " sample_len:" << sample_header->len * multiplier << " bits:" << 8 * multiplier;
+        if ( !offsets_db.contains(sample_header->sample_pointer) or ( sample_header->len == 0) ) // встречаются модули (SLEEP.IT), где заголовки сэмплов ссылаются на одно и то же смещение -> надо это пресечь и доверять только первому уникальному смещению.
+                                                                                                 // сэмплы нулевой длины тоже не учитываем.
+        {
+            offsets_db[sample_header->sample_pointer] = sample_header->len * multiplier;
+            if ( base_index + sample_header->sample_pointer + sample_header->len * multiplier > file_size ) return 0; // сэмпл за пределами скан-файла
+        }
+    }
+    u64i last_index = file_size + 1; // выставляем заведомо плохое значение : оно изменится (или нет) в следующем блоке if
+    if ( offsets_db.count() == 0 ) // сэмплов не было, тогда отследим последний паттерн
+    {
+        if ( info_header->patnum == 0 ) return 0; // нет паттернов -> модуль не имеет смысла
+        pointer = (u32i*)&buffer[base_index + sizeof(IT_Header) + info_header->ordnum + info_header->insnum * 4 + info_header->smpnum * 4];
+        PatternHeader *pattern_info;
+        for (u16i idx = 0; idx < info_header->patnum; ++idx)
+        {
+            if ( base_index + pointer[idx] + 8 > file_size ) return 0; // нет места для анализа заголовка паттерна
+            if ( pointer[idx] != 0 )
+            {   // IT-FORM.TXT : Note that if the (long) offset to a pattern = 0, then the
+                // IT-FORM.TXT : pattern is assumed to be a 64 row empty pattern.
+                // судя по выдержке бывают нулевые указатели на абсолютно пустые паттерны, у которых нет тела в файле,
+                // поэтому данный if-else обслуживает корректную логику добавления в бд
+                pattern_info = (PatternHeader*)&buffer[base_index + pointer[idx]];
+                // qInfo() << "pattern id:" << idx << "at offset:" << base_index + pointer[idx] << " len:" << pattern_info->len;
+                if ( base_index + pointer[idx] + 8 + pattern_info->len > file_size ) return 0; // нет места для тела паттерна
+                offsets_db[pointer[idx]] = pattern_info->len + 8;
+            }
+            else
+            {
+                offsets_db[0] = 0;
+            }
+        }
+        if ( offsets_db.lastKey() < sizeof(IT_Header) + after_header_block_size ) return 0; // проверка указателя на корректность: вдруг он залез вообще на начало ресурса куда-то в заголовок?
+        last_index = base_index + offsets_db.lastKey() + offsets_db[offsets_db.lastKey()];
+      }
+    else
+    {
+        if ( offsets_db.lastKey() < sizeof(IT_Header) + after_header_block_size ) return 0; // проверка указателя на корректность: вдруг он залез вообще на начало ресурса куда-то в заголовок?
+        last_index = base_index + offsets_db.lastKey() + offsets_db[offsets_db.lastKey()];
+    }
+    if ( last_index > file_size ) return 0; // на всякий случай последняя проверка
+    u64i resource_size = last_index - base_index;
+    int song_name_len;
+    for (song_name_len = 0; song_name_len < 26; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
+    {
+        if ( info_header->song_name[song_name_len] == 0 ) break;
+    }
+    QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    emit e->txResourceFound("it", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
