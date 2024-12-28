@@ -89,26 +89,28 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     // <ключ,     FileFormat>
     // |          |
     // V          V
-    { "bmp",      { "Microsoft Windows Bitmap", "", "bmp", {CAT_IMAGE, CAT_WIN, CAT_PERFRISK}, CAT_RASTER, {"bmp"}, 0, "" } },
-    { "pcx",      { "Zsoft PC Paintbrush", "only v3.0", "pcx", { CAT_IMAGE, CAT_DOS, CAT_OUTDATED }, CAT_RASTER, { "pcx_05" }, 0, "" } },
-    { "png",      { "Portable Network Graphics", "", "png", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "png" }, 0, "" } },
-    { "avi",      { "Audio-Video Interleaved", "RIFF container", "avi", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "riff" }, 0, "" } },
-    { "wav",      { "Wave Audio Data", "RIFF container", "wav", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "riff" }, 0, "" } },
-    { "rmi",      { "MIDI music","RIFF container", "rmi", { CAT_MUSIC, CAT_WIN, CAT_NONE }, CAT_MIDI, { "riff" }, 0, "" } },
-    { "mid",      { "Standard MIDI music", "", "mid", { CAT_MUSIC, CAT_NONE, CAT_NONE }, CAT_MIDI, { "mid" }, 0, "" } },
-    { "xmi",      { "eXtended MIDI music (MSS)", "IFF container", "xmi", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_MIDI, { "iff" }, 0, "" } },
-    { "lbm",      { "Interleaved Bitmap", "IFF container", "lbm", { CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED }, CAT_RASTER | CAT_DOS, { "iff" }, 0, "" } },
-    { "gif",      { "Graphics Interchange Format", "", "gif", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "gif" }, 0, "" } },
-    { "tif_ii",   { "Tag Image File Format", "Intel byte order", "tif", { CAT_IMAGE, CAT_PERFRISK, CAT_NONE }, CAT_RASTER | CAT_INTELX86, { "tiff_ii" }, 0, "" } },
-    { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "tif", { CAT_IMAGE, CAT_OUTDATED, CAT_PERFRISK }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "" } },
-    { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "tga", { CAT_IMAGE, CAT_OUTDATED, CAT_NONE }, CAT_RASTER, { "tga_tc32" }, 0, "" } },
-    { "jpg",      { "JPEG File Interchange Format", "", "jpg", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "" } },
-    { "animcur",  { "Windows Animated Cursor", "RIFF container", "ani", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
-    { "aif",      { "Audio Interchange Format", "IFF container", "aif", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "aif" }, 0, "" } },
-    { "mod_m.k.", { "Tracker Module", "most popular 'M.K.'", "mod", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_NONE, { "mod_m.k." }, 0, "" } },
-    { "xm",       { "FastTracker II Module" , "", "xm", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "xm" }, 0, "" } },
-    { "s3m",      { "ScreamTracker 3 Module", "", "s3m", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "s3m" }, 0, "" } },
-    { "it",       { "ImpulseTracker Module", "", "it", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "it"}, 0, "" } }
+    { "bmp",      { "Microsoft Windows Bitmap", "", "BMP", {CAT_IMAGE, CAT_WIN, CAT_PERFRISK}, CAT_RASTER, {"bmp"}, 0, "" } },
+    { "pcx",      { "Zsoft PC Paintbrush", "only v3.0", "PCX", { CAT_IMAGE, CAT_DOS, CAT_OUTDATED }, CAT_RASTER, { "pcx_05" }, 0, "" } },
+    { "png",      { "Portable Network Graphics", "", "PNG", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "png" }, 0, "" } },
+    { "avi",      { "Audio-Video Interleaved", "RIFF container", "AVI", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "riff" }, 0, "" } },
+    { "wav",      { "Wave Audio Data", "RIFF container", "WAV", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "riff" }, 0, "" } },
+    { "rmi",      { "MIDI music","RIFF container", "RMI", { CAT_MUSIC, CAT_WIN, CAT_NONE }, CAT_MIDI, { "riff" }, 0, "" } },
+    { "mid",      { "Standard MIDI music", "", "MID", { CAT_MUSIC, CAT_NONE, CAT_NONE }, CAT_MIDI, { "mid" }, 0, "" } },
+    { "xmi",      { "eXtended MIDI music (MSS)", "IFF container", "XMI", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_MIDI, { "iff" }, 0, "" } },
+    { "lbm",      { "Interleaved Bitmap", "IFF container", "LBM", { CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED }, CAT_RASTER | CAT_DOS, { "iff" }, 0, "" } },
+    { "gif",      { "Graphics Interchange Format", "", "GIF", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "gif" }, 0, "" } },
+    { "tif_ii",   { "Tag Image File Format", "Intel byte order", "TIF", { CAT_IMAGE, CAT_PERFRISK, CAT_NONE }, CAT_RASTER | CAT_INTELX86, { "tiff_ii" }, 0, "" } },
+    { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "TIF", { CAT_IMAGE, CAT_OUTDATED, CAT_PERFRISK }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "" } },
+    { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "TGA", { CAT_IMAGE, CAT_OUTDATED, CAT_NONE }, CAT_RASTER, { "tga_tc32" }, 0, "" } },
+    { "jpg",      { "JPEG File Interchange Format", "", "JPG", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "" } },
+    { "animcur",  { "Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
+    { "aif",      { "Audio Interchange Format", "IFF container", "AIF", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "aif" }, 0, "" } },
+    { "mod_m.k.", { "Tracker Module", "most popular 'M.K.'", "MOD", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_NONE, { "mod_m.k." }, 0, "" } },
+    { "xm",       { "FastTracker II Module" , "", "XM", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "xm" }, 0, "" } },
+    { "s3m",      { "ScreamTracker 3 Module", "", "S3M", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "s3m" }, 0, "" } },
+    { "it",       { "ImpulseTracker Module", "", "IT", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "it" }, 0, "" } },
+    { "bik",      { "Bink RAD Game Tools Video", "", "BIK", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_NONE, { "bink1" }, 0, "" } },
+    { "bk2",      { "Bink2 RAD Game Tools Video", "", "BK2", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "bink2" }, 0, "" } }
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 

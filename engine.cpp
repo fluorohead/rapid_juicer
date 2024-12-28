@@ -26,6 +26,8 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm      } }, // "Exte"
     { "s3m",        { 0x000000004D524353, 4, Engine::recognize_s3m     } }, // "SCRM"
     { "it",         { 0x000000004D504D49, 4, Engine::recognize_it      } }, // "IMPM"
+    { "bink1",      { 0x0000000000004942, 2, Engine::recognize_bink    } }, // "BI"
+    { "bink2",      { 0x000000000000424B, 2, Engine::recognize_bink    } }, // "KB"
 };
 
 const u32i Engine::special_signature = signatures["special"].as_u64i;
@@ -357,6 +359,14 @@ void Engine::scan_file_v4(const QString &file_name)
             case 0x050A: // PCX
                 // ToDo: можно здесь же проверить на encoding==1, не вызывая recognizer
                 resource_size = recognize_pcx(this);
+                if ( resource_size ) goto end;
+                break;
+            case 0x424B: // Bink2 "KB"
+                resource_size = recognize_bink(this);
+                if ( resource_size ) goto end;
+                break;
+            case 0x4942: // Bink1 "BI"
+                resource_size = recognize_bink(this);
                 if ( resource_size ) goto end;
                 break;
             case 0x4D42: // BMP
@@ -1372,8 +1382,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     {
         u8i  type;
         u8i  dos_filename[12];
-        u8i  unknow;
-        u16i memseg;
+        u8i  memseg_hi;
+        u16i memseg_lo;
         u32i len, loop_begin, loop_end;
         u8i  volume, reserved2, pack, flags;
         u32i middle_c_herz;
@@ -1406,10 +1416,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     u64i after_header_block_size = info_header->ordnum + info_header->insnum * 2 + info_header->patnum * 2; // блок с Orders + instruments parapointers + pattern parapointers
     s64i file_size = e->file_size;
     if ( base_index + sizeof(S3M_Header) + after_header_block_size > file_size ) return 0; // не хватает места под orders + parapointers
-    QMap<u16i, u32i> pp_db; // бд парапойнтеров на тела сэмплов (либо на тела паттернов, если сэмплов не было); ключ - парапойнтер, значение - размер блока по адресу парапойнтера
+    QMap<u32i, u32i> pp_db; // бд парапойнтеров на тела сэмплов (либо на тела паттернов, если сэмплов не было); ключ - парапойнтер, значение - размер блока по адресу парапойнтера
     SampleHeader *sample_header;
     u64i pointer32; // для преобразования парапойнтера через *16
     u16i *parapointer = (u16i*)(&buffer[base_index + sizeof(S3M_Header) + info_header->ordnum]); // формируем указатель на [0] индекс списка instrument parapointers
+    u32i long_memseg;
     for (u16i pp_idx = 0; pp_idx < info_header->insnum; ++pp_idx) // и идём по этому списку
     {
         pointer32 = parapointer[pp_idx] * 16; // абсолютное смещение в файле ресура (но не в файле поиска, т.к. ресурс может быть со смещением)
@@ -1418,8 +1429,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         if ( !VALID_INSTR_SIGNATURE.contains(sample_header->signature) ) return 0; // неверная сигнатура заголовка инструмента
         if ( sample_header->signature == 0x53524353 ) // надо проверить на сигнатуру, потому что треккер сохраняет даже инструменты без сэмпла только ради отображения sample name, где располагаются комментарии
         {
-            if ( base_index + sample_header->memseg * 16 + sample_header->len > file_size ) return 0; // не хватает места под сэмпл
-            pp_db[sample_header->memseg] = sample_header->len;
+            long_memseg = u32i(sample_header->memseg_lo) | (u32i(sample_header->memseg_hi) << 16); // согласно S3M.SVG
+            if ( base_index + long_memseg * 16 + sample_header->len > file_size ) return 0; // не хватает места под сэмпл
+            pp_db[long_memseg] = sample_header->len;
         }
     }
     u64i last_index = file_size + 1; // выставляем заведомо плохое значение : оно изменится (или нет) в следующем блоке if
@@ -1566,6 +1578,75 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
     }
     QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     emit e->txResourceFound("it", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct BINK_Header
+    {
+        u16i signature1;
+        u8i  signature2;
+        u8i  version;
+        u32i size; // без учёта полей size, ver, sign1, sign2
+        u32i frames_num, largest_frame_size, unknown1;
+        u32i video_width, video_height;
+        u32i video_fps;
+        u32i image_fmt;
+        u32i unknown2;
+        u32i audio_flag;
+    };
+    struct AudioHeader
+    {
+        u16i channels_num;
+        u16i unknown1;
+        u16i sample_rate;
+        u16i unknown2[6];
+    };
+#pragma pack(pop)
+    static u32i bink1_id {fformats["bik"].index};
+    static u32i bink2_id {fformats["bk2"].index};
+    static constexpr u64i min_room_need = sizeof(BINK_Header);
+    if ( ( !e->selected_formats[bink1_id] ) and ( !e->selected_formats[bink2_id] ) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    BINK_Header *info_header = (BINK_Header*)(&buffer[base_index]);
+    if ( ( info_header->signature1 == 0x4942 /*BI*/ ) and ( info_header->signature2 != 'K' ) ) return 0;
+    if ( ( info_header->signature1 == 0x424B /*KB*/ ) and ( info_header->signature2 != '2' ) ) return 0;
+    if ( ( info_header->version < 'a' ) or ( info_header->version > 'z' ) ) return 0;
+    if ( ( info_header->audio_flag > 1 ) ) return 0; // только 0 и 1
+    s64i file_size = e->file_size;
+    if ( base_index + sizeof(BINK_Header) + sizeof(AudioHeader) * info_header->audio_flag > file_size ) return 0;
+    u64i last_index = base_index + info_header->size + 8;
+    if ( last_index > file_size ) return 0;
+    u64i resource_size = last_index - base_index;
+    QString info = QString("%1x%2").arg(QString::number(info_header->video_width),
+                                        QString::number(info_header->video_height));
+    switch (info_header->signature2)
+    {
+    case 'K':
+        if ( e->selected_formats[bink1_id] )
+        {
+            emit e->txResourceFound("bik", e->file.fileName(), base_index, resource_size, info);
+        }
+        else
+        {
+            return 0;
+        }
+        break;
+    case '2':
+        if ( e->selected_formats[bink2_id] )
+        {
+            emit e->txResourceFound("bk2", e->file.fileName(), base_index, resource_size, info);
+        }
+        else
+        {
+            return 0;
+        }
+    }
     e->resource_offset = base_index;
     return resource_size;
 }
