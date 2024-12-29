@@ -109,8 +109,9 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "xm",       { "FastTracker II Module" , "", "XM", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "xm" }, 0, "" } },
     { "s3m",      { "ScreamTracker 3 Module", "", "S3M", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "s3m" }, 0, "" } },
     { "it",       { "ImpulseTracker Module", "", "IT", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "it" }, 0, "" } },
-    { "bik",      { "Bink RAD Game Tools Video", "", "BIK", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_NONE, { "bink1" }, 0, "" } },
-    { "bk2",      { "Bink2 RAD Game Tools Video", "", "BK2", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "bink2" }, 0, "" } }
+    { "bik",      { "Bink Video", "", "BIK", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_NONE, { "bink1" }, 0, "" } },
+    { "bk2",      { "Bink2 Video", "", "BK2", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "bink2" }, 0, "" } },
+    { "smk",      { "Smacker Video", "", "SMK", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_NONE, { "smk2", "smk4" }, 0, "" } }
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 

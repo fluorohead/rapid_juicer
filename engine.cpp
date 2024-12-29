@@ -28,6 +28,8 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "it",         { 0x000000004D504D49, 4, Engine::recognize_it      } }, // "IMPM"
     { "bink1",      { 0x0000000000004942, 2, Engine::recognize_bink    } }, // "BI"
     { "bink2",      { 0x000000000000424B, 2, Engine::recognize_bink    } }, // "KB"
+    { "smk2",       { 0x00000000324B4D53, 4, Engine::recognize_smk     } }, // "SMK2"
+    { "smk4",       { 0x00000000344B4D53, 4, Engine::recognize_smk     } }, // "SMK4"
 };
 
 const u32i Engine::special_signature = signatures["special"].as_u64i;
@@ -414,6 +416,12 @@ void Engine::scan_file_v4(const QString &file_name)
                 case 0x2E4B2E4D: // MOD "M.K."
                     resource_size = recognize_mod_mk(this);
                     break;
+                case 0x324B4D53: // SMK "SMK2"
+                    resource_size = recognize_smk(this);
+                    break;
+                case 0x344B4D53: // SMK "SMK4"
+                    resource_size = recognize_smk(this);
+                    break;
                 case 0x38464947: // GIF
                     resource_size = recognize_gif(this);
                     break;
@@ -556,10 +564,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index + info_header->file_size;
     qInfo() << "here";
     if ( last_index > file_size ) return 0; // неверное поле file_size
+    if ( last_index <= base_index ) return 0;
+    u64i resource_size = last_index - base_index;
     QString info = QString("%1x%2 %3-bpp").arg( QString::number(std::abs(info_header->width)),
                                                 QString::number(std::abs(info_header->height)),
                                                 QString::number(info_header->bits_per_pixel));
-    u64i resource_size = last_index - base_index;
     e->resource_offset = base_index;
     emit e->txResourceFound("bmp", e->file.fileName(), base_index, resource_size, info);
     return resource_size;
@@ -628,6 +637,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
         last_index += ( sizeof(ChunkHeader) + be2le(((ChunkHeader*)(&buffer[last_index]))->data_len) + sizeof(CRC) );
         if ( last_index > file_size) return 0;
     };
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     e->resource_offset = base_index;
     QString color_type;
@@ -709,6 +719,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index + sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + (*((ChunkHeader*)(&buffer[base_index]))).chunk_size; // сразу переставляем last_index в конец ресурса
     if ( last_index > file_size ) return 0; // неверное поле chunk_size
     if ( !VALID_SUBCHUNK_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->subchunk_id) ) return 0; // проверка на валидные id сабчанков
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     switch (((ChunkHeader*)(&buffer[base_index]))->subchunk_id)
     {
@@ -801,6 +812,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
         if ( possible_last_index > file_size ) break; // возможно кривое поле .size, либо усечённый файл, либо type попался (внезапно) корректный, но size некорректный и т.д.
         last_index = possible_last_index;
     }
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     QString info = QString(R"(%1 tracks)").arg(be2le(info_header->ntrks));
     emit e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
@@ -859,6 +871,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index + sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + be2le((*((ChunkHeader*)(&buffer[base_index]))).chunk_size); // сразу переставляем last_index в конец ресурса (но для XMI это лишь начало структуры CAT
     if ( last_index > file_size ) return 0; // неверное поле chunk_size
     if ( !VALID_FORMAT_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->format_type) ) return 0; // проверка на валидные форматы
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     switch (((ChunkHeader*)(&buffer[base_index]))->format_type)
     {
@@ -967,6 +980,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_pcx RECOGNIZE_FUNC_HEADER
     u64i base_index = e->scanbuf_offset;
     u64i last_index = base_index + empiric_size;
     if ( last_index > e->file_size) last_index = e->file_size;
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     QString info = QString("%1x%2 %3-bpp").arg( QString::number(width),
                                             QString::number(height),
@@ -1090,6 +1104,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
            break; // достигли конечного дескриптора (trailer); выход из while
         }
     }
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     QString info = QString("%1x%2").arg(QString::number(info_header->width),
                                         QString::number(info_header->height));
@@ -1146,6 +1161,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         ++last_index;
     }
     last_index += 2; // на размер EOI-идентификатора
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     emit e->txResourceFound("jpg", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
@@ -1207,6 +1223,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod_mk RECOGNIZE_FUNC_HEADER
     u64i patterns_block_size = (steps_in_pattern * channels * one_note_size) * most_pattern_number;
     u64i last_index = base_index + sizeof(MOD_31_Header) + 4 /*signature size*/ + patterns_block_size + samples_block_size;
     if ( last_index > e->file_size) return 0; // капитуляция при неверном размере; обрезанные не сохраняем
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     int song_name_len;
     for (song_name_len = 0; song_name_len < 20; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
@@ -1349,6 +1366,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
     }
     // если дошли сюда, значит достигли конца ресурса
     if ( last_index > file_size ) return 0; // последняя проверка
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     int song_name_len;
     for (song_name_len = 0; song_name_len < 20; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
@@ -1456,6 +1474,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         last_index = base_index + pp_db.lastKey() * 16 + pp_db[pp_db.lastKey()];
     }
     if ( last_index > file_size ) return 0;
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     int song_name_len;
     for (song_name_len = 0; song_name_len < 28; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
@@ -1570,6 +1589,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
         last_index = base_index + offsets_db.lastKey() + offsets_db[offsets_db.lastKey()];
     }
     if ( last_index > file_size ) return 0; // на всякий случай последняя проверка
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     int song_name_len;
     for (song_name_len = 0; song_name_len < 26; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
@@ -1618,10 +1638,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
     if ( ( info_header->signature1 == 0x424B /*KB*/ ) and ( info_header->signature2 != '2' ) ) return 0;
     if ( ( info_header->version < 'a' ) or ( info_header->version > 'z' ) ) return 0;
     if ( ( info_header->audio_flag > 1 ) ) return 0; // только 0 и 1
+    if ( ( info_header->video_width > 6000 ) or ( info_header->video_height > 6000 ) ) return 0;
     s64i file_size = e->file_size;
     if ( base_index + sizeof(BINK_Header) + sizeof(AudioHeader) * info_header->audio_flag > file_size ) return 0;
     u64i last_index = base_index + info_header->size + 8;
     if ( last_index > file_size ) return 0;
+    if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     QString info = QString("%1x%2").arg(QString::number(info_header->video_width),
                                         QString::number(info_header->video_height));
@@ -1647,6 +1669,48 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
             return 0;
         }
     }
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
+{ // https://wiki.multimedia.cx/index.php/Smacker
+#pragma pack(push,1)
+    struct SMK_Header
+    {
+        u32i signature;
+        u32i width, height;
+        u32i frames_num, frame_rate, flags;
+        u32i audio_size[7];
+        u32i trees_size;
+        u32i mmap_size, mclr_size, full_size, type_size;
+        u32i audio_rate[7];
+        u32i dummy;
+    };
+#pragma pack(pop)
+    static u32i smk_id {fformats["smk"].index};
+    static constexpr u64i min_room_need = sizeof(SMK_Header);
+    if ( !e->selected_formats[smk_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    SMK_Header *info_header = (SMK_Header*)(&buffer[base_index]);
+    if ( ( info_header->width > 6000 ) or ( info_header->height > 6000 ) ) return 0;
+    s64i file_size = e->file_size;
+    if ( base_index + sizeof(SMK_Header) + info_header->frames_num * 4 + info_header->frames_num * 1 > file_size ) return 0; // нет места для таблицы размеров кадров
+    u32i* pointer = (u32i*)&buffer[base_index + sizeof(SMK_Header)];
+    u64i total_frames_size = 0; // общий размер всех кадров
+    for (u32i idx = 0; idx < info_header->frames_num; ++idx)
+    {
+        total_frames_size += (pointer[idx] & 0xFFFFFFFC); // согласно описанию, нужно обнулять два младших бита
+    }
+    u64i last_index = base_index + sizeof(SMK_Header) + info_header->frames_num * 4 + info_header->frames_num * 1 + info_header->trees_size + total_frames_size;
+    if ( last_index > file_size ) return 0;
+    if ( last_index <= base_index ) return 0;
+    u64i resource_size = last_index - base_index;
+    QString info = QString("%1x%2").arg(QString::number(info_header->width),
+                                        QString::number(info_header->height));
+    emit e->txResourceFound("smk", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
