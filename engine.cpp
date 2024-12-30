@@ -1739,6 +1739,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     s64i ifd_strip_offsets_table; // смещение таблицы смещений на "отрезки" изображения
     s64i ifd_strip_counts_table; // смещение таблицы размеров "отрезков" изображения
     u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
+    s64i ifd_exif_offset; // смещение exif ifd
     qInfo() << ": Next TIFF_II scan iteration! Signature found at offset:" << base_index;
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
@@ -1747,6 +1748,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
         ifd_strip_offsets_table = -1;
         ifd_strip_counts_table = -1;
         ifd_strip_num = 0;
+        ifd_exif_offset = -1;
         qInfo() << ": IFD at offset:" << last_index;
         if ( last_index + 6 > file_size ) return 0; // не хватает места на NumDirEntries (2) + NextIFDOffset (4)
         num_of_tags = *((u16i*)&buffer[last_index]); // место есть - считываем количество тегов
@@ -1781,6 +1783,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
             {
                 if ( tag_pointer[tag_idx].tag_id == 273 ) ifd_image_offset = tag_pointer[tag_idx].data_offset;
                 if ( tag_pointer[tag_idx].tag_id == 279 ) ifd_image_size = tag_pointer[tag_idx].data_offset;
+                if ( tag_pointer[tag_idx].tag_id == 34665 ) ifd_exif_offset = tag_pointer[tag_idx].data_offset; // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
             }
             qInfo() << "   tag#"<< tag_idx << " tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
         }
@@ -1797,7 +1800,30 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
                 ifds_and_tags_db[strip_offsets[stp_idx]] = strip_counts[stp_idx];
             }
         }
-        qInfo() << "   possible image offset:" << ifd_image_offset << " size:" << ifd_image_size;
+        // тут проходим по структуре EXIF IFD, если она есть; обычно находится в конце файла и содержит ссылки ещё куда-то дальше, ближе к концу файла, поэтому лучше её проанализировать
+        if ( ifd_exif_offset > 0 )
+        {
+            if ( base_index + ifd_exif_offset + 6 > file_size ) return 0; // не хватает места
+            u16i num_of_tags = *((u16i*)&buffer[base_index + ifd_exif_offset]);
+            if ( base_index + ifd_exif_offset + 6 + num_of_tags * 12 > file_size ) return 0; // не хватает места
+            TIF_Tag *tag_pointer = (TIF_Tag*)&buffer[base_index + ifd_exif_offset + 2];
+            u64i result_tag_data_size;
+            for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
+            {
+                if ( !VALID_DATA_TYPE.contains(tag_pointer[tag_idx].data_type) ) return 0; // неизвестный тип данных
+                result_tag_data_size = tag_pointer[tag_idx].data_count * VALID_DATA_TYPE[tag_pointer[tag_idx].data_type];
+                qInfo() << "   exif_tag#"<< tag_idx << " exif_tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count
+                        << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
+                if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
+                {
+                    if ( base_index + tag_pointer[tag_idx].data_offset + result_tag_data_size > file_size ) return 0; // данные тега не вмещаются в скан-файл
+                    if ( tag_pointer[tag_idx].data_offset >= 8 ) // если смещение данных тега < 8, значит у тега нет тела -> не имеет смысл добавлять его в бд, т.к. в бд уже есть ifd, содержащий этот тег
+                    {
+                        ifds_and_tags_db[tag_pointer[tag_idx].data_offset] = result_tag_data_size;
+                    }
+                }
+            }
+        }
         next_ifd_offset = *((u32i*)&buffer[last_index + 2 + num_of_tags * 12]); // считываем смещение следующего IFD из конца предыдущего IFD
         qInfo() << "   next_ifd_offset:" << next_ifd_offset;
         if ( next_ifd_offset == 0 ) break;
@@ -1851,6 +1877,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     s64i ifd_strip_offsets_table; // смещение таблицы смещений на "отрезки" изображения
     s64i ifd_strip_counts_table; // смещение таблицы размеров "отрезков" изображения
     u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
+    s64i ifd_exif_offset; // смещение exif ifd
     qInfo() << ": Next TIFF_MM scan iteration! Signature found at offset:" << base_index;
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
@@ -1859,6 +1886,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         ifd_strip_offsets_table = -1;
         ifd_strip_counts_table = -1;
         ifd_strip_num = 0;
+        ifd_exif_offset = -1;
         qInfo() << ": IFD at offset:" << last_index;
         if ( last_index + 6 > file_size ) return 0; // не хватает места на NumDirEntries (2) + NextIFDOffset (4)
         num_of_tags = be2le(*((u16i*)&buffer[last_index])); // место есть - считываем количество тегов
@@ -1893,6 +1921,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
             {
                 if ( be2le(tag_pointer[tag_idx].tag_id) == 273 ) ifd_image_offset = be2le(tag_pointer[tag_idx].data_offset);
                 if ( be2le(tag_pointer[tag_idx].tag_id) == 279 ) ifd_image_size = be2le(tag_pointer[tag_idx].data_offset);
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 34665 ) ifd_exif_offset = be2le(tag_pointer[tag_idx].data_offset); // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
             }
             qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
                     << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
@@ -1911,7 +1940,31 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
                 ifds_and_tags_db[be2le(strip_offsets[stp_idx])] = be2le(strip_counts[stp_idx]);
             }
         }
-        qInfo() << "   possible image offset:" << ifd_image_offset << " size:" << ifd_image_size;
+        // тут проходим по структуре EXIF IFD, если она есть; обычно находится в конце файла и содержит ссылки ещё куда-то дальше, ближе к концу файла, поэтому лучше её проанализировать
+        if ( ifd_exif_offset > 0 )
+        {
+            if ( base_index + ifd_exif_offset + 6 > file_size ) return 0; // не хватает места
+            u16i num_of_tags = be2le(*((u16i*)&buffer[base_index + ifd_exif_offset]));
+            if ( base_index + ifd_exif_offset + 6 + num_of_tags * 12 > file_size ) return 0; // не хватает места
+            TIF_Tag *tag_pointer = (TIF_Tag*)&buffer[base_index + ifd_exif_offset + 2];
+            u64i result_tag_data_size;
+            for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
+            {
+                if ( !VALID_DATA_TYPE.contains(be2le(tag_pointer[tag_idx].data_type)) ) return 0; // неизвестный тип данных
+                result_tag_data_size = be2le(tag_pointer[tag_idx].data_count) * VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)];
+                qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
+                        << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
+                        << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
+                if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
+                {
+                    if ( base_index + be2le(tag_pointer[tag_idx].data_offset) + result_tag_data_size > file_size ) return 0; // данные тега не вмещаются в скан-файл
+                    if ( be2le(tag_pointer[tag_idx].data_offset) >= 8 ) // если смещение данных тега < 8, значит у тега нет тела -> не имеет смысл добавлять его в бд, т.к. в бд уже есть ifd, содержащий этот тег
+                    {
+                        ifds_and_tags_db[be2le(tag_pointer[tag_idx].data_offset)] = result_tag_data_size;
+                    }
+                }
+            }
+        }
         next_ifd_offset = be2le(*((u32i*)&buffer[last_index + 2 + num_of_tags * 12])); // считываем смещение следующего IFD из конца предыдущего IFD
         qInfo() << "   next_ifd_offset:" << next_ifd_offset;
         if ( next_ifd_offset == 0 ) break;
