@@ -26,8 +26,8 @@ int main(int argc, char *argv[])
 
     indexFilesFormats();
 
-    qInfo() << "Main process id (uint64):" << QApplication::applicationPid();
-    qInfo() << "Main thread id:" << QThread::currentThreadId();
+    //qInfo() << "Main process id (uint64):" << QApplication::applicationPid();
+    //qInfo() << "Main thread id:" << QThread::currentThreadId();
 
     mw = new MainWindow;
     mw->show();

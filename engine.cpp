@@ -17,8 +17,8 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "riff",       { 0x0000000046464952, 4, Engine::recognize_riff    } }, // "RIFF"
     { "iff",        { 0x000000004D524F46, 4, Engine::recognize_iff     } }, // "FORM"
     { "gif",        { 0x0000000038464947, 4, Engine::recognize_gif     } }, // "GIF8"
-    { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_special } }, // "II\0x2A\0x00"
-    { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_special } }, // "MM\0x00\0x2A"
+    { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_tif_ii  } }, // "II*\0x00"
+    { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_tif_mm  } }, // "MM\0x00*"
     { "tga_tc32",   { 0x0000000000020000, 4, Engine::recognize_special } }, // "\0x00\0x00\0x02\0x00"
     { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_jpg     } }, // "\0xFF\0xD8\0xFF\0xE0"
     { "mid",        { 0x000000006468544D, 4, Engine::recognize_mid     } }, // "MThd"
@@ -376,42 +376,20 @@ void Engine::scan_file_v4(const QString &file_name)
                 resource_size = recognize_bmp(this);
                 if ( resource_size ) goto end;
                 break;
-            case 0xD9FF:
-                resource_size = recognize_special(this);
-                if ( resource_size ) goto end;
-                break;
             }
         dwords:
-            if ( analyzed_dword >= 0x2A004D4D ) goto second_half;
+            if ( analyzed_dword >= 0x46464952 ) goto second_half;
         first_half:
             switch (analyzed_dword)
             {
-                case 0x00020000:
+                case 0x00020000: // TGA
                     recognize_special(this);
                     break;
-                case 0x002A4949:
-                    recognize_special(this);
+                case 0x002A4949: // TIFF "II"
+                    resource_size = recognize_tif_ii(this);
                     break;
-                case 0x0801040A:
-                    recognize_special(this);
-                    break;
-                case 0x0801050A:
-                    recognize_special(this);
-                    break;
-                case 0x1801040A:
-                    recognize_special(this);
-                    break;
-                case 0x1801050A:
-                    recognize_special(this);
-                    break;
-            }
-            goto end;
-
-        second_half:
-            switch (analyzed_dword)
-            {
-                case 0x2A004D4D:
-                    recognize_special(this);
+                case 0x2A004D4D: // TIFF "MM"
+                    resource_size = recognize_tif_mm(this);
                     break;
                 case 0x2E4B2E4D: // MOD "M.K."
                     resource_size = recognize_mod_mk(this);
@@ -425,6 +403,12 @@ void Engine::scan_file_v4(const QString &file_name)
                 case 0x38464947: // GIF
                     resource_size = recognize_gif(this);
                     break;
+            }
+            goto end;
+
+        second_half:
+            switch (analyzed_dword)
+            {
                 case 0x46464952: // RIFF "RIFF"
                     resource_size = recognize_riff(this);
                     break;
@@ -443,7 +427,7 @@ void Engine::scan_file_v4(const QString &file_name)
                 case 0x6468544D: // MID
                     resource_size = recognize_mid(this);
                     break;
-                case 0x65747845: // XM
+                case 0x65747845: // XM "Exte"
                     resource_size = recognize_xm(this);
                     break;
                 case 0xE0FFD8FF: // JPG
@@ -702,7 +686,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     static u32i avi_id {fformats["avi"].index};
     static u32i wav_id {fformats["wav"].index};
     static u32i rmi_id {fformats["rmi"].index};
-    static u32i ani_id {fformats["animcur"].index};
+    static u32i ani_id {fformats["acon"].index};
     static const u64i min_room_need = sizeof(ChunkHeader);
     static const QSet <u64i> VALID_SUBCHUNK_TYPE {  0x5453494C20495641 /*AVI LIST*/,
                                                     0x20746D6645564157 /*WAVEfmt */,
@@ -801,13 +785,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
     uchar *buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
     HeaderData *info_header = (HeaderData*)(&buffer[base_index + sizeof(MidiChunk)]);
-    u64i last_index = base_index + be2le((*((MidiChunk*)(&buffer[base_index]))).size) + sizeof(MidiChunk); // сразу переставляем last_index после заголовка на первый чанк типа MTrk
+    if ( be2le((*((MidiChunk*)(&buffer[base_index]))).size) > 6 ) return 0;
+    u64i last_index = base_index + 6 + sizeof(MidiChunk); // сразу переставляем last_index после заголовка на первый чанк типа MTrk
     if ( last_index >= file_size ) return 0; // прыгнули за пределы файла => явно неверное поле size в заголовке
+    u64i possible_last_index;
     while (true)
     {
-        if ( file_size - last_index < sizeof(MidiChunk) ) break; // не хватает места для анализа очередного чанка => достигли конца ресурса
+        if ( last_index + sizeof(MidiChunk) > file_size ) break; // не хватает места для анализа очередного чанка => достигли конца ресурса
         if ( !VALID_CHUNK_TYPE.contains((*(MidiChunk*)(&buffer[last_index])).type) ) break; // встретили неизвестный чанк => достигли конца ресурса
-        u64i possible_last_index;
         possible_last_index = last_index + be2le((*(MidiChunk*)(&buffer[last_index])).size) + sizeof(MidiChunk);
         if ( possible_last_index > file_size ) break; // возможно кривое поле .size, либо усечённый файл, либо type попался (внезапно) корректный, но size некорректный и т.д.
         last_index = possible_last_index;
@@ -816,6 +801,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
     u64i resource_size = last_index - base_index;
     QString info = QString(R"(%1 tracks)").arg(be2le(info_header->ntrks));
     emit e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
+    qInfo() << " hererererererre | size from header:" << be2le((*((MidiChunk*)(&buffer[base_index]))).size);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1674,8 +1660,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
 }
 
 RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
-{ // https://wiki.multimedia.cx/index.php/Smacker
+{
 #pragma pack(push,1)
+    // https://wiki.multimedia.cx/index.php/Smacker
     struct SMK_Header
     {
         u32i signature;
@@ -1711,6 +1698,232 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
     QString info = QString("%1x%2").arg(QString::number(info_header->width),
                                         QString::number(info_header->height));
     emit e->txResourceFound("smk", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct TIF_Header
+    {
+        u32i signature;
+        u32i ifd_offset;
+    };
+    struct TIF_Tag
+    {
+        u16i tag_id;
+        u16i data_type;
+        u32i data_count;
+        u32i data_offset;
+    };
+#pragma pack(pop)
+    static u32i tif_ii_id {fformats["tif_ii"].index};
+    static constexpr u64i min_room_need = sizeof(TIF_Header);
+    static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
+    if ( !e->selected_formats[tif_ii_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    TIF_Header *info_header = (TIF_Header*)(&buffer[base_index]);
+    if ( info_header->ifd_offset < 8 ) return 0;
+    s64i file_size = e->file_size;
+    QMap<u32i, u32i> ifds_and_tags_db; // бд : ключ - смещение данных, значение - размер данных.
+    u16i num_of_tags;
+    TIF_Tag *tag_pointer;
+    u64i last_index = base_index + info_header->ifd_offset; // ставим last_index на первый ifd.
+    u64i result_tag_data_size;
+    u32i next_ifd_offset = info_header->ifd_offset;
+    s64i ifd_image_offset;
+    s64i ifd_image_size;
+    s64i ifd_strip_offsets_table; // смещение таблицы смещений на "отрезки" изображения
+    s64i ifd_strip_counts_table; // смещение таблицы размеров "отрезков" изображения
+    u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
+    qInfo() << ": Next TIFF_II scan iteration! Signature found at offset:" << base_index;
+    while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
+    {
+        ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
+        ifd_image_size = -1;  //
+        ifd_strip_offsets_table = -1;
+        ifd_strip_counts_table = -1;
+        ifd_strip_num = 0;
+        qInfo() << ": IFD at offset:" << last_index;
+        if ( last_index + 6 > file_size ) return 0; // не хватает места на NumDirEntries (2) + NextIFDOffset (4)
+        num_of_tags = *((u16i*)&buffer[last_index]); // место есть - считываем количество тегов
+        if ( last_index + 6 + num_of_tags * 12 > file_size ) return 0; // а вот на сами теги места уже не хватает -> капитуляция
+        qInfo() << ": num_of_tags:" << num_of_tags;
+        tag_pointer = (TIF_Tag*)&buffer[last_index + 2]; // ставим указатель на самый первый тег под индексом [0]
+        ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * 12; // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
+        for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
+        {
+            //qInfo() << "   pre tag_id:" << tag_pointer[tag_idx].tag_id << " pre tag_type:" << tag_pointer[tag_idx].data_type << " pre tag data_offset:" << tag_pointer[tag_idx].data_offset;
+            if ( !VALID_DATA_TYPE.contains(tag_pointer[tag_idx].data_type) ) return 0; // неизвестный тип данных
+            result_tag_data_size = tag_pointer[tag_idx].data_count * VALID_DATA_TYPE[tag_pointer[tag_idx].data_type];
+            if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
+            {
+                if ( base_index + tag_pointer[tag_idx].data_offset + result_tag_data_size > file_size ) return 0; // данные тега не вмещаются в скан-файл
+                if ( tag_pointer[tag_idx].data_offset >= 8 ) // если смещение данных тега < 8, значит у тега нет тела -> не имеет смысл добавлять его в бд, т.к. в бд уже есть ifd, содержащий этот тег
+                {
+                    ifds_and_tags_db[tag_pointer[tag_idx].data_offset] = result_tag_data_size;
+                    if ( tag_pointer[tag_idx].tag_id == 273 ) // запоминаем смещение таблицы смещений на кусочки изображения
+                    {
+                        ifd_strip_num = tag_pointer[tag_idx].data_count;
+                        ifd_strip_offsets_table = tag_pointer[tag_idx].data_offset;
+                    }
+                    if ( tag_pointer[tag_idx].tag_id == 279 ) // запоминаем смещение таблицы размеров кусочков изображения
+                    {
+                        ifd_strip_num = tag_pointer[tag_idx].data_count;
+                        ifd_strip_counts_table = tag_pointer[tag_idx].data_offset;
+                    }
+                }
+            }
+            else // иначе, если данные помещаются в 4 байта, то поле data_offset хранит не смещение, а значение тега (например для тега 273 в data_offset хранится начало изображения размером из тега data_offset 279)
+            {
+                if ( tag_pointer[tag_idx].tag_id == 273 ) ifd_image_offset = tag_pointer[tag_idx].data_offset;
+                if ( tag_pointer[tag_idx].tag_id == 279 ) ifd_image_size = tag_pointer[tag_idx].data_offset;
+            }
+            qInfo() << "   tag#"<< tag_idx << " tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
+        }
+        if ( ( ifd_image_offset > 0 ) and ( ifd_image_size > 0 ) ) ifds_and_tags_db[ifd_image_offset] = ifd_image_size; // если у тегов 273 и 279 количество данных data_count < 4;
+        // в ином случае проверяем таблицы ifd_strip_offsets_table и ifd_strip_counts_table
+        if ( ( ifd_strip_num > 0 ) and ( ifd_strip_counts_table > 0 ) and ( ifd_strip_counts_table > 0 ) ) // добавляем кусочки (strips) в бд
+        {
+            u32i *strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
+            u32i *strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
+            qInfo() << "   image strips num:" << ifd_strip_num;
+            for (u32i stp_idx = 0; stp_idx < ifd_strip_num; ++stp_idx)
+            {
+                //qInfo() << "  strip#" << stp_idx << " offset:" << strip_offsets[stp_idx] << " size:" << strip_counts[stp_idx];
+                ifds_and_tags_db[strip_offsets[stp_idx]] = strip_counts[stp_idx];
+            }
+        }
+        qInfo() << "   possible image offset:" << ifd_image_offset << " size:" << ifd_image_size;
+        next_ifd_offset = *((u32i*)&buffer[last_index + 2 + num_of_tags * 12]); // считываем смещение следующего IFD из конца предыдущего IFD
+        qInfo() << "   next_ifd_offset:" << next_ifd_offset;
+        if ( next_ifd_offset == 0 ) break;
+        last_index = base_index + next_ifd_offset;
+    }
+    // на выходе из цикла переменная last_index не будет иметь значения (она будет указывать на последний IFD), т.к. нужно проанализировать бд
+    if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
+    last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
+    if ( last_index > file_size ) return 0;
+    u64i resource_size = last_index - base_index;
+    qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
+    emit e->txResourceFound("tif", e->file.fileName(), base_index, resource_size, "");
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct TIF_Header
+    {
+        u32i signature;
+        u32i ifd_offset;
+    };
+    struct TIF_Tag
+    {
+        u16i tag_id;
+        u16i data_type;
+        u32i data_count;
+        u32i data_offset;
+    };
+#pragma pack(pop)
+    static u32i tif_mm_id {fformats["tif_mm"].index};
+    static constexpr u64i min_room_need = sizeof(TIF_Header);
+    static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
+    if ( !e->selected_formats[tif_mm_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
+    uchar *buffer = e->mmf_scanbuf;
+    TIF_Header *info_header = (TIF_Header*)(&buffer[base_index]);
+    if ( be2le(info_header->ifd_offset) < 8 ) return 0;
+    s64i file_size = e->file_size;
+    QMap<u32i, u32i> ifds_and_tags_db; // бд : ключ - смещение данных, значение - размер данных.
+    u16i num_of_tags;
+    TIF_Tag *tag_pointer;
+    u32i next_ifd_offset = be2le(info_header->ifd_offset);
+    u64i last_index = base_index + next_ifd_offset; // ставим last_index на первый ifd
+    u64i result_tag_data_size;
+    s64i ifd_image_offset;
+    s64i ifd_image_size;
+    s64i ifd_strip_offsets_table; // смещение таблицы смещений на "отрезки" изображения
+    s64i ifd_strip_counts_table; // смещение таблицы размеров "отрезков" изображения
+    u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
+    qInfo() << ": Next TIFF_MM scan iteration! Signature found at offset:" << base_index;
+    while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
+    {
+        ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
+        ifd_image_size = -1;  //
+        ifd_strip_offsets_table = -1;
+        ifd_strip_counts_table = -1;
+        ifd_strip_num = 0;
+        qInfo() << ": IFD at offset:" << last_index;
+        if ( last_index + 6 > file_size ) return 0; // не хватает места на NumDirEntries (2) + NextIFDOffset (4)
+        num_of_tags = be2le(*((u16i*)&buffer[last_index])); // место есть - считываем количество тегов
+        if ( last_index + 6 + num_of_tags * 12 > file_size ) return 0; // а вот на сами теги места уже не хватает -> капитуляция
+        qInfo() << ": num_of_tags:" << num_of_tags;
+        tag_pointer = (TIF_Tag*)&buffer[last_index + 2]; // ставим указатель на самый первый тег под индексом [0]
+        ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * 12; // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
+        for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
+        {
+            //qInfo() << "   pre tag_id:" << tag_pointer[tag_idx].tag_id << " pre tag_type:" << tag_pointer[tag_idx].data_type << " pre tag data_offset:" << tag_pointer[tag_idx].data_offset;
+            if ( !VALID_DATA_TYPE.contains(be2le(tag_pointer[tag_idx].data_type)) ) return 0; // неизвестный тип данных
+            result_tag_data_size = be2le(tag_pointer[tag_idx].data_count) * VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)];
+            if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
+            {
+                if ( base_index + be2le(tag_pointer[tag_idx].data_offset) + result_tag_data_size > file_size ) return 0; // данные тега не вмещаются в скан-файл
+                if ( be2le(tag_pointer[tag_idx].data_offset) >= 8 ) // если смещение данных тега < 8, значит у тега нет тела -> не имеет смысл добавлять его в бд, т.к. в бд уже есть ifd, содержащий этот тег
+                {
+                    ifds_and_tags_db[be2le(tag_pointer[tag_idx].data_offset)] = result_tag_data_size;
+                    if ( be2le(tag_pointer[tag_idx].tag_id) == 273 ) // запоминаем смещение таблицы смещений на кусочки изображения
+                    {
+                        ifd_strip_num = be2le(tag_pointer[tag_idx].data_count);
+                        ifd_strip_offsets_table = be2le(tag_pointer[tag_idx].data_offset);
+                    }
+                    if ( be2le(tag_pointer[tag_idx].tag_id) == 279 ) // запоминаем смещение таблицы размеров кусочков изображения
+                    {
+                        ifd_strip_num = be2le(tag_pointer[tag_idx].data_count);
+                        ifd_strip_counts_table = be2le(tag_pointer[tag_idx].data_offset);
+                    }
+                }
+            }
+            else // иначе, если данные помещаются в 4 байта, то поле data_offset хранит не смещение, а значение тега (например для тега 273 в data_offset хранится начало изображения размером из тега data_offset 279)
+            {
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 273 ) ifd_image_offset = be2le(tag_pointer[tag_idx].data_offset);
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 279 ) ifd_image_size = be2le(tag_pointer[tag_idx].data_offset);
+            }
+            qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
+                    << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
+                    << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
+        }
+        if ( ( ifd_image_offset > 0 ) and ( ifd_image_size > 0 ) ) ifds_and_tags_db[ifd_image_offset] = ifd_image_size; // если у тегов 273 и 279 количество данных data_count < 4;
+        // в ином случае проверяем таблицы ifd_strip_offsets_table и ifd_strip_counts_table
+        if ( ( ifd_strip_num > 0 ) and ( ifd_strip_counts_table > 0 ) and ( ifd_strip_counts_table > 0 ) ) // добавляем кусочки (strips) в бд
+        {
+            u32i *strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
+            u32i *strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
+            qInfo() << "   image strips num:" << ifd_strip_num;
+            for (u32i stp_idx = 0; stp_idx < ifd_strip_num; ++stp_idx)
+            {
+                //qInfo() << "  strip#" << stp_idx << " offset:" << strip_offsets[stp_idx] << " size:" << strip_counts[stp_idx];
+                ifds_and_tags_db[be2le(strip_offsets[stp_idx])] = be2le(strip_counts[stp_idx]);
+            }
+        }
+        qInfo() << "   possible image offset:" << ifd_image_offset << " size:" << ifd_image_size;
+        next_ifd_offset = be2le(*((u32i*)&buffer[last_index + 2 + num_of_tags * 12])); // считываем смещение следующего IFD из конца предыдущего IFD
+        qInfo() << "   next_ifd_offset:" << next_ifd_offset;
+        if ( next_ifd_offset == 0 ) break;
+        last_index = base_index + next_ifd_offset;
+    }
+    // на выходе из цикла переменная last_index не будет иметь значения (она будет указывать на последний IFD), т.к. нужно проанализировать бд
+    if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
+    last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
+    if ( last_index > file_size ) return 0;
+    u64i resource_size = last_index - base_index;
+    qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
+    emit e->txResourceFound("tif", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }
