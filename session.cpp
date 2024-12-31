@@ -308,14 +308,14 @@ SessionWindow::SessionWindow(u32i session_id)
 
 void SessionWindow::create_and_start_walker()
 {
-    task.delAllTaskPaths();
+    //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\title2.gif)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\1671625086303.jpg)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\CURE1.MOD)", "", false});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff\CD Front (Alt.).tif)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff\CD Front (Alt.).tif)", "", false});
 
     if ( !task.task_paths.empty() and !settings.selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
     {

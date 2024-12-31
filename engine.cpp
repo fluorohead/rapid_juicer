@@ -30,6 +30,9 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "bink2",      { 0x000000000000424B, 2, Engine::recognize_bink    } }, // "KB"
     { "smk2",       { 0x00000000324B4D53, 4, Engine::recognize_smk     } }, // "SMK2"
     { "smk4",       { 0x00000000344B4D53, 4, Engine::recognize_smk     } }, // "SMK4"
+    { "fli_af11",   { 0x000000000000AF11, 4, Engine::recognize_flc     } }, // "\0x11\0xAF
+    { "flc_af12",   { 0x000000000000AF12, 4, Engine::recognize_flc     } }, // "\0x12\0xAF
+    { "flx_af44",   { 0x000000000000AF44, 4, Engine::recognize_flc     } }, // "\0x44\0xAF "Dave's Targa Animator (DTA)" software
 };
 
 const u32i Engine::special_signature = signatures["special"].as_u64i;
@@ -361,21 +364,26 @@ void Engine::scan_file_v4(const QString &file_name)
             case 0x050A: // PCX
                 // ToDo: можно здесь же проверить на encoding==1, не вызывая recognizer
                 resource_size = recognize_pcx(this);
-                if ( resource_size ) goto end;
-                break;
+                goto end;
             case 0x424B: // Bink2 "KB"
                 resource_size = recognize_bink(this);
-                if ( resource_size ) goto end;
-                break;
+                goto end;
             case 0x4942: // Bink1 "BI"
                 resource_size = recognize_bink(this);
-                if ( resource_size ) goto end;
-                break;
+                goto end;
             case 0x4D42: // BMP
                 // ToDo: можно здесь же проверить поля заголовка, не вызывая recognizer
                 resource_size = recognize_bmp(this);
-                if ( resource_size ) goto end;
-                break;
+                goto end;
+            case 0xAF11: // FLI v1
+                resource_size = recognize_flc(this);
+                goto end;
+            case 0xAF12: // FLI v2 (FLC)
+                resource_size = recognize_flc(this);
+                goto end;
+            case 0xAF44: // FLX
+                resource_size = recognize_flc(this);
+                goto end;
             }
         dwords:
             if ( analyzed_dword >= 0x46464952 ) goto second_half;
@@ -1977,6 +1985,44 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     u64i resource_size = last_index - base_index;
     qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
     emit e->txResourceFound("tif", e->file.fileName(), base_index, resource_size, "");
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct FLC_Header
+    {
+        u32i file_size;
+        u16i file_id;
+        u16i frames_num;
+        u16i width;
+        u16i height;
+        u16i pix_depth;
+        u16i flags;
+        u32i frame_delay;
+        u16i reserved;
+    };
+#pragma pack(pop)
+    static u32i flc_id {fformats["flc"].index};
+    static constexpr u64i min_room_need = sizeof(FLC_Header) - sizeof(FLC_Header::file_size);
+    if ( !e->selected_formats[flc_id] ) return 0;
+    if ( e->scanbuf_offset < sizeof(FLC_Header::file_size) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset - sizeof(FLC_Header::file_size);
+    uchar *buffer = e->mmf_scanbuf;
+    FLC_Header *info_header = (FLC_Header*)(&buffer[base_index]);
+    if ( ( info_header->pix_depth != 8 ) and ( info_header->pix_depth != 16 )) return 0; // формат FLX может использовать 16bit pix depth
+    if ( ( info_header->width > 2000 ) or ( info_header->height > 2000 ) ) return 0; // вряд ли в этом формате хранятся большие изображения
+    if ( info_header->file_size <= sizeof(FLC_Header) ) return 0; // сверхкороткие файлы нам не нужны
+    u64i last_index = base_index + info_header->file_size;
+    if ( last_index > e->file_size ) return 0;
+    u64i resource_size = last_index - base_index;
+    QString info = QString("%1x%2 %3-bpp").arg( QString::number(info_header->width),
+                                                QString::number(info_header->height),
+                                                QString::number(info_header->pix_depth));
+    emit e->txResourceFound("flc", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
