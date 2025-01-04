@@ -96,7 +96,7 @@ void FilterButton::mousePressEvent(QMouseEvent *event) {
 
 void FilterButton::mouseReleaseEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton) {
-        emit imReleased(my_action, my_categories);
+        Q_EMIT imReleased(my_action, my_categories);
         event->accept();
     }
 }
@@ -156,7 +156,7 @@ DescriptionLabel::DescriptionLabel(QWidget *parent):
 
 void DescriptionLabel::mousePressEvent(QMouseEvent *event)
 {
-    if (event->buttons() == Qt::LeftButton) emit txToggle();
+    if (event->buttons() == Qt::LeftButton) Q_EMIT txToggle();
     event->accept();
 }
 
@@ -180,7 +180,7 @@ CategoryLabel::CategoryLabel(QString id, const QMap<u64i, QPixmap *> &pixmaps, Q
 
 void CategoryLabel::mousePressEvent(QMouseEvent *event)
 {
-    if (event->buttons() == Qt::LeftButton) emit txToggle();
+    if (event->buttons() == Qt::LeftButton) Q_EMIT txToggle();
     event->accept();
 }
 
@@ -492,7 +492,7 @@ void MainWindow::addFiles()
 {
     QStringList filenames = QFileDialog::getOpenFileNames(this);
     if (!filenames.isEmpty()) {
-        emit txFilenames(filenames);
+        Q_EMIT txFilenames(filenames);
         paths_button->updateText();
     }
 }
@@ -501,7 +501,7 @@ void MainWindow::addDir()
 {
     QString dirname = QFileDialog::getExistingDirectory(this);
     if (!dirname.isEmpty()) {
-        emit txDirname(dirname);
+        Q_EMIT txDirname(dirname);
         paths_button->updateText();
     }
 }

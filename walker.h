@@ -30,7 +30,7 @@ class WalkerThread: public QThread
     int amount_w; // количество w-сигнатур в w-дереве
 
     void sort_signatures_array(Signature **signs_to_scan, int amount); // пузырьковая сортировка сигнатур (по полю .as_u64i, а не по ключу)
-    void prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int first_index, int last_index, bool left, int *idx);
+    void prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int first_index, int last_index, int *idx);
     void print_avl_tree(TreeNode *tree, int amount);
     void prepare_structures_before_engine(); // подготавливает selected_formats_fast, tree_dw, tree_w;
     void clean_structures_after_engine();    // освобождает selected_formats_fast, tree_dw, tree_w;
@@ -42,7 +42,7 @@ public:
     WalkerThread(SessionWindow* window_receiver, QMutex* control_mtx, const Task &task, const Config &config, const QSet<QString> &formats_to_scan);
     ~WalkerThread();
     void run();
-signals:
+Q_SIGNALS:
     void txGeneralProgress(QString remaining, u64i percents);
     void txImPaused();
     void txImResumed();

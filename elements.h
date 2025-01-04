@@ -19,7 +19,7 @@ protected:
     void leaveEvent(QEvent *event);
 public:
     OneStateButton(QWidget *parent, const QString &main_resource, const QString &hover_resource);
-signals:
+Q_SIGNALS:
     void imReleased();
 };
 
@@ -40,9 +40,9 @@ class DynamicInfoButton: public OneStateButton {
 public:
     DynamicInfoButton(QWidget *parent, const QString &main_resource, const QString &hover_resource, const QString *text, int main_font_size, int hover_font_size, int *number_ptr);
     ~DynamicInfoButton();
-public slots:
+public Q_SLOTS:
     void updateText(bool forced = false);
-signals:
+Q_SIGNALS:
     void imReleased();
 };
 

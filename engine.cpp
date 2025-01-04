@@ -4,35 +4,41 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QByteArray>
+#include <asmjit/asmjit.h>
+
+//#define ASMJIT_STATIC
+// #define ASMJIT_NO_AARCH64
+// #define ASMJIT_NO_FOREIGN
+
 extern const QMap <u32i, QString> wave_codecs;
 
 QMap <QString, Signature> signatures { // в QMap значения будут автоматически упорядочены по ключам
     // ключ (он же сигнатура формата)
     // |
     // V                        00RREEZZ
-    { "special",    { 0x000000003052455A, 4, Engine::recognize_special } }, // "ZER0" zero-phase buffer filler
-    { "bmp",        { 0x0000000000004D42, 2, Engine::recognize_bmp     } }, // "BM"
-    { "pcx_05",     { 0x000000000000050A, 2, Engine::recognize_pcx     } }, // "\0x0A\x05"
-    { "png",        { 0x00000000474E5089, 4, Engine::recognize_png     } }, // "\x89PNG"
-    { "riff",       { 0x0000000046464952, 4, Engine::recognize_riff    } }, // "RIFF"
-    { "iff",        { 0x000000004D524F46, 4, Engine::recognize_iff     } }, // "FORM"
-    { "gif",        { 0x0000000038464947, 4, Engine::recognize_gif     } }, // "GIF8"
-    { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_tif_ii  } }, // "II*\0x00"
-    { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_tif_mm  } }, // "MM\0x00*"
-    { "tga_tc32",   { 0x0000000000020000, 4, Engine::recognize_special } }, // "\0x00\0x00\0x02\0x00"
-    { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_jpg     } }, // "\0xFF\0xD8\0xFF\0xE0"
-    { "mid",        { 0x000000006468544D, 4, Engine::recognize_mid     } }, // "MThd"
-    { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod_mk  } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
-    { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm      } }, // "Exte"
-    { "s3m",        { 0x000000004D524353, 4, Engine::recognize_s3m     } }, // "SCRM"
-    { "it",         { 0x000000004D504D49, 4, Engine::recognize_it      } }, // "IMPM"
-    { "bink1",      { 0x0000000000004942, 2, Engine::recognize_bink    } }, // "BI"
-    { "bink2",      { 0x000000000000424B, 2, Engine::recognize_bink    } }, // "KB"
-    { "smk2",       { 0x00000000324B4D53, 4, Engine::recognize_smk     } }, // "SMK2"
-    { "smk4",       { 0x00000000344B4D53, 4, Engine::recognize_smk     } }, // "SMK4"
-    { "fli_af11",   { 0x000000000000AF11, 4, Engine::recognize_flc     } }, // "\0x11\0xAF
-    { "flc_af12",   { 0x000000000000AF12, 4, Engine::recognize_flc     } }, // "\0x12\0xAF
-    { "flx_af44",   { 0x000000000000AF44, 4, Engine::recognize_flc     } }, // "\0x44\0xAF "Dave's Targa Animator (DTA)" software
+    { "special",    { 0x000000003052455A, 4, Engine::recognize_special  } }, // "ZER0" zero-phase buffer filler
+    { "bmp",        { 0x0000000000004D42, 2, Engine::recognize_bmp      } }, // "BM"
+    { "pcx_05",     { 0x000000000000050A, 2, Engine::recognize_pcx      } }, // "\0x0A\x05"
+    { "png",        { 0x00000000474E5089, 4, Engine::recognize_png      } }, // "\x89PNG"
+    { "riff",       { 0x0000000046464952, 4, Engine::recognize_riff     } }, // "RIFF"
+    { "iff",        { 0x000000004D524F46, 4, Engine::recognize_iff      } }, // "FORM"
+    { "gif",        { 0x0000000038464947, 4, Engine::recognize_gif      } }, // "GIF8"
+    { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_tif_ii   } }, // "II*\0x00"
+    { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_tif_mm   } }, // "MM\0x00*"
+    { "tga_tc32",   { 0x0000000000020000, 4, Engine::recognize_tga      } }, // "\0x00\0x00\0x02\0x00"
+    { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_jpg      } }, // "\0xFF\0xD8\0xFF\0xE0"
+    { "mid",        { 0x000000006468544D, 4, Engine::recognize_mid      } }, // "MThd"
+    { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod_mk   } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
+    { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm       } }, // "Exte"
+    { "s3m",        { 0x000000004D524353, 4, Engine::recognize_s3m      } }, // "SCRM"
+    { "it",         { 0x000000004D504D49, 4, Engine::recognize_it       } }, // "IMPM"
+    { "bink1",      { 0x0000000000004942, 2, Engine::recognize_bink     } }, // "BI"
+    { "bink2",      { 0x000000000000424B, 2, Engine::recognize_bink     } }, // "KB"
+    { "smk2",       { 0x00000000324B4D53, 4, Engine::recognize_smk      } }, // "SMK2"
+    { "smk4",       { 0x00000000344B4D53, 4, Engine::recognize_smk      } }, // "SMK4"
+    { "fli_af11",   { 0x000000000000AF11, 2, Engine::recognize_flc      } }, // "\0x11\0xAF
+    { "flc_af12",   { 0x000000000000AF12, 2, Engine::recognize_flc      } }, // "\0x12\0xAF
+    { "flx_af44",   { 0x000000000000AF44, 2, Engine::recognize_flc      } }, // "\0x44\0xAF "Dave's Targa Animator (DTA)" software
 };
 
 const u32i Engine::special_signature = signatures["special"].as_u64i;
@@ -76,6 +82,54 @@ Engine::Engine(WalkerThread *walker_parent)
     scanbuf_ptr = new u8i[total_buffer_size];
     auxbuf_ptr  = new u8i[AUX_BUFFER_SIZE];
     fillbuf_ptr = scanbuf_ptr + MAX_SIGNATURE_SIZE/*4*/;
+
+    u64i selected_signatures_array[amount_dw];  // на стэке
+    u64i selected_recognizers_array[amount_dw]; //
+
+    int s_idx = 0;
+    for (auto &&signature_name: my_walker_parent->uniq_signature_names_dw) // наполняем без упорядочивания (они упорядочены по ключам, а нам нужно упорядочивание по значению сигнатур, что сделаем ниже)
+    {
+        selected_signatures_array[s_idx] = signatures[signature_name].as_u64i;
+        selected_recognizers_array[s_idx] = (u64i)signatures[signature_name].recognizer_ptr;
+        ++s_idx;
+    }
+
+    if ( amount_dw > 1 )
+    {
+        bool was_swap;
+        u64i tmp_u64i;
+        do // bubble sort : по значению сигнатур
+        {
+            was_swap = false;
+            for (s_idx = 0; s_idx < amount_dw - 1; ++s_idx)
+            {
+                if ( selected_signatures_array[s_idx] > selected_signatures_array[s_idx + 1] )
+                {
+                    // своп в массиве сигнатур
+                    tmp_u64i = selected_signatures_array[s_idx + 1];
+                    selected_signatures_array[s_idx + 1] = selected_signatures_array[s_idx];
+                    selected_signatures_array[s_idx] = tmp_u64i;
+
+                    // и такой же своп в массиве recognizer'ов, чтобы сохранить соответствие (очень важно!)
+                    tmp_u64i = selected_recognizers_array[s_idx + 1];
+                    selected_recognizers_array[s_idx + 1] = selected_recognizers_array[s_idx];
+                    selected_recognizers_array[s_idx] = tmp_u64i;
+
+                    was_swap = true;
+                }
+            }
+        } while(was_swap);
+    }
+
+    // переносим данные из стека в вектора
+    dw_signatures_ordered.reserve(amount_dw);
+    dw_recognizers_ordered.reserve(amount_dw);
+    for (s_idx = 0; s_idx < amount_dw; ++s_idx)
+    {
+        dw_signatures_ordered.append(selected_signatures_array[s_idx]);
+        dw_recognizers_ordered.append(selected_recognizers_array[s_idx]);
+    }
+
 }
 
 Engine::~Engine()
@@ -175,7 +229,7 @@ void Engine::scan_file_v1(const QString &file_name)
             break;
         case WalkerCommand::Pause:
             qInfo() << "-> Engine: i'm paused due to Pause command";
-            emit my_walker_parent->txImPaused();
+            Q_EMIT my_walker_parent->txImPaused();
             control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
             // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
             control_mutex->unlock();
@@ -184,7 +238,7 @@ void Engine::scan_file_v1(const QString &file_name)
                 last_read_amount = 0; // условие выхода из внешнего цикла do-while итерационных чтений файла
                 break;
             }
-            emit my_walker_parent->txImResumed();
+            Q_EMIT my_walker_parent->txImResumed();
             qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
             break;
         case WalkerCommand::Skip:
@@ -206,115 +260,244 @@ void Engine::scan_file_v1(const QString &file_name)
     qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
     file.close();
 }
-
 void Engine::scan_file_v2(const QString &file_name)
 {
     file.setFileName(file_name);
-    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( (file.size() < MIN_RESOURCE_SIZE) ) )
+    file_size = file.size();
+    qInfo() << "file_size:" << file_size;
+    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( ( file.size() < MIN_RESOURCE_SIZE ) ) )
     {
         return;
     }
-
+    mmf_scanbuf = file.map(0, file_size);
+    if ( mmf_scanbuf == nullptr )
+    {
+        qInfo() << "unsuccesful file to memory mapping";
+        return;
+    }
     ////// объявление рабочих переменных на стеке (так эффективней, чем в классе) //////
-    s64i last_read_amount; // количество прочитанного из файла за последнюю операцию чтения
-    bool zero_phase; // индикатор нулевой фазы, когда первые 4 байта заполнены специальной сигнатурой
-    u64i scanbuf_offset; // текущее смещение в буфере scanbuf_ptr
+    u64i start_offset;
+    u64i last_offset = 0; // =0 - важно!
     u32i analyzed_dword;
-    u64i resource_size;
-    s64i save_restore_seek; // перед вызовом recognizer'а запоминаем последнюю позицию в файле, т.к. recognizer может перемещать позицию для дополнительных чтений
-    s64i file_size = file.size();
+    u16i analyzed_word;
+    u64i iteration;
+    u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
+    u64i tale_size = file_size % granularity;
+    // qInfo() << "tale_size:" << tale_size;
+    u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
+    // qInfo() << "max_iterations:" << max_iterations;
+    u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
+    // qInfo() << "absolute_last_offset" << absolute_last_offset;
+    u64i resource_size = 0;
 
     u64i selected_signatures_array[amount_dw]; // на стэке; массив будет неупорядоченным
     u64i selected_recognizers_array[amount_dw];
+    int st_amount_dw = amount_dw;
 
     int s_idx = 0;
     for (auto &&signature_name: my_walker_parent->uniq_signature_names_dw)
     {
         qInfo() << "uniq_signature_selected:" << signature_name;
         selected_signatures_array[s_idx] = signatures[signature_name].as_u64i;
-        selected_recognizers_array[s_idx] = (u64i) signatures[signature_name].recognizer_ptr;
+        selected_recognizers_array[s_idx] = (u64i)signatures[signature_name].recognizer_ptr;
         ++s_idx;
     }
     qInfo() << "amount_dw:" << amount_dw;
+
     //////////////////////////////////////////////////////////////
 
-    ////// выставление начальных значений важных переменных //////
-    previous_file_progress = 0;
-    previous_msecs = QDateTime::currentMSecsSinceEpoch();
-    zero_phase = true;
-    *(u32i *)(&scanbuf_ptr[0]) = special_signature;
-    signature_file_pos = 0 - MAX_SIGNATURE_SIZE; // начинаем со значения -4, чтобы компенсировать нулевую фазу
-    //////////////////////////////////////////////////////////////
-
-    do /// цикл итерационных чтений из файла
+    for (iteration = 1; iteration <= max_iterations; ++iteration)
     {
-        last_read_amount = file.read((char *)fillbuf_ptr, read_buffer_size); // размер хвоста
-        // на нулевой фазе минимальный хвост должен быть >= MIN_RESOURCE_SIZE;
-        // на ненелувой фазе должен быть >= (MIN_RESOURCE_SIZE - 4), т.к. в начальных 4 байтах буфера уже что-то есть и это не спец-заполнитель
-        if ( last_read_amount < (MIN_RESOURCE_SIZE - (!zero_phase) * MAX_SIGNATURE_SIZE) ) // ищём только в достаточном отрезке, иначе пропускаем короткий файл или недостаточно длинный хвост
+        start_offset = last_offset;
+        last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : absolute_last_offset;
+        // qInfo() << "last_offset:" << last_offset;
+
+        for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
         {
-            break; // слишком короткий хвост -> выход из do-while итерационных чтений
+            analyzed_dword = *(u32i*)(mmf_scanbuf + scanbuf_offset);
+            resource_size = 0;
+            /// сравнение с сигнатурами
+            if ( analyzed_dword == 0x46464952 ) resource_size = recognize_riff(this); // RIFF "RIFF"
+            if ( analyzed_dword == 0x4D524F46 ) resource_size = recognize_iff(this);  // IFF "FORM"
+            if ( analyzed_dword == 0x474E5089 ) resource_size = recognize_png(this);  // PNG
+
+
+
         }
-
-        for (scanbuf_offset = 0; scanbuf_offset < last_read_amount; ++scanbuf_offset) // цикл прохода по буферу dword-сигнатур
-        {
-            analyzed_dword = *(u32i *)(scanbuf_ptr + scanbuf_offset);
-
-            for (int s_idx = 0; s_idx < amount_dw; ++s_idx)
-            {
-                if ( analyzed_dword == selected_signatures_array[s_idx])
-                {
-                    recognize_special(this);
-                    break;
-                }
-            }
-
-            ++signature_file_pos; // счётчик позиции сигнатуры в файле
-        }
-        /// end of for
-
-        //qInfo() << "  :: iteration reading from file to buffer";
-        //QThread::msleep(2000);
-
         switch (*command) // проверка на поступление команды управления
         {
         case WalkerCommand::Stop:
             qInfo() << "-> Engine: i'm stopped due to Stop command";
-            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
             break;
         case WalkerCommand::Pause:
             qInfo() << "-> Engine: i'm paused due to Pause command";
-            emit my_walker_parent->txImPaused();
+            Q_EMIT my_walker_parent->txImPaused();
             control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
             // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
             control_mutex->unlock();
             if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
             {
-                last_read_amount = 0; // условие выхода из внешнего цикла do-while итерационных чтений файла
+                iteration = max_iterations; // условие выхода из внешнего цикла do-while итерационных чтений файла
                 break;
             }
-            emit my_walker_parent->txImResumed();
+            Q_EMIT my_walker_parent->txImResumed();
             qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
             break;
         case WalkerCommand::Skip:
             qInfo() << " >>>> Engine : current file skipped :" << file_name;
             *command = WalkerCommand::Run;
-            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
             break;
         default:; // сюда в случае WalkerCommand::Run
         }
+        update_file_progress(file_name, file_size, scanbuf_offset); // посылаем сигнал обновить progress bar для файла
+    }
 
-        update_file_progress(file_name, file_size, signature_file_pos + 4); // посылаем сигнал обновить progress bar для файла
-        *(u32i *)(&scanbuf_ptr[0]) = *(u32i *)(&scanbuf_ptr[read_buffer_size]); // копируем последние 4 байта в начало буфера scanbuf_ptr
-        zero_phase = false;
-
-    } while ( last_read_amount == read_buffer_size );
-    /// end of do-while итерационных чтений из файла
 
     qInfo() << "closing file";
     qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
+    file.unmap(mmf_scanbuf);
     file.close();
 }
+
+// #pragma GCC push_options
+// #pragma GCC optimize("O0")
+void Engine::scan_file_v3(const QString &file_name)
+{
+    file.setFileName(file_name);
+    file_size = file.size();
+    qInfo() << "file_size:" << file_size;
+    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( ( file.size() < MIN_RESOURCE_SIZE ) ) )
+    {
+        return;
+    }
+    mmf_scanbuf = file.map(0, file_size);
+    if ( mmf_scanbuf == nullptr )
+    {
+        qInfo() << "unsuccesful file to memory mapping";
+        return;
+    }
+    ////// объявление рабочих переменных на стеке (возможно, что так эффективней, чем в классе; ToDo: проверить) //////
+    u64i start_offset;
+    u64i last_offset = 0; // =0 - важно!
+    u32i analyzed_dword = 0;
+    u16i analyzed_word = 0;
+    u64i iteration;
+    u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
+    u64i tale_size = file_size % granularity;
+    u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
+    u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
+    u64i resource_size = 0;
+
+    //////////////////////////////////////////////////////////////
+    using namespace asmjit;
+    qInfo() << "amount_dw:" << amount_dw;
+
+    JitRuntime aj_runtime;
+    CodeHolder aj_code;
+    StringLogger aj_logger;
+    aj_code.init(aj_runtime.environment(), aj_runtime.cpuFeatures());
+    aj_code.setLogger(&aj_logger);
+    x86::Assembler aj_asm(&aj_code);
+
+    Label aj_signature_labels[amount_dw];
+    Label aj_the_end_label = aj_asm.newLabel();
+
+    int s_idx = 0;
+    for (s_idx = 0; s_idx < amount_dw; ++s_idx) // готовим лейблы под каждую сигнатуру
+    {
+        aj_signature_labels[s_idx] = aj_asm.newLabel();
+    }
+
+    aj_asm.mov(x86::rdx, imm(&analyzed_dword));
+    aj_asm.mov(x86::edx, x86::dword_ptr(x86::rdx));
+    // aj_asm.cmp(x86::edx, imm(dw_signatures_ordered[amount_dw - 1])); // сравниваем с максимальной сигнатурой
+    // aj_asm.ja(aj_the_end_label);                                     // (неэффективно!!!! поэтому закомментировано)
+
+    bool last_cmp_section = false;
+    for (s_idx = 0; s_idx < amount_dw; ++s_idx)
+    {
+        qInfo() << " signature:" << QString::number(dw_signatures_ordered[s_idx], 16);
+        last_cmp_section = ( (amount_dw - s_idx) == 1 );
+        aj_asm.bind(aj_signature_labels[s_idx]);
+        aj_asm.cmp(x86::edx, imm(u32i(dw_signatures_ordered[s_idx])));
+        last_cmp_section ? aj_asm.jne(aj_the_end_label) : aj_asm.jne(aj_signature_labels[s_idx + 1]);
+        //last_cmp_section ? aj_asm.ja(aj_the_end_label) : aj_asm.ja(aj_signature_labels[s_idx + 1]); // jne оказалось эффективней, чем ja+jb
+        //aj_asm.jb(aj_the_end_label);
+        aj_asm.mov(x86::rcx, imm(this)); // передача параметра в recognizer
+        aj_asm.push(x86::rbp);
+        aj_asm.call(imm(dw_recognizers_ordered[s_idx]));
+        aj_asm.pop(x86::rbp);
+        if (!last_cmp_section) aj_asm.jmp(aj_the_end_label);
+    }
+
+    aj_asm.bind(aj_the_end_label);
+    aj_asm.ret();
+
+    typedef int (*CmpFunc)(void);
+    typedef int (*CmpFunc_v2)(u64i start_offset, u64i last_offset); // от start_offset до last_offset, не включая last_offset
+    CmpFunc cmp_func;
+    Error err = aj_runtime.add(&cmp_func, &aj_code);
+    qInfo() << "runtime_add_error:" << err;
+    qInfo() << " ASMJIT Code:";
+    qInfo() << aj_logger.data();
+
+    //////////////////////////////////////////////////////////////
+
+    for (iteration = 1; iteration <= max_iterations; ++iteration)
+    {
+        start_offset = last_offset;
+        last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : absolute_last_offset;
+        // qInfo() << "last_offset:" << last_offset;
+
+        for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
+        {
+            analyzed_dword = *(u32i*)(mmf_scanbuf + scanbuf_offset);
+            resource_size = 0;
+            /// вызов сгенерированного кода
+            cmp_func();
+            ///
+
+        }
+        switch (*command) // проверка на поступление команды управления
+        {
+        case WalkerCommand::Stop:
+            qInfo() << "-> Engine: i'm stopped due to Stop command";
+            iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            break;
+        case WalkerCommand::Pause:
+            qInfo() << "-> Engine: i'm paused due to Pause command";
+            Q_EMIT my_walker_parent->txImPaused();
+            control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
+            // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
+            control_mutex->unlock();
+            if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
+            {
+                iteration = max_iterations; // условие выхода из внешнего цикла do-while итерационных чтений файла
+                break;
+            }
+            Q_EMIT my_walker_parent->txImResumed();
+            qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
+            break;
+        case WalkerCommand::Skip:
+            qInfo() << " >>>> Engine : current file skipped :" << file_name;
+            *command = WalkerCommand::Run;
+            iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            break;
+        default:; // сюда в случае WalkerCommand::Run
+        }
+        update_file_progress(file_name, file_size, scanbuf_offset); // посылаем сигнал обновить progress bar для файла
+    }
+
+    qInfo() << "closing file";
+    qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
+    file.unmap(mmf_scanbuf);
+    file.close();
+
+    aj_runtime.release(cmp_func);
+}
+// #pragma GCC pop_options
 
 void Engine::scan_file_v4(const QString &file_name)
 {
@@ -335,6 +518,7 @@ void Engine::scan_file_v4(const QString &file_name)
     u64i start_offset;
     u64i last_offset = 0; // =0 - важно!
     u32i analyzed_dword;
+    u16i analyzed_word;
     u64i iteration;
     u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
     u64i tale_size = file_size % granularity;
@@ -344,6 +528,17 @@ void Engine::scan_file_v4(const QString &file_name)
     u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
     // qInfo() << "absolute_last_offset" << absolute_last_offset;
     u64i resource_size = 0;
+    // названия следующих переменных образуются из названий сигнатур
+    bool is_pcx_05_on = this->selected_formats[fformats["pcx"].index];
+    bool is_bink1_on = this->selected_formats[fformats["bik"].index];
+    bool is_bink2_on = this->selected_formats[fformats["bk2"].index];
+    bool is_bmp_on = this->selected_formats[fformats["bmp"].index];
+    bool is_flc_on = this->selected_formats[fformats["flc"].index];
+    bool is_tif_ii_on = this->selected_formats[fformats["tif_ii"].index];
+    bool is_tif_mm_on = this->selected_formats[fformats["tif_mm"].index];
+    bool is_mod_mk_on = this->selected_formats[fformats["mod_m.k."].index];
+    bool is_smk_on = this->selected_formats[fformats["smk"].index];
+
     //////////////////////////////////////////////////////////////
 
     for (iteration = 1; iteration <= max_iterations; ++iteration)
@@ -357,94 +552,199 @@ void Engine::scan_file_v4(const QString &file_name)
             analyzed_dword = *(u32i*)(mmf_scanbuf + scanbuf_offset);
             resource_size = 0;
             /// сравнение с сигнатурами
-            {
-        words:
-            switch ((u16i)analyzed_dword) // "усечение" старших 16 бит, чтобы остались только младшие 16
-            {
-            case 0x050A: // PCX
-                // ToDo: можно здесь же проверить на encoding==1, не вызывая recognizer
-                resource_size = recognize_pcx(this);
-                goto end;
-            case 0x424B: // Bink2 "KB"
-                resource_size = recognize_bink(this);
-                goto end;
-            case 0x4942: // Bink1 "BI"
-                resource_size = recognize_bink(this);
-                goto end;
-            case 0x4D42: // BMP
-                // ToDo: можно здесь же проверить поля заголовка, не вызывая recognizer
-                resource_size = recognize_bmp(this);
-                goto end;
-            case 0xAF11: // FLI v1
-                resource_size = recognize_flc(this);
-                goto end;
-            case 0xAF12: // FLI v2 (FLC)
-                resource_size = recognize_flc(this);
-                goto end;
-            case 0xAF44: // FLX
-                resource_size = recognize_flc(this);
-                goto end;
-            }
-        dwords:
-            if ( analyzed_dword >= 0x46464952 ) goto second_half;
-        first_half:
-            switch (analyzed_dword)
-            {
-                case 0x00020000: // TGA
-                    recognize_special(this);
-                    break;
-                case 0x002A4949: // TIFF "II"
-                    resource_size = recognize_tif_ii(this);
-                    break;
-                case 0x2A004D4D: // TIFF "MM"
-                    resource_size = recognize_tif_mm(this);
-                    break;
-                case 0x2E4B2E4D: // MOD "M.K."
-                    resource_size = recognize_mod_mk(this);
-                    break;
-                case 0x324B4D53: // SMK "SMK2"
-                    resource_size = recognize_smk(this);
-                    break;
-                case 0x344B4D53: // SMK "SMK4"
-                    resource_size = recognize_smk(this);
-                    break;
-                case 0x38464947: // GIF
-                    resource_size = recognize_gif(this);
-                    break;
-            }
-            goto end;
+//         dwords:
+// //            if ( analyzed_dword >= 0x46464952 ) goto dwords_second_half;
+//         dwords_first_half:
+//             switch (analyzed_dword)
+//             {
+//                 case 0x00020000: // TGA
+//                     recognize_special(this);
+//                     goto the_end;
+//                 case 0x002A4949: // TIFF "II"
+//                     resource_size = recognize_tif_ii(this);
+//                     goto the_end;
+//                 case 0x2A004D4D: // TIFF "MM"
+//                     resource_size = recognize_tif_mm(this);
+//                     goto the_end;
+//                 case 0x2E4B2E4D: // MOD "M.K."
+//                     resource_size = recognize_mod_mk(this);
+//                     goto the_end;
+//                 case 0x324B4D53: // SMK "SMK2"
+//                     resource_size = recognize_smk(this);
+//                     goto the_end;
+//                 case 0x344B4D53: // SMK "SMK4"
+//                     resource_size = recognize_smk(this);
+//                     goto the_end;
+//                 case 0x38464947: // GIF
+//                     resource_size = recognize_gif(this);
+//                     goto the_end;
+//             }
+//         //    goto words;
 
-        second_half:
-            switch (analyzed_dword)
+//         dwords_second_half:
+//             switch (analyzed_dword)
+//             {
+//                 case 0x46464952: // RIFF "RIFF"
+//                     resource_size = recognize_riff(this);
+//                     goto the_end;
+//                 case 0x474E5089: // PNG
+//                     resource_size = recognize_png(this);
+//                     goto the_end;
+//                 case 0x4D504D49: // IT "IMPM"
+//                     resource_size = recognize_it(this);
+//                     goto the_end;
+//                 case 0x4D524353: // S3M "SCRM"
+//                     resource_size = recognize_s3m(this);
+//                     goto the_end;
+//                 case 0x4D524F46: // IFF "FORM"
+//                     resource_size = recognize_iff(this);
+//                     goto the_end;
+//                 case 0x6468544D: // MID
+//                     resource_size = recognize_mid(this);
+//                     goto the_end;
+//                 case 0x65747845: // XM "Exte"
+//                     resource_size = recognize_xm(this);
+//                     goto the_end;
+//                 case 0xE0FFD8FF: // JPG
+//                     resource_size = recognize_jpg(this);
+//                     goto the_end;
+//             }
+        // words:
+            // switch ((u16i)analyzed_dword) // только младшие 16
+            // {
+            // case 0x050A: // PCX
+            //     // ToDo: можно здесь же проверить на encoding==1, не вызывая recognizer
+            //     resource_size = recognize_pcx(this);
+            //     break;
+            // case 0x424B: // Bink2 "KB"
+            //     resource_size = recognize_bink(this);
+            //     break;
+            // case 0x4942: // Bink1 "BI"
+            //     resource_size = recognize_bink(this);
+            //     break;
+            // case 0x4D42: // BMP
+            //     // ToDo: можно здесь же проверить поля заголовка, не вызывая recognizer
+            //     resource_size = recognize_bmp(this);
+            //     break;
+            // case 0xAF11: // FLI v1
+            //     resource_size = recognize_flc(this);
+            //     break;
+            // case 0xAF12: // FLI v2 (FLC)
+            //     resource_size = recognize_flc(this);
+            //     break;
+            // case 0xAF44: // FLX
+            //     resource_size = recognize_flc(this);
+            //     break;
+            // }
+        // end:
+
+        //     ;
+        //     }
+
+
+        dwords:
+            if ( is_tif_ii_on )
             {
-                case 0x46464952: // RIFF "RIFF"
-                    resource_size = recognize_riff(this);
-                    break;
-                case 0x474E5089: // PNG
-                    resource_size = recognize_png(this);
-                    break;
-                case 0x4D504D49: // IT "IMPM"
-                    resource_size = recognize_it(this);
-                    break;
-                case 0x4D524353: // S3M "SCRM"
-                    resource_size = recognize_s3m(this);
-                    break;
-                case 0x4D524F46: // IFF "FORM"
-                    resource_size = recognize_iff(this);
-                    break;
-                case 0x6468544D: // MID
-                    resource_size = recognize_mid(this);
-                    break;
-                case 0x65747845: // XM "Exte"
-                    resource_size = recognize_xm(this);
-                    break;
-                case 0xE0FFD8FF: // JPG
-                    resource_size = recognize_jpg(this);
-                    break;
+                if ( analyzed_dword == 0x002A4949 )
+                {
+                    resource_size = recognize_tif_ii(this);
+                    goto the_end;
+
+                }
             }
-        end:
+            if ( is_tif_mm_on )
+            {
+                if ( analyzed_dword == 0x2A004D4D )
+                {
+                    resource_size = recognize_tif_mm(this);
+                    goto the_end;
+
+                }
+            }
+            if ( is_mod_mk_on )
+            {
+                if ( analyzed_dword == 0x2E4B2E4D )
+                {
+                    resource_size = recognize_mod_mk(this);
+                    goto the_end;
+                }
+            }
+            if ( is_smk_on )
+            {
+                if ( analyzed_dword == 0x324B4D53 )
+                {
+                    resource_size = recognize_smk(this);
+                    goto the_end;
+                }
+                if ( analyzed_dword == 0x344B4D53 )
+                {
+                    resource_size = recognize_smk(this);
+                    goto the_end;
+                }
+            }
+
+        words:
+            if ( is_pcx_05_on )
+            {
+                if  ( (u16i)analyzed_dword == 0x050A )
+                {
+                    resource_size = recognize_pcx(this);
+                    goto the_end;
+                }
+            }
+            if ( is_bink2_on )
+            {
+                if  ( (u16i)analyzed_dword == 0x424B )
+                {
+                    resource_size = recognize_bink(this);
+                    goto the_end;
+                }
+            }
+            if ( is_bink1_on )
+            {
+                if  ( (u16i)analyzed_dword == 0x4942 )
+                {
+                    resource_size = recognize_bink(this);
+                    goto the_end;
+                }
+            }
+            if ( is_bmp_on )
+            {
+                if  ( (u16i)analyzed_dword == 0x4D42 )
+                {
+                    resource_size = recognize_bmp(this);
+                    goto the_end;
+                }
+            }
+            if ( is_flc_on )
+            {
+                if  ( (u16i)analyzed_dword == 0xAF11 )
+                {
+                    resource_size = recognize_flc(this);
+                    goto the_end;
+                }
+                else
+                {
+                    if  ( (u16i)analyzed_dword == 0xAF12 )
+                    {
+                        resource_size = recognize_flc(this);
+                        goto the_end;
+                    }
+                    else
+                    {
+                        if  ( (u16i)analyzed_dword == 0xAF44 )
+                        {
+                            resource_size = recognize_flc(this);
+                            goto the_end;
+                        }
+                    }
+                }
+            }
+
+
+
+        the_end:
             ;
-            }
         }
         switch (*command) // проверка на поступление команды управления
         {
@@ -454,7 +754,7 @@ void Engine::scan_file_v4(const QString &file_name)
                 break;
             case WalkerCommand::Pause:
                 qInfo() << "-> Engine: i'm paused due to Pause command";
-                emit my_walker_parent->txImPaused();
+                Q_EMIT my_walker_parent->txImPaused();
                 control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
                 // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
                 control_mutex->unlock();
@@ -463,7 +763,7 @@ void Engine::scan_file_v4(const QString &file_name)
                     iteration = max_iterations; // условие выхода из внешнего цикла do-while итерационных чтений файла
                     break;
                 }
-                emit my_walker_parent->txImResumed();
+                Q_EMIT my_walker_parent->txImResumed();
                 qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
                 break;
             case WalkerCommand::Skip:
@@ -494,7 +794,7 @@ inline void Engine::update_file_progress(const QString &file_name, u64i file_siz
     {
         previous_msecs = current_msecs;
         previous_file_progress = current_file_progress;
-        emit txFileProgress(file_name, current_file_progress);
+        Q_EMIT txFileProgress(file_name, current_file_progress);
         //return; // нужен только в случае, если далее идёт qInfo(), иначе return можно удалить
     }
 //    qInfo() << "    !!! Engine :: NO! I WILL NOT SEND SIGNALS CAUSE IT'S TOO OFTEN!";
@@ -511,11 +811,12 @@ bool Engine::enough_room_to_continue(u64i min_size)
 
 // функция-заглушка для обработки технической сигнатуры
 RECOGNIZE_FUNC_RETURN Engine::recognize_special RECOGNIZE_FUNC_HEADER
-{/*
+{
     if ( e->enough_room_to_continue(10) )
     {
         ++(e->hits);
-    }*/
+    }
+    qInfo() << "recognize_special:" << e->scanbuf_offset;
 
     return 0;
 }
@@ -562,7 +863,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
                                                 QString::number(std::abs(info_header->height)),
                                                 QString::number(info_header->bits_per_pixel));
     e->resource_offset = base_index;
-    emit e->txResourceFound("bmp", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("bmp", e->file.fileName(), base_index, resource_size, info);
     return resource_size;
 }
 
@@ -594,6 +895,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
         u32i crc;
     };
 #pragma pack(pop)
+    //qInfo() << "\nPNG recognizer called!\n";
     static const u32i png_id = fformats["png"].index;
     static const u64i min_room_need = sizeof(FileHeader) + sizeof(ChunkHeader) + sizeof(IHDRData) + sizeof(CRC);
     static const QSet <u8i>  VALID_BIT_DEPTH  {1, 2, 4, 8, 16};
@@ -652,7 +954,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
     QString info = QString(R"(%1x%2 (%3))").arg(QString::number(be2le(ihdr_data->width)),
                                                 QString::number(be2le(ihdr_data->height)),
                                                 color_type );
-    emit e->txResourceFound("png", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("png", e->file.fileName(), base_index, resource_size, info);
     return resource_size;
 }
 
@@ -723,7 +1025,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         if ( avi_info_header->hdrl_avih_sign != 0x686976616C726468 /*hdrlavih*/ ) return 0;
         QString info = QString(R"(%1x%2)").arg( QString::number(avi_info_header->width),
                                                 QString::number(avi_info_header->height) );
-        emit e->txResourceFound("avi", e->file.fileName(), base_index, resource_size, info);
+        Q_EMIT e->txResourceFound("avi", e->file.fileName(), base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
     }
@@ -737,7 +1039,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
                                                                         QString::number(wav_info_header->bits_per_sample),
                                                                         QString::number(wav_info_header->sample_rate),
                                                                         QString::number(wav_info_header->chans) );
-        emit e->txResourceFound("wav", e->file.fileName(), base_index, resource_size, info);
+        Q_EMIT e->txResourceFound("wav", e->file.fileName(), base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
     }
@@ -747,21 +1049,21 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(MidiInfoHeader)) ) return 0;
         MidiInfoHeader *midi_info_header = (MidiInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
         QString info = QString(R"(%1 tracks)").arg(be2le(midi_info_header->ntrks));
-        emit e->txResourceFound("rmi", e->file.fileName(), base_index, resource_size, info);
+        Q_EMIT e->txResourceFound("rmi", e->file.fileName(), base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
     }
     case 0x5453494C4E4F4341: // ani - animated cursor with ACONLIST subchunk
     {
         if ( ( !e->selected_formats[ani_id] ) ) return 0;
-        emit e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
+        Q_EMIT e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
     case 0x68696E614E4F4341: // ani - animated cursor with ACONanih subchunk
     {
         if ( ( !e->selected_formats[ani_id] ) ) return 0;
-        emit e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
+        Q_EMIT e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
@@ -808,8 +1110,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     QString info = QString(R"(%1 tracks)").arg(be2le(info_header->ntrks));
-    emit e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
-    qInfo() << " hererererererre | size from header:" << be2le((*((MidiChunk*)(&buffer[base_index]))).size);
+    Q_EMIT e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
+    //qInfo() << " hererererererre | size from header:" << be2le((*((MidiChunk*)(&buffer[base_index]))).size);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -878,7 +1180,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         QString info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
                                                         QString::number(be2le(bitmap_info_header->height)),
                                                         QString::number(bitmap_info_header->bitplanes));
-        emit e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
+        Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
     }
@@ -890,7 +1192,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         QString info;
         if ( aiff_info_header->local_chunk_id == 0x4D4D4F43 ) info = QString("%1-bit %2-ch").arg(   QString::number(be2le(aiff_info_header->sample_size)),
                                                                                                     QString::number(be2le(aiff_info_header->channels)));
-        emit e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, info);
+        Q_EMIT e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
     }
@@ -904,7 +1206,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         last_index += (be2le(cat_info_header->size) + sizeof(XDIR_CatInfoHeader));
         if ( last_index > file_size) return 0;
         u64i resource_size = last_index - base_index;
-        emit e->txResourceFound("xmi", e->file.fileName(), base_index, resource_size, "");
+        Q_EMIT e->txResourceFound("xmi", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
@@ -979,7 +1281,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_pcx RECOGNIZE_FUNC_HEADER
     QString info = QString("%1x%2 %3-bpp").arg( QString::number(width),
                                             QString::number(height),
                                             QString::number(bpp));
-    emit e->txResourceFound("pcx", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("pcx", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1102,7 +1404,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     u64i resource_size = last_index - base_index;
     QString info = QString("%1x%2").arg(QString::number(info_header->width),
                                         QString::number(info_header->height));
-    emit e->txResourceFound("gif", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("gif", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1157,7 +1459,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
     last_index += 2; // на размер EOI-идентификатора
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
-    emit e->txResourceFound("jpg", e->file.fileName(), base_index, resource_size, "");
+    Q_EMIT e->txResourceFound("jpg", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1227,7 +1529,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod_mk RECOGNIZE_FUNC_HEADER
     QString info = QString("%1-ch, song name: '%2'").arg(   QString::number(channels),
                                                             QString(QByteArray((char*)(info_header->song_name), song_name_len))
                                                         );
-    emit e->txResourceFound("mod", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("mod", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1370,7 +1672,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
     QString info = QString("%1-ch, song name: '%2'").arg(   QString::number(info_header->channels_number),
                                                             QString(QByteArray((char*)(info_header->module_name), song_name_len))
                                                          );
-    emit e->txResourceFound("xm", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("xm", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1476,7 +1778,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
     QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
-    emit e->txResourceFound("s3m", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("s3m", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1516,6 +1818,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
         u8i  reserved[4];
     };
 #pragma pack(pop)
+    //qInfo() << "\nIT recognizer called!\n";
     static u32i it_id {fformats["it"].index};
     static constexpr u64i min_room_need = sizeof(IT_Header);
     if ( ( !e->selected_formats[it_id] ) ) return 0;
@@ -1591,7 +1894,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
     QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
-    emit e->txResourceFound("it", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("it", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1646,7 +1949,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
     case 'K':
         if ( e->selected_formats[bink1_id] )
         {
-            emit e->txResourceFound("bik", e->file.fileName(), base_index, resource_size, info);
+            Q_EMIT e->txResourceFound("bik", e->file.fileName(), base_index, resource_size, info);
         }
         else
         {
@@ -1656,7 +1959,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
     case '2':
         if ( e->selected_formats[bink2_id] )
         {
-            emit e->txResourceFound("bk2", e->file.fileName(), base_index, resource_size, info);
+            Q_EMIT e->txResourceFound("bk2", e->file.fileName(), base_index, resource_size, info);
         }
         else
         {
@@ -1705,7 +2008,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
     u64i resource_size = last_index - base_index;
     QString info = QString("%1x%2").arg(QString::number(info_header->width),
                                         QString::number(info_header->height));
-    emit e->txResourceFound("smk", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("smk", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1748,7 +2051,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     s64i ifd_strip_counts_table; // смещение таблицы размеров "отрезков" изображения
     u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
     s64i ifd_exif_offset; // смещение exif ifd
-    qInfo() << ": Next TIFF_II scan iteration! Signature found at offset:" << base_index;
+    // qInfo() << ": Next TIFF_II scan iteration! Signature found at offset:" << base_index;
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
         ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
@@ -1757,11 +2060,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
         ifd_strip_counts_table = -1;
         ifd_strip_num = 0;
         ifd_exif_offset = -1;
-        qInfo() << ": IFD at offset:" << last_index;
+        // qInfo() << ": IFD at offset:" << last_index;
         if ( last_index + 6 > file_size ) return 0; // не хватает места на NumDirEntries (2) + NextIFDOffset (4)
         num_of_tags = *((u16i*)&buffer[last_index]); // место есть - считываем количество тегов
         if ( last_index + 6 + num_of_tags * 12 > file_size ) return 0; // а вот на сами теги места уже не хватает -> капитуляция
-        qInfo() << ": num_of_tags:" << num_of_tags;
+        // qInfo() << ": num_of_tags:" << num_of_tags;
         tag_pointer = (TIF_Tag*)&buffer[last_index + 2]; // ставим указатель на самый первый тег под индексом [0]
         ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * 12; // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
         for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
@@ -1793,7 +2096,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
                 if ( tag_pointer[tag_idx].tag_id == 279 ) ifd_image_size = tag_pointer[tag_idx].data_offset;
                 if ( tag_pointer[tag_idx].tag_id == 34665 ) ifd_exif_offset = tag_pointer[tag_idx].data_offset; // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
             }
-            qInfo() << "   tag#"<< tag_idx << " tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
+            // qInfo() << "   tag#"<< tag_idx << " tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
         }
         if ( ( ifd_image_offset > 0 ) and ( ifd_image_size > 0 ) ) ifds_and_tags_db[ifd_image_offset] = ifd_image_size; // если у тегов 273 и 279 количество данных data_count < 4;
         // в ином случае проверяем таблицы ifd_strip_offsets_table и ifd_strip_counts_table
@@ -1801,7 +2104,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
         {
             u32i *strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
             u32i *strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
-            qInfo() << "   image strips num:" << ifd_strip_num;
+            // qInfo() << "   image strips num:" << ifd_strip_num;
             for (u32i stp_idx = 0; stp_idx < ifd_strip_num; ++stp_idx)
             {
                 //qInfo() << "  strip#" << stp_idx << " offset:" << strip_offsets[stp_idx] << " size:" << strip_counts[stp_idx];
@@ -1820,8 +2123,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
             {
                 if ( !VALID_DATA_TYPE.contains(tag_pointer[tag_idx].data_type) ) return 0; // неизвестный тип данных
                 result_tag_data_size = tag_pointer[tag_idx].data_count * VALID_DATA_TYPE[tag_pointer[tag_idx].data_type];
-                qInfo() << "   exif_tag#"<< tag_idx << " exif_tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count
-                        << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
+                // qInfo() << "   exif_tag#"<< tag_idx << " exif_tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count
+                //         << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
                 if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
                 {
                     if ( base_index + tag_pointer[tag_idx].data_offset + result_tag_data_size > file_size ) return 0; // данные тега не вмещаются в скан-файл
@@ -1833,7 +2136,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
             }
         }
         next_ifd_offset = *((u32i*)&buffer[last_index + 2 + num_of_tags * 12]); // считываем смещение следующего IFD из конца предыдущего IFD
-        qInfo() << "   next_ifd_offset:" << next_ifd_offset;
+        // qInfo() << "   next_ifd_offset:" << next_ifd_offset;
         if ( next_ifd_offset == 0 ) break;
         last_index = base_index + next_ifd_offset;
     }
@@ -1842,8 +2145,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
-    emit e->txResourceFound("tif", e->file.fileName(), base_index, resource_size, "");
+    // qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
+    Q_EMIT e->txResourceFound("tif", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -1886,7 +2189,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     s64i ifd_strip_counts_table; // смещение таблицы размеров "отрезков" изображения
     u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
     s64i ifd_exif_offset; // смещение exif ifd
-    qInfo() << ": Next TIFF_MM scan iteration! Signature found at offset:" << base_index;
+    // qInfo() << ": Next TIFF_MM scan iteration! Signature found at offset:" << base_index;
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
         ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
@@ -1895,11 +2198,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         ifd_strip_counts_table = -1;
         ifd_strip_num = 0;
         ifd_exif_offset = -1;
-        qInfo() << ": IFD at offset:" << last_index;
+        // qInfo() << ": IFD at offset:" << last_index;
         if ( last_index + 6 > file_size ) return 0; // не хватает места на NumDirEntries (2) + NextIFDOffset (4)
         num_of_tags = be2le(*((u16i*)&buffer[last_index])); // место есть - считываем количество тегов
         if ( last_index + 6 + num_of_tags * 12 > file_size ) return 0; // а вот на сами теги места уже не хватает -> капитуляция
-        qInfo() << ": num_of_tags:" << num_of_tags;
+        // qInfo() << ": num_of_tags:" << num_of_tags;
         tag_pointer = (TIF_Tag*)&buffer[last_index + 2]; // ставим указатель на самый первый тег под индексом [0]
         ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * 12; // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
         for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
@@ -1931,9 +2234,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
                 if ( be2le(tag_pointer[tag_idx].tag_id) == 279 ) ifd_image_size = be2le(tag_pointer[tag_idx].data_offset);
                 if ( be2le(tag_pointer[tag_idx].tag_id) == 34665 ) ifd_exif_offset = be2le(tag_pointer[tag_idx].data_offset); // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
             }
-            qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
-                    << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
-                    << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
+            // qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
+            //         << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
+            //         << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
         }
         if ( ( ifd_image_offset > 0 ) and ( ifd_image_size > 0 ) ) ifds_and_tags_db[ifd_image_offset] = ifd_image_size; // если у тегов 273 и 279 количество данных data_count < 4;
         // в ином случае проверяем таблицы ifd_strip_offsets_table и ifd_strip_counts_table
@@ -1941,7 +2244,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         {
             u32i *strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
             u32i *strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
-            qInfo() << "   image strips num:" << ifd_strip_num;
+            // qInfo() << "   image strips num:" << ifd_strip_num;
             for (u32i stp_idx = 0; stp_idx < ifd_strip_num; ++stp_idx)
             {
                 //qInfo() << "  strip#" << stp_idx << " offset:" << strip_offsets[stp_idx] << " size:" << strip_counts[stp_idx];
@@ -1960,9 +2263,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
             {
                 if ( !VALID_DATA_TYPE.contains(be2le(tag_pointer[tag_idx].data_type)) ) return 0; // неизвестный тип данных
                 result_tag_data_size = be2le(tag_pointer[tag_idx].data_count) * VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)];
-                qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
-                        << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
-                        << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
+                // qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
+                //         << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
+                //         << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
                 if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
                 {
                     if ( base_index + be2le(tag_pointer[tag_idx].data_offset) + result_tag_data_size > file_size ) return 0; // данные тега не вмещаются в скан-файл
@@ -1974,7 +2277,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
             }
         }
         next_ifd_offset = be2le(*((u32i*)&buffer[last_index + 2 + num_of_tags * 12])); // считываем смещение следующего IFD из конца предыдущего IFD
-        qInfo() << "   next_ifd_offset:" << next_ifd_offset;
+        // qInfo() << "   next_ifd_offset:" << next_ifd_offset;
         if ( next_ifd_offset == 0 ) break;
         last_index = base_index + next_ifd_offset;
     }
@@ -1983,8 +2286,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
-    emit e->txResourceFound("tif", e->file.fileName(), base_index, resource_size, "");
+    // qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
+    Q_EMIT e->txResourceFound("tif", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -2022,7 +2325,15 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
     QString info = QString("%1x%2 %3-bpp").arg( QString::number(info_header->width),
                                                 QString::number(info_header->height),
                                                 QString::number(info_header->pix_depth));
-    emit e->txResourceFound("flc", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("flc", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+#pragma pack(pop)
+
+    return 0;
 }

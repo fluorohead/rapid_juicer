@@ -42,7 +42,7 @@ class FilterButton: public QLabel {
     void leaveEvent(QEvent *event);
 public:
     FilterButton(QWidget *parent, FilterAction action, u64i categories, QPoint position, QPixmap *main_pixmap, QPixmap *hover_pixmap);
-signals:
+Q_SIGNALS:
     void imReleased(FilterAction action, u64i categories);
 };
 
@@ -55,7 +55,7 @@ class FormatLabel: public QLabel {
     QString my_format_key;
 public:
     FormatLabel(const QString &format_key, const QString &text, QPixmap *corner_pixmap, QWidget *parent = nullptr);
-public slots:
+public Q_SLOTS:
     void rxToggle();
 };
 
@@ -66,7 +66,7 @@ class DescriptionLabel: public QLabel {
 public:
     DescriptionLabel(const QString &text, QWidget *parent = nullptr);
     DescriptionLabel(QWidget *parent = nullptr);
-signals:
+Q_SIGNALS:
     void txToggle();
 };
 
@@ -76,7 +76,7 @@ class CategoryLabel: public QLabel {
     void mousePressEvent(QMouseEvent *event);
 public:
     CategoryLabel(QString id, const QMap <u64i, QPixmap*> &pixmaps, QWidget *parent = nullptr);
-signals:
+Q_SIGNALS:
     void txToggle();
 };
 
@@ -91,7 +91,7 @@ class FormatsTable: public QTableWidget {
 public:
     FormatsTable(QWidget *parent);
     ~FormatsTable();
-public slots:
+public Q_SLOTS:
     void rxCommand(FilterAction action, u64i categories);
 };
 
@@ -114,12 +114,12 @@ class MainWindow: public QWidget {
 public:
     MainWindow();
     ~MainWindow();
-public slots:
+public Q_SLOTS:
     void addFiles();
     void addDir();
     void showSettings();
     void showNewSessionWindow();
-signals:
+Q_SIGNALS:
     void txFilenames(QStringList filenames);
     void txDirname(QString dirname);
 };

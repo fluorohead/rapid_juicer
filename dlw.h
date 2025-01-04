@@ -35,7 +35,7 @@ public:
                                                         QPixmap *no_state_hover_pixmap,
                                                         QPixmap *yes_state_hover_pixmap);
     ~YesNoMicroButton();
-public slots:
+public Q_SLOTS:
     void txUpdateMyRowIndex(u32i removed_row_index);
 };
 
@@ -52,9 +52,9 @@ class DeleteMicroButton: public QLabel {
 public:
     DeleteMicroButton(QWidget *parent, u32i row_index, QPixmap *main_pixmap, QPixmap *hover_pixmap);
     ~DeleteMicroButton();
-signals:
+Q_SIGNALS:
     void imReleased(u32i row_index);
-public slots:
+public Q_SLOTS:
     void txUpdateMyRowIndex(u32i removed_row_index);
 };
 
@@ -66,10 +66,10 @@ class DirlistTable: public QTableWidget {
 public:
     DirlistTable(QWidget *parent = nullptr);
     ~DirlistTable();
-signals:
+Q_SIGNALS:
     void txUpdateYourRowIndexes(u32i removed_row_index); // посылает всем DeleteMicroButton и YesNoMicroButton
     void txUpdatePathsButton(bool forced = false); // посылает кнопке типа DynamicInfoButton в виджете CentralWidget
-public slots:
+public Q_SLOTS:
     void rxRemoveRow(u32i row_index);
     void rxRemoveAll();
 
@@ -83,7 +83,7 @@ class CornerGrip: public QLabel {
     void mousePressEvent(QMouseEvent *event);
 public:
     CornerGrip(QWidget *parent);
-signals:
+Q_SIGNALS:
     void txDiffXY(int x_diff, int y_diff);
 };
 
@@ -131,7 +131,7 @@ class DirlistWindow: public QWidget {
     DirlistTable dirtable {this};
 public:
     DirlistWindow(QWidget *parent);
-public slots:
+public Q_SLOTS:
     void rxAddFilenames(QStringList filenames);
     void rxAddDirname(QString dirname);
     void rxDiffXY(int x_diff, int y_diff);

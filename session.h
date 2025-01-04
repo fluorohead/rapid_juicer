@@ -35,7 +35,7 @@ class SessionWindow: public QWidget
 public:
     SessionWindow(u32i session_id);
     ~SessionWindow();
-public slots:
+public Q_SLOTS:
     void rxGeneralProgress(QString remaining, u64i percentage_value);
     void rxFileProgress(QString file_name, s64i percentage_value);
     void rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);

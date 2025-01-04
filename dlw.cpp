@@ -122,7 +122,7 @@ void DeleteMicroButton::txUpdateMyRowIndex(u32i removed_row_index)
 void DeleteMicroButton::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
-        emit imReleased(my_row_index);
+        Q_EMIT imReleased(my_row_index);
         event->accept();
     }
 }
@@ -226,8 +226,8 @@ void DirlistTable::rxRemoveRow(u32i row_index)
     this->setRowCount(this->rowCount() + 1);
     this->setRowHeight(this->rowCount() - 1, DIRTABLE_ROW_H);
     this->removeRow(row_index);
-    emit txUpdateYourRowIndexes(row_index);
-    emit txUpdatePathsButton();
+    Q_EMIT txUpdateYourRowIndexes(row_index);
+    Q_EMIT txUpdatePathsButton();
     this->setUpdatesEnabled(true); // закончили изменения, можно перерисоваться
 }
 
@@ -238,7 +238,7 @@ void DirlistTable::rxRemoveAll()
     task.delAllTaskPaths();
     this->clear();
     fill_header();
-    emit txUpdatePathsButton();
+    Q_EMIT txUpdatePathsButton();
     this->setUpdatesEnabled(true); // закончили изменения, можно перерисоваться
 }
 
@@ -256,7 +256,7 @@ void CornerGrip::mouseMoveEvent(QMouseEvent *event)
     if (event->buttons() == Qt::LeftButton) {
         int x_diff = (event->globalPosition() - prev_cursor_pos).toPoint().x();
         int y_diff = (event->globalPosition() - prev_cursor_pos).toPoint().y();
-        emit txDiffXY(x_diff, y_diff);
+        Q_EMIT txDiffXY(x_diff, y_diff);
         prev_cursor_pos = event->globalPosition();
         event->accept();
     }

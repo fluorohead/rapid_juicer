@@ -67,11 +67,14 @@ class Engine: public QObject
     bool enough_room_to_continue(u64i min_size); // достаточно ли места min_size до конца файла, чтобы проверить заголовок сигнатуры
     uchar *mmf_scanbuf; // memry mapped file scanning buffer
     u64i hits {0};
+    QVector<u64i> dw_signatures_ordered;
+    QVector<u64i> dw_recognizers_ordered;
 public:
     Engine(WalkerThread *walker_parent);
     ~Engine();
     void scan_file_v1(const QString &file_name); // по dword-сигнатурам через авл-дерево в буфере
     void scan_file_v2(const QString &file_name); // по dword-сигнатурам через линейный поиск в буфере
+    void scan_file_v3(const QString &file_name); // эксперименты с самомодифицирующимся кодом
     void scan_file_v4(const QString &file_name); // по dword-сигнатурам через switch-case и file mapping
 
     RECOGNIZE_FUNC_DECL_RETURN recognize_special RECOGNIZE_FUNC_HEADER;
@@ -92,9 +95,9 @@ public:
     RECOGNIZE_FUNC_DECL_RETURN recognize_tif_ii RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_tif_mm RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_flc RECOGNIZE_FUNC_HEADER;
-    // RECOGNIZE_FUNC_DECL_RETURN recognize_tga_tc32 RECOGNIZE_FUNC_HEADER;
+    RECOGNIZE_FUNC_DECL_RETURN recognize_tga RECOGNIZE_FUNC_HEADER;
 
-signals:
+Q_SIGNALS:
     void txFileProgress(QString file_name, s64i percentage_value);
     void txResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
 };

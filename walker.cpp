@@ -28,7 +28,7 @@ inline void WalkerThread::update_general_progress(int paths_total, int current_p
     if ( ( current_msecs < previous_msecs ) or ( current_msecs - previous_msecs >= MIN_SIGNAL_INTERVAL_MSECS ) )
     {
         previous_msecs = current_msecs;
-        emit txGeneralProgress("", general_progress);
+        Q_EMIT txGeneralProgress("", general_progress);
         return;
     }
 }
@@ -56,7 +56,7 @@ void WalkerThread::sort_signatures_array(Signature **signs_to_scan, int amount)
     }
 }
 
-void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int first_index, int last_index, bool left, int *idx)
+void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int first_index, int last_index, int *idx)
 {
     int base_index = first_index + (last_index - first_index + 1) / 2;
     tree[*idx] = TreeNode{*signs_to_scan[base_index], nullptr, nullptr}; // заполняем новый узел
@@ -71,14 +71,14 @@ void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, i
             new_first_index = first_index;
             new_last_index  = base_index - 1;
             we_as_parent->left = &tree[*idx]; // записываем себе в левого потомка следующий TreeNode, который точно будет, потому что base_index > first_index
-            prepare_avl_tree(tree, signs_to_scan, new_first_index, new_last_index, true /*left*/, idx);
+            prepare_avl_tree(tree, signs_to_scan, new_first_index, new_last_index, idx);
         }
         if ( base_index < last_index ) // значит справа ещё остались элементы
         {
             new_first_index = base_index + 1;
             new_last_index  = last_index;
             we_as_parent->right = &tree[*idx]; // записываем себе в правого потомка следующий TreeNode, который точно будет, потому что base_index < last_index
-            prepare_avl_tree(tree, signs_to_scan, new_first_index, new_last_index, false /*right*/, idx);
+            prepare_avl_tree(tree, signs_to_scan, new_first_index, new_last_index, idx);
         }
     }
 }
@@ -129,7 +129,7 @@ void WalkerThread::prepare_structures_before_engine()
         if (this->my_formats.contains(key))
         {
             selected_formats_fast[val.index] = true;
-            for (const auto &name: val.signature_ids) // перербор всех сигнатур отдельного формата (у одного формата может быть несколько сигнатур, например у pcx)
+            for (const auto &name: val.signature_ids) // перербор всех сигнатур отдельного формата (у одного формата может быть несколько сигнатур, например у )
             {
                 switch(signatures[name].signature_size)
                 {
@@ -171,9 +171,9 @@ void WalkerThread::prepare_structures_before_engine()
 
     // формируем АВЛ-деревья для сигнатур типа dword и word
     int avl_index = 0;
-    if ( amount_dw > 0 ) prepare_avl_tree(tree_dw, signatures_array_dw, 0, amount_dw - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
+    if ( amount_dw > 0 ) prepare_avl_tree(tree_dw, signatures_array_dw, 0, amount_dw - 1, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
     avl_index = 0;
-    if ( amount_w > 0 )  prepare_avl_tree(tree_w, signatures_array_w, 0, amount_w - 1, false, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
+    if ( amount_w > 0 )  prepare_avl_tree(tree_w, signatures_array_w, 0, amount_w - 1, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
 
     // print_avl_tree(tree_dw, amount_dw);
     // print_avl_tree(tree_w, amount_w);
@@ -214,7 +214,7 @@ void WalkerThread::run()
 
             /////  запуск поискового движка
             s64i fix_msecs = QDateTime::currentMSecsSinceEpoch();
-            engine->scan_file_v4(walker_task.task_paths[tp_idx].path);
+            engine->scan_file_v3(walker_task.task_paths[tp_idx].path);
             qInfo() << "scan_file worked for:" << (QDateTime::currentMSecsSinceEpoch() - fix_msecs) << "msecs";
             /////
 
@@ -256,7 +256,7 @@ void WalkerThread::run()
 
                         /////  запуск поискового движка
                         s64i fix_msecs = QDateTime::currentMSecsSinceEpoch();
-                        engine->scan_file_v4(file_infolist[idx].absoluteFilePath());
+                        engine->scan_file_v3(file_infolist[idx].absoluteFilePath());
                         qInfo() << "scan_file worked for:" << (QDateTime::currentMSecsSinceEpoch() - fix_msecs) << "msecs";
                         /////
 
@@ -293,7 +293,7 @@ void WalkerThread::run()
                                 return;
                             case WalkerCommand::Pause:
                                 qInfo() << ">>>> WalkerThread : received Pause command in dir_walking \"for\", when resursing into subdirs, due to mutex lock";
-                                emit txImPaused();
+                                Q_EMIT txImPaused();
                                 walker_control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
                                 walker_control_mutex->unlock(); // сюда, если mutex разблокирован в вызывающем коде
                                 if ( command == WalkerCommand::Stop) // вдруг пока мы стояли на паузе, была нажата кнопка Stop
@@ -301,7 +301,7 @@ void WalkerThread::run()
                                     tp_idx = tp_count; // чтобы выйти из главного for
                                     return;
                                 }
-                                emit txImResumed();
+                                Q_EMIT txImResumed();
                                 qInfo() << ">>>> WalkerThread : received Resume(Run) command in dir_walking \"for\", when resursing into subdirs, due to mutex unlock";
                                 dir_walking(current_dir.absolutePath(), dir_infolist[idx].fileName());
                                 break;
@@ -326,7 +326,7 @@ void WalkerThread::run()
     }
 
     // финальный аккорд, обнуляем графику для file progress
-    //emit engine->txFileProgress("", 0);
+    //Q_EMIT engine->txFileProgress("", 0);
 
     clean_structures_after_engine();
 }

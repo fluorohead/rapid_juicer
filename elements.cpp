@@ -24,7 +24,7 @@ void OneStateButton::mousePressEvent(QMouseEvent *event) {
 
 void OneStateButton::mouseReleaseEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton) {
-        emit imReleased();
+        Q_EMIT imReleased();
         event->accept();
     }
 }
@@ -93,7 +93,7 @@ void DynamicInfoButton::mousePressEvent(QMouseEvent *event) {
 
 void DynamicInfoButton::mouseReleaseEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton) {
-        emit imReleased();
+        Q_EMIT imReleased();
         event->accept();
     }
 }
