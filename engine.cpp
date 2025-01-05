@@ -83,14 +83,14 @@ Engine::Engine(WalkerThread *walker_parent)
     auxbuf_ptr  = new u8i[AUX_BUFFER_SIZE];
     fillbuf_ptr = scanbuf_ptr + MAX_SIGNATURE_SIZE/*4*/;
 
-    u64i selected_signatures_array[amount_dw];  // на стэке
-    u64i selected_recognizers_array[amount_dw]; //
+    u64i selected_dw_signatures_array[amount_dw];  // на стэке
+    u64i selected_dw_recognizers_array[amount_dw]; //
 
     int s_idx = 0;
     for (auto &&signature_name: my_walker_parent->uniq_signature_names_dw) // наполняем без упорядочивания (они упорядочены по ключам, а нам нужно упорядочивание по значению сигнатур, что сделаем ниже)
     {
-        selected_signatures_array[s_idx] = signatures[signature_name].as_u64i;
-        selected_recognizers_array[s_idx] = (u64i)signatures[signature_name].recognizer_ptr;
+        selected_dw_signatures_array[s_idx] = signatures[signature_name].as_u64i;
+        selected_dw_recognizers_array[s_idx] = (u64i)signatures[signature_name].recognizer_ptr;
         ++s_idx;
     }
 
@@ -103,17 +103,17 @@ Engine::Engine(WalkerThread *walker_parent)
             was_swap = false;
             for (s_idx = 0; s_idx < amount_dw - 1; ++s_idx)
             {
-                if ( selected_signatures_array[s_idx] > selected_signatures_array[s_idx + 1] )
+                if ( selected_dw_signatures_array[s_idx] > selected_dw_signatures_array[s_idx + 1] )
                 {
                     // своп в массиве сигнатур
-                    tmp_u64i = selected_signatures_array[s_idx + 1];
-                    selected_signatures_array[s_idx + 1] = selected_signatures_array[s_idx];
-                    selected_signatures_array[s_idx] = tmp_u64i;
+                    tmp_u64i = selected_dw_signatures_array[s_idx + 1];
+                    selected_dw_signatures_array[s_idx + 1] = selected_dw_signatures_array[s_idx];
+                    selected_dw_signatures_array[s_idx] = tmp_u64i;
 
                     // и такой же своп в массиве recognizer'ов, чтобы сохранить соответствие (очень важно!)
-                    tmp_u64i = selected_recognizers_array[s_idx + 1];
-                    selected_recognizers_array[s_idx + 1] = selected_recognizers_array[s_idx];
-                    selected_recognizers_array[s_idx] = tmp_u64i;
+                    tmp_u64i = selected_dw_recognizers_array[s_idx + 1];
+                    selected_dw_recognizers_array[s_idx + 1] = selected_dw_recognizers_array[s_idx];
+                    selected_dw_recognizers_array[s_idx] = tmp_u64i;
 
                     was_swap = true;
                 }
@@ -126,10 +126,56 @@ Engine::Engine(WalkerThread *walker_parent)
     dw_recognizers_ordered.reserve(amount_dw);
     for (s_idx = 0; s_idx < amount_dw; ++s_idx)
     {
-        dw_signatures_ordered.append(selected_signatures_array[s_idx]);
-        dw_recognizers_ordered.append(selected_recognizers_array[s_idx]);
+        dw_signatures_ordered.append(selected_dw_signatures_array[s_idx]);
+        dw_recognizers_ordered.append(selected_dw_recognizers_array[s_idx]);
     }
 
+    u64i selected_w_signatures_array[amount_w];  // на стэке
+    u64i selected_w_recognizers_array[amount_w]; //
+
+    s_idx = 0;
+    for (auto &&signature_name: my_walker_parent->uniq_signature_names_w) // наполняем без упорядочивания (они упорядочены по ключам, а нам нужно упорядочивание по значению сигнатур, что сделаем ниже)
+    {
+        selected_w_signatures_array[s_idx] = signatures[signature_name].as_u64i;
+        selected_w_recognizers_array[s_idx] = (u64i)signatures[signature_name].recognizer_ptr;
+        ++s_idx;
+    }
+
+    if ( amount_w > 1 )
+    {
+        bool was_swap;
+        u64i tmp_u64i;
+        do // bubble sort : по значению сигнатур
+        {
+            was_swap = false;
+            for (s_idx = 0; s_idx < amount_w - 1; ++s_idx)
+            {
+                if ( selected_w_signatures_array[s_idx] > selected_w_signatures_array[s_idx + 1] )
+                {
+                    // своп в массиве сигнатур
+                    tmp_u64i = selected_w_signatures_array[s_idx + 1];
+                    selected_w_signatures_array[s_idx + 1] = selected_w_signatures_array[s_idx];
+                    selected_w_signatures_array[s_idx] = tmp_u64i;
+
+                    // и такой же своп в массиве recognizer'ов, чтобы сохранить соответствие (очень важно!)
+                    tmp_u64i = selected_w_recognizers_array[s_idx + 1];
+                    selected_w_recognizers_array[s_idx + 1] = selected_w_recognizers_array[s_idx];
+                    selected_w_recognizers_array[s_idx] = tmp_u64i;
+
+                    was_swap = true;
+                }
+            }
+        } while(was_swap);
+    }
+
+    // переносим данные из стека в вектора
+    w_signatures_ordered.reserve(amount_w);
+    w_recognizers_ordered.reserve(amount_w);
+    for (s_idx = 0; s_idx < amount_w; ++s_idx)
+    {
+        w_signatures_ordered.append(selected_w_signatures_array[s_idx]);
+        w_recognizers_ordered.append(selected_w_recognizers_array[s_idx]);
+    }
 }
 
 Engine::~Engine()
@@ -260,109 +306,7 @@ void Engine::scan_file_v1(const QString &file_name)
     qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
     file.close();
 }
-void Engine::scan_file_v2(const QString &file_name)
-{
-    file.setFileName(file_name);
-    file_size = file.size();
-    qInfo() << "file_size:" << file_size;
-    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( ( file.size() < MIN_RESOURCE_SIZE ) ) )
-    {
-        return;
-    }
-    mmf_scanbuf = file.map(0, file_size);
-    if ( mmf_scanbuf == nullptr )
-    {
-        qInfo() << "unsuccesful file to memory mapping";
-        return;
-    }
-    ////// объявление рабочих переменных на стеке (так эффективней, чем в классе) //////
-    u64i start_offset;
-    u64i last_offset = 0; // =0 - важно!
-    u32i analyzed_dword;
-    u16i analyzed_word;
-    u64i iteration;
-    u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
-    u64i tale_size = file_size % granularity;
-    // qInfo() << "tale_size:" << tale_size;
-    u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
-    // qInfo() << "max_iterations:" << max_iterations;
-    u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
-    // qInfo() << "absolute_last_offset" << absolute_last_offset;
-    u64i resource_size = 0;
 
-    u64i selected_signatures_array[amount_dw]; // на стэке; массив будет неупорядоченным
-    u64i selected_recognizers_array[amount_dw];
-    int st_amount_dw = amount_dw;
-
-    int s_idx = 0;
-    for (auto &&signature_name: my_walker_parent->uniq_signature_names_dw)
-    {
-        qInfo() << "uniq_signature_selected:" << signature_name;
-        selected_signatures_array[s_idx] = signatures[signature_name].as_u64i;
-        selected_recognizers_array[s_idx] = (u64i)signatures[signature_name].recognizer_ptr;
-        ++s_idx;
-    }
-    qInfo() << "amount_dw:" << amount_dw;
-
-    //////////////////////////////////////////////////////////////
-
-    for (iteration = 1; iteration <= max_iterations; ++iteration)
-    {
-        start_offset = last_offset;
-        last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : absolute_last_offset;
-        // qInfo() << "last_offset:" << last_offset;
-
-        for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
-        {
-            analyzed_dword = *(u32i*)(mmf_scanbuf + scanbuf_offset);
-            resource_size = 0;
-            /// сравнение с сигнатурами
-            if ( analyzed_dword == 0x46464952 ) resource_size = recognize_riff(this); // RIFF "RIFF"
-            if ( analyzed_dword == 0x4D524F46 ) resource_size = recognize_iff(this);  // IFF "FORM"
-            if ( analyzed_dword == 0x474E5089 ) resource_size = recognize_png(this);  // PNG
-
-
-
-        }
-        switch (*command) // проверка на поступление команды управления
-        {
-        case WalkerCommand::Stop:
-            qInfo() << "-> Engine: i'm stopped due to Stop command";
-            iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
-            break;
-        case WalkerCommand::Pause:
-            qInfo() << "-> Engine: i'm paused due to Pause command";
-            Q_EMIT my_walker_parent->txImPaused();
-            control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
-            // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
-            control_mutex->unlock();
-            if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
-            {
-                iteration = max_iterations; // условие выхода из внешнего цикла do-while итерационных чтений файла
-                break;
-            }
-            Q_EMIT my_walker_parent->txImResumed();
-            qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
-            break;
-        case WalkerCommand::Skip:
-            qInfo() << " >>>> Engine : current file skipped :" << file_name;
-            *command = WalkerCommand::Run;
-            iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
-            break;
-        default:; // сюда в случае WalkerCommand::Run
-        }
-        update_file_progress(file_name, file_size, scanbuf_offset); // посылаем сигнал обновить progress bar для файла
-    }
-
-
-    qInfo() << "closing file";
-    qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
-    file.unmap(mmf_scanbuf);
-    file.close();
-}
-
-// #pragma GCC push_options
-// #pragma GCC optimize("O0")
 void Engine::scan_file_v3(const QString &file_name)
 {
     file.setFileName(file_name);
@@ -378,23 +322,17 @@ void Engine::scan_file_v3(const QString &file_name)
         qInfo() << "unsuccesful file to memory mapping";
         return;
     }
-    qInfo() << "mmf_scanbuf ptr value:" << mmf_scanbuf << " dec:" << (u64i)mmf_scanbuf;
-    qInfo() << "scanbuf_offset ptr value:" << &this->scanbuf_offset << " dec:" << (u64i)&this->scanbuf_offset;
-    ////// объявление рабочих переменных на стеке (возможно, что так эффективней, чем в классе; ToDo: проверить) //////
+    //////////////////////////////////////////////////////////////
     u64i start_offset;
     u64i last_offset = 0; // =0 - важно!
-    u32i analyzed_dword = 0;
-    u16i analyzed_word = 0;
     u64i iteration;
     u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
     u64i tale_size = file_size % granularity;
     u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
     u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
     u64i resource_size = 0;
-
     //////////////////////////////////////////////////////////////
     using namespace asmjit;
-    qInfo() << "amount_dw:" << amount_dw;
 
     JitRuntime aj_runtime;
     CodeHolder aj_code;
@@ -405,14 +343,20 @@ void Engine::scan_file_v3(const QString &file_name)
 
     Label aj_prolog_label = aj_asm.newLabel();
     Label aj_loop_start_label = aj_asm.newLabel();
-    Label aj_signature_labels[amount_dw];
+    Label aj_dw_signatures_start_label = aj_asm.newLabel();
+    Label aj_dw_signatures_labels[amount_dw];
+    Label aj_w_signatures_labels[amount_w];
     Label aj_loop_check_label = aj_asm.newLabel();
     Label aj_epilog_label = aj_asm.newLabel();
 
-    int s_idx = 0;
-    for (s_idx = 0; s_idx < amount_dw; ++s_idx) // готовим лейблы под каждую сигнатуру
+    int s_idx;
+    for (s_idx = 0; s_idx < amount_w; ++s_idx) // готовим w-лейблы под каждую сигнатуру
     {
-        aj_signature_labels[s_idx] = aj_asm.newLabel();
+        aj_w_signatures_labels[s_idx] = aj_asm.newLabel();
+    }
+    for (s_idx = 0; s_idx < amount_dw; ++s_idx) // готовим dw-лейблы под каждую сигнатуру
+    {
+        aj_dw_signatures_labels[s_idx] = aj_asm.newLabel();
     }
 
     // x86::Mem rbp_plus_16 = x86::ptr(x86::rbp, 16);
@@ -431,32 +375,46 @@ aj_asm.bind(aj_prolog_label);
     aj_asm.push(x86::r13);
     aj_asm.push(x86::r14);
     aj_asm.push(x86::rbx);
-    aj_asm.sub(x86::rsp, 40); // сразу формируем home-регион для callee-функций (recognizer'ов) : берём 40 вместо 32, чтобы выровнять по 16-байт (а там уже лежит 8 байт возврата, поэтому 32+8 будет плохо, а 40+8 в самый раз)
+    aj_asm.sub(x86::rsp, 40); // сразу формируем home-регион для callee-функций : 40 вместо 32, чтобы выровнять по 16-байт (там уже лежит 8 байт возврата, поэтому 32+8 будет плохо, а 40+8 в самый раз)
 
     aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // теперь адрес буфера сканирования в rsi
     aj_asm.mov(x86::r12, x86::rsi); // и тот же адрес в r12
     aj_asm.add(x86::rsi, x86::rcx); // теперь в rsi абсолюный начальный адрес с учётом start_offset;
     aj_asm.add(x86::r12, x86::rdx); // теперь в r12 абсолютный конечный адрес, не включаемый; rdx далее не нужен (возможно будем использовать в будущем)
     aj_asm.mov(x86::r14, x86::rcx); // теперь в r14 относительный счётчик; далее rcx будем использовать только для передачи параметров в callee
-    aj_asm.mov(x86::r13, imm(&this->scanbuf_offset)); // теперь в r13 адрес переменной this->scanbuf_offset
+    aj_asm.mov(x86::r13, imm(&this->scanbuf_offset)); // теперь в [r13] адрес переменной this->scanbuf_offset
 
 // ; loop_start
 aj_asm.bind(aj_loop_start_label);
     aj_asm.mov(x86::ebx, x86::dword_ptr(x86::rsi)); // в ebx лежит анализируемый dword
 
-// compare sections
     bool last_cmp_section = false;
+// compare words sections
+    for (s_idx = 0; s_idx < amount_w; ++s_idx)
+    {
+        last_cmp_section = ( (amount_w - s_idx) == 1 );
+// ; w_signature_X
+aj_asm.bind(aj_w_signatures_labels[s_idx]);
+    aj_asm.cmp(x86::bx, imm(u16i(w_signatures_ordered[s_idx])));
+    last_cmp_section ? aj_asm.jne(aj_dw_signatures_start_label) : aj_asm.jne(aj_w_signatures_labels[s_idx + 1]);
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(w_recognizers_ordered[s_idx]); // прямой вызов
+    if (!last_cmp_section) aj_asm.jmp(aj_loop_check_label);
+    }
+
+// ; dw_signatures_start
+aj_asm.bind(aj_dw_signatures_start_label);
+    last_cmp_section = false;
     for (s_idx = 0; s_idx < amount_dw; ++s_idx)
     {
-        qInfo() << " signature:" << QString::number(dw_signatures_ordered[s_idx]) << "  hex:" << QString::number(dw_signatures_ordered[s_idx], 16);
-        qInfo() << " recognizer:" << QString::number(dw_recognizers_ordered[s_idx]) << "  hex:" << QString::number(dw_recognizers_ordered[s_idx], 16);
         last_cmp_section = ( (amount_dw - s_idx) == 1 );
-// ; signature_X
-aj_asm.bind(aj_signature_labels[s_idx]);
+// ; dw_signature_X
+aj_asm.bind(aj_dw_signatures_labels[s_idx]);
     aj_asm.cmp(x86::ebx, imm(u32i(dw_signatures_ordered[s_idx])));
-    last_cmp_section ? aj_asm.jne(aj_loop_check_label) : aj_asm.jne(aj_signature_labels[s_idx + 1]);
+    last_cmp_section ? aj_asm.jne(aj_loop_check_label) : aj_asm.jne(aj_dw_signatures_labels[s_idx + 1]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу из r13
-    aj_asm.mov(x86::rcx, imm(this)); // передача 1-го параметра в recognizer
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(dw_recognizers_ordered[s_idx]); // прямой вызов
     if (!last_cmp_section) aj_asm.jmp(aj_loop_check_label);
     }
@@ -471,7 +429,7 @@ aj_asm.bind(aj_loop_check_label);
 // ; epilog
 aj_asm.bind(aj_epilog_label);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из rsi в this->scanbuf_offset, который по адресу из r13
-    aj_asm.add(x86::rsp, 40); // удаляем home-регион для вызываемых функций (для recognizer'ов)
+    aj_asm.add(x86::rsp, 40); // удаляем home-регион для callee-функций (для recognizer'ов)
     aj_asm.pop(x86::rbx);
     aj_asm.pop(x86::r14);
     aj_asm.pop(x86::r13);
@@ -480,12 +438,12 @@ aj_asm.bind(aj_epilog_label);
     aj_asm.pop(x86::rbp);
     aj_asm.ret();
 
-    typedef int (*CmpFunc)(u64i start_offset, u64i last_offset); // от start_offset до last_offset, не включая last_offset
-    CmpFunc cmp_func;
-    Error err = aj_runtime.add(&cmp_func, &aj_code);
-    qInfo() << "runtime_add_error:" << err;
-    qInfo() << " ASMJIT Code:";
-    qInfo() << aj_logger.data();
+    typedef int (*ComparationFunc)(u64i start_offset, u64i last_offset); // от start_offset до last_offset, не включая last_offset
+    ComparationFunc comparation_func;
+    Error err = aj_runtime.add(&comparation_func, &aj_code);
+    // qInfo() << "runtime_add_error:" << err;
+    // qInfo() << "---- ASMJIT Code ----";
+    // qInfo() << aj_logger.data();
     //////////////////////////////////////////////////////////////
 
     for (iteration = 1; iteration <= max_iterations; ++iteration)
@@ -493,7 +451,7 @@ aj_asm.bind(aj_epilog_label);
         start_offset = last_offset;
         last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : absolute_last_offset;
         /// вызов сгенерированного кода
-        cmp_func(start_offset, last_offset);
+        comparation_func(start_offset, last_offset);
         ///
         switch (*command) // проверка на поступление команды управления
         {
@@ -529,291 +487,7 @@ aj_asm.bind(aj_epilog_label);
     qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
     file.unmap(mmf_scanbuf);
     file.close();
-    aj_runtime.release(cmp_func);
-}
-// #pragma GCC pop_options
-
-void Engine::scan_file_v4(const QString &file_name)
-{
-    file.setFileName(file_name);
-    file_size = file.size();
-    qInfo() << "file_size:" << file_size;
-    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( ( file.size() < MIN_RESOURCE_SIZE ) ) )
-    {
-        return;
-    }
-    mmf_scanbuf = file.map(0, file_size);
-    if ( mmf_scanbuf == nullptr )
-    {
-        qInfo() << "unsuccesful file to memory mapping";
-        return;
-    }
-    ////// объявление рабочих переменных на стеке (так эффективней, чем в классе) //////
-    u64i start_offset;
-    u64i last_offset = 0; // =0 - важно!
-    u32i analyzed_dword;
-    u16i analyzed_word;
-    u64i iteration;
-    u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
-    u64i tale_size = file_size % granularity;
-    // qInfo() << "tale_size:" << tale_size;
-    u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
-    // qInfo() << "max_iterations:" << max_iterations;
-    u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
-    // qInfo() << "absolute_last_offset" << absolute_last_offset;
-    u64i resource_size = 0;
-    // названия следующих переменных образуются из названий сигнатур
-    bool is_pcx_05_on = this->selected_formats[fformats["pcx"].index];
-    bool is_bink1_on = this->selected_formats[fformats["bik"].index];
-    bool is_bink2_on = this->selected_formats[fformats["bk2"].index];
-    bool is_bmp_on = this->selected_formats[fformats["bmp"].index];
-    bool is_flc_on = this->selected_formats[fformats["flc"].index];
-    bool is_tif_ii_on = this->selected_formats[fformats["tif_ii"].index];
-    bool is_tif_mm_on = this->selected_formats[fformats["tif_mm"].index];
-    bool is_mod_mk_on = this->selected_formats[fformats["mod_m.k."].index];
-    bool is_smk_on = this->selected_formats[fformats["smk"].index];
-
-    //////////////////////////////////////////////////////////////
-
-    for (iteration = 1; iteration <= max_iterations; ++iteration)
-    {
-        start_offset = last_offset;
-        last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : absolute_last_offset;
-        // qInfo() << "last_offset:" << last_offset;
-
-        for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
-        {
-            analyzed_dword = *(u32i*)(mmf_scanbuf + scanbuf_offset);
-            resource_size = 0;
-            /// сравнение с сигнатурами
-//         dwords:
-// //            if ( analyzed_dword >= 0x46464952 ) goto dwords_second_half;
-//         dwords_first_half:
-//             switch (analyzed_dword)
-//             {
-//                 case 0x00020000: // TGA
-//                     recognize_special(this);
-//                     goto the_end;
-//                 case 0x002A4949: // TIFF "II"
-//                     resource_size = recognize_tif_ii(this);
-//                     goto the_end;
-//                 case 0x2A004D4D: // TIFF "MM"
-//                     resource_size = recognize_tif_mm(this);
-//                     goto the_end;
-//                 case 0x2E4B2E4D: // MOD "M.K."
-//                     resource_size = recognize_mod_mk(this);
-//                     goto the_end;
-//                 case 0x324B4D53: // SMK "SMK2"
-//                     resource_size = recognize_smk(this);
-//                     goto the_end;
-//                 case 0x344B4D53: // SMK "SMK4"
-//                     resource_size = recognize_smk(this);
-//                     goto the_end;
-//                 case 0x38464947: // GIF
-//                     resource_size = recognize_gif(this);
-//                     goto the_end;
-//             }
-//         //    goto words;
-
-//         dwords_second_half:
-//             switch (analyzed_dword)
-//             {
-//                 case 0x46464952: // RIFF "RIFF"
-//                     resource_size = recognize_riff(this);
-//                     goto the_end;
-//                 case 0x474E5089: // PNG
-//                     resource_size = recognize_png(this);
-//                     goto the_end;
-//                 case 0x4D504D49: // IT "IMPM"
-//                     resource_size = recognize_it(this);
-//                     goto the_end;
-//                 case 0x4D524353: // S3M "SCRM"
-//                     resource_size = recognize_s3m(this);
-//                     goto the_end;
-//                 case 0x4D524F46: // IFF "FORM"
-//                     resource_size = recognize_iff(this);
-//                     goto the_end;
-//                 case 0x6468544D: // MID
-//                     resource_size = recognize_mid(this);
-//                     goto the_end;
-//                 case 0x65747845: // XM "Exte"
-//                     resource_size = recognize_xm(this);
-//                     goto the_end;
-//                 case 0xE0FFD8FF: // JPG
-//                     resource_size = recognize_jpg(this);
-//                     goto the_end;
-//             }
-        // words:
-            // switch ((u16i)analyzed_dword) // только младшие 16
-            // {
-            // case 0x050A: // PCX
-            //     // ToDo: можно здесь же проверить на encoding==1, не вызывая recognizer
-            //     resource_size = recognize_pcx(this);
-            //     break;
-            // case 0x424B: // Bink2 "KB"
-            //     resource_size = recognize_bink(this);
-            //     break;
-            // case 0x4942: // Bink1 "BI"
-            //     resource_size = recognize_bink(this);
-            //     break;
-            // case 0x4D42: // BMP
-            //     // ToDo: можно здесь же проверить поля заголовка, не вызывая recognizer
-            //     resource_size = recognize_bmp(this);
-            //     break;
-            // case 0xAF11: // FLI v1
-            //     resource_size = recognize_flc(this);
-            //     break;
-            // case 0xAF12: // FLI v2 (FLC)
-            //     resource_size = recognize_flc(this);
-            //     break;
-            // case 0xAF44: // FLX
-            //     resource_size = recognize_flc(this);
-            //     break;
-            // }
-        // end:
-
-        //     ;
-        //     }
-
-
-        dwords:
-            if ( is_tif_ii_on )
-            {
-                if ( analyzed_dword == 0x002A4949 )
-                {
-                    resource_size = recognize_tif_ii(this);
-                    goto the_end;
-
-                }
-            }
-            if ( is_tif_mm_on )
-            {
-                if ( analyzed_dword == 0x2A004D4D )
-                {
-                    resource_size = recognize_tif_mm(this);
-                    goto the_end;
-
-                }
-            }
-            if ( is_mod_mk_on )
-            {
-                if ( analyzed_dword == 0x2E4B2E4D )
-                {
-                    resource_size = recognize_mod_mk(this);
-                    goto the_end;
-                }
-            }
-            if ( is_smk_on )
-            {
-                if ( analyzed_dword == 0x324B4D53 )
-                {
-                    resource_size = recognize_smk(this);
-                    goto the_end;
-                }
-                if ( analyzed_dword == 0x344B4D53 )
-                {
-                    resource_size = recognize_smk(this);
-                    goto the_end;
-                }
-            }
-
-        words:
-            if ( is_pcx_05_on )
-            {
-                if  ( (u16i)analyzed_dword == 0x050A )
-                {
-                    resource_size = recognize_pcx(this);
-                    goto the_end;
-                }
-            }
-            if ( is_bink2_on )
-            {
-                if  ( (u16i)analyzed_dword == 0x424B )
-                {
-                    resource_size = recognize_bink(this);
-                    goto the_end;
-                }
-            }
-            if ( is_bink1_on )
-            {
-                if  ( (u16i)analyzed_dword == 0x4942 )
-                {
-                    resource_size = recognize_bink(this);
-                    goto the_end;
-                }
-            }
-            if ( is_bmp_on )
-            {
-                if  ( (u16i)analyzed_dword == 0x4D42 )
-                {
-                    resource_size = recognize_bmp(this);
-                    goto the_end;
-                }
-            }
-            if ( is_flc_on )
-            {
-                if  ( (u16i)analyzed_dword == 0xAF11 )
-                {
-                    resource_size = recognize_flc(this);
-                    goto the_end;
-                }
-                else
-                {
-                    if  ( (u16i)analyzed_dword == 0xAF12 )
-                    {
-                        resource_size = recognize_flc(this);
-                        goto the_end;
-                    }
-                    else
-                    {
-                        if  ( (u16i)analyzed_dword == 0xAF44 )
-                        {
-                            resource_size = recognize_flc(this);
-                            goto the_end;
-                        }
-                    }
-                }
-            }
-
-
-
-        the_end:
-            ;
-        }
-        switch (*command) // проверка на поступление команды управления
-        {
-            case WalkerCommand::Stop:
-                qInfo() << "-> Engine: i'm stopped due to Stop command";
-                iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
-                break;
-            case WalkerCommand::Pause:
-                qInfo() << "-> Engine: i'm paused due to Pause command";
-                Q_EMIT my_walker_parent->txImPaused();
-                control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
-                // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
-                control_mutex->unlock();
-                if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
-                {
-                    iteration = max_iterations; // условие выхода из внешнего цикла do-while итерационных чтений файла
-                    break;
-                }
-                Q_EMIT my_walker_parent->txImResumed();
-                qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
-                break;
-            case WalkerCommand::Skip:
-                qInfo() << " >>>> Engine : current file skipped :" << file_name;
-                *command = WalkerCommand::Run;
-                iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
-                break;
-            default:; // сюда в случае WalkerCommand::Run
-        }
-        update_file_progress(file_name, file_size, scanbuf_offset); // посылаем сигнал обновить progress bar для файла
-    }
-
-    qInfo() << "closing file";
-    qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
-    file.unmap(mmf_scanbuf);
-    file.close();
+    aj_runtime.release(comparation_func);
 }
 
 inline void Engine::update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes)
@@ -850,7 +524,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_special RECOGNIZE_FUNC_HEADER
     {
         ++(e->hits);
     }
-    qInfo() << "recognize_special:" << e->scanbuf_offset;
+    //qInfo() << "recognize_special:" << e->scanbuf_offset;
 
     return 0;
 }
@@ -2368,6 +2042,5 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
 #pragma pack(pop)
-    int a = 10;
     return 0;
 }
