@@ -378,6 +378,8 @@ void Engine::scan_file_v3(const QString &file_name)
         qInfo() << "unsuccesful file to memory mapping";
         return;
     }
+    qInfo() << "mmf_scanbuf ptr value:" << mmf_scanbuf << " dec:" << (u64i)mmf_scanbuf;
+    qInfo() << "scanbuf_offset ptr value:" << &this->scanbuf_offset << " dec:" << (u64i)&this->scanbuf_offset;
     ////// объявление рабочих переменных на стеке (возможно, что так эффективней, чем в классе; ToDo: проверить) //////
     u64i start_offset;
     u64i last_offset = 0; // =0 - важно!
@@ -401,8 +403,11 @@ void Engine::scan_file_v3(const QString &file_name)
     aj_code.setLogger(&aj_logger);
     x86::Assembler aj_asm(&aj_code);
 
+    Label aj_prolog_label = aj_asm.newLabel();
+    Label aj_loop_start_label = aj_asm.newLabel();
     Label aj_signature_labels[amount_dw];
-    Label aj_the_end_label = aj_asm.newLabel();
+    Label aj_loop_check_label = aj_asm.newLabel();
+    Label aj_epilog_label = aj_asm.newLabel();
 
     int s_idx = 0;
     for (s_idx = 0; s_idx < amount_dw; ++s_idx) // готовим лейблы под каждую сигнатуру
@@ -410,56 +415,86 @@ void Engine::scan_file_v3(const QString &file_name)
         aj_signature_labels[s_idx] = aj_asm.newLabel();
     }
 
-    aj_asm.mov(x86::rdx, imm(&analyzed_dword));
-    aj_asm.mov(x86::edx, x86::dword_ptr(x86::rdx));
-    // aj_asm.cmp(x86::edx, imm(dw_signatures_ordered[amount_dw - 1])); // сравниваем с максимальной сигнатурой
-    // aj_asm.ja(aj_the_end_label);                                     // (неэффективно!!!! поэтому закомментировано)
+    // x86::Mem rbp_plus_16 = x86::ptr(x86::rbp, 16);
+    // x86::Mem rbp_plus_24 = x86::ptr(x86::rbp, 24);
 
+//  входные параметры
+//  rdx - last_offset
+//  rcx - start_offset
+
+// ; prolog
+aj_asm.bind(aj_prolog_label);
+    aj_asm.push(x86::rbp);
+    aj_asm.mov(x86::rbp, x86::rsp);
+    aj_asm.push(x86::rsi);
+    aj_asm.push(x86::r12);
+    aj_asm.push(x86::r13);
+    aj_asm.push(x86::r14);
+    aj_asm.push(x86::rbx);
+    aj_asm.sub(x86::rsp, 40); // сразу формируем home-регион для callee-функций (recognizer'ов) : берём 40 вместо 32, чтобы выровнять по 16-байт (а там уже лежит 8 байт возврата, поэтому 32+8 будет плохо, а 40+8 в самый раз)
+
+    aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // теперь адрес буфера сканирования в rsi
+    aj_asm.mov(x86::r12, x86::rsi); // и тот же адрес в r12
+    aj_asm.add(x86::rsi, x86::rcx); // теперь в rsi абсолюный начальный адрес с учётом start_offset;
+    aj_asm.add(x86::r12, x86::rdx); // теперь в r12 абсолютный конечный адрес, не включаемый; rdx далее не нужен (возможно будем использовать в будущем)
+    aj_asm.mov(x86::r14, x86::rcx); // теперь в r14 относительный счётчик; далее rcx будем использовать только для передачи параметров в callee
+    aj_asm.mov(x86::r13, imm(&this->scanbuf_offset)); // теперь в r13 адрес переменной this->scanbuf_offset
+
+// ; loop_start
+aj_asm.bind(aj_loop_start_label);
+    aj_asm.mov(x86::ebx, x86::dword_ptr(x86::rsi)); // в ebx лежит анализируемый dword
+
+// compare sections
     bool last_cmp_section = false;
     for (s_idx = 0; s_idx < amount_dw; ++s_idx)
     {
-        qInfo() << " signature:" << QString::number(dw_signatures_ordered[s_idx], 16);
+        qInfo() << " signature:" << QString::number(dw_signatures_ordered[s_idx]) << "  hex:" << QString::number(dw_signatures_ordered[s_idx], 16);
+        qInfo() << " recognizer:" << QString::number(dw_recognizers_ordered[s_idx]) << "  hex:" << QString::number(dw_recognizers_ordered[s_idx], 16);
         last_cmp_section = ( (amount_dw - s_idx) == 1 );
-        aj_asm.bind(aj_signature_labels[s_idx]);
-        aj_asm.cmp(x86::edx, imm(u32i(dw_signatures_ordered[s_idx])));
-        last_cmp_section ? aj_asm.jne(aj_the_end_label) : aj_asm.jne(aj_signature_labels[s_idx + 1]);
-        //last_cmp_section ? aj_asm.ja(aj_the_end_label) : aj_asm.ja(aj_signature_labels[s_idx + 1]); // jne оказалось эффективней, чем ja+jb
-        //aj_asm.jb(aj_the_end_label);
-        aj_asm.mov(x86::rcx, imm(this)); // передача параметра в recognizer
-        aj_asm.push(x86::rbp);
-        aj_asm.call(imm(dw_recognizers_ordered[s_idx]));
-        aj_asm.pop(x86::rbp);
-        if (!last_cmp_section) aj_asm.jmp(aj_the_end_label);
+// ; signature_X
+aj_asm.bind(aj_signature_labels[s_idx]);
+    aj_asm.cmp(x86::ebx, imm(u32i(dw_signatures_ordered[s_idx])));
+    last_cmp_section ? aj_asm.jne(aj_loop_check_label) : aj_asm.jne(aj_signature_labels[s_idx + 1]);
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу из r13
+    aj_asm.mov(x86::rcx, imm(this)); // передача 1-го параметра в recognizer
+    aj_asm.call(dw_recognizers_ordered[s_idx]); // прямой вызов
+    if (!last_cmp_section) aj_asm.jmp(aj_loop_check_label);
     }
 
-    aj_asm.bind(aj_the_end_label);
+// ; loop_check
+aj_asm.bind(aj_loop_check_label);
+    aj_asm.inc(x86::rsi); // обновляем абсолютный адрес анализируемой ячейки
+    aj_asm.inc(x86::r14); // обновляем смещение анализируемой ячейки, относительно начала mmf
+    aj_asm.cmp(x86::rsi, x86::r12);
+    aj_asm.jb(aj_loop_start_label); // jb - jump if below - переход если строго меньше
+
+// ; epilog
+aj_asm.bind(aj_epilog_label);
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из rsi в this->scanbuf_offset, который по адресу из r13
+    aj_asm.add(x86::rsp, 40); // удаляем home-регион для вызываемых функций (для recognizer'ов)
+    aj_asm.pop(x86::rbx);
+    aj_asm.pop(x86::r14);
+    aj_asm.pop(x86::r13);
+    aj_asm.pop(x86::r12);
+    aj_asm.pop(x86::rsi);
+    aj_asm.pop(x86::rbp);
     aj_asm.ret();
 
-    typedef int (*CmpFunc)(void);
-    typedef int (*CmpFunc_v2)(u64i start_offset, u64i last_offset); // от start_offset до last_offset, не включая last_offset
+    typedef int (*CmpFunc)(u64i start_offset, u64i last_offset); // от start_offset до last_offset, не включая last_offset
     CmpFunc cmp_func;
     Error err = aj_runtime.add(&cmp_func, &aj_code);
     qInfo() << "runtime_add_error:" << err;
     qInfo() << " ASMJIT Code:";
     qInfo() << aj_logger.data();
-
     //////////////////////////////////////////////////////////////
 
     for (iteration = 1; iteration <= max_iterations; ++iteration)
     {
         start_offset = last_offset;
         last_offset = ( iteration != max_iterations ) ? (last_offset += granularity) : absolute_last_offset;
-        // qInfo() << "last_offset:" << last_offset;
-
-        for (scanbuf_offset = start_offset; scanbuf_offset < last_offset; ++scanbuf_offset)
-        {
-            analyzed_dword = *(u32i*)(mmf_scanbuf + scanbuf_offset);
-            resource_size = 0;
-            /// вызов сгенерированного кода
-            cmp_func();
-            ///
-
-        }
+        /// вызов сгенерированного кода
+        cmp_func(start_offset, last_offset);
+        ///
         switch (*command) // проверка на поступление команды управления
         {
         case WalkerCommand::Stop:
@@ -494,7 +529,6 @@ void Engine::scan_file_v3(const QString &file_name)
     qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
     file.unmap(mmf_scanbuf);
     file.close();
-
     aj_runtime.release(cmp_func);
 }
 // #pragma GCC pop_options
@@ -2334,6 +2368,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
 #pragma pack(pop)
-
+    int a = 10;
     return 0;
 }
