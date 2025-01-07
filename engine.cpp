@@ -1,3 +1,28 @@
+  //   num|sign|   AX |   BX
+  //   ---|----|------|------
+  //   0  |tga : 0000 : 0200
+  //   1  |pcx : 0A05
+  //   2  |fli : 11AF
+  //   3  |flc : 12AF
+  //   4  |bik : 4249
+  //   5  |bmp : 424D
+  //   6  |flx : 44AF
+  //   8  |xm  : 4578 : 7465
+  //   7  |iff : 464F : 524D
+  //   9  |gif : 4749 : 4638
+  //   10 |tfi : 4949 : 2A00
+  //   11 |it  : 494D : 504D
+  //   12 |bk2 : 4B42
+  //   13 |mk  : 4D2E : 4B2E
+  //   14 |tfm : 4D4D : 002A
+  //   15 |mid : 4D54 : 6864
+  //   16 |rif : 5249 : 4646
+  //   17 |s3m : 5343 : 524D
+  //   18 |sm2 : 534D : 4B32
+  //   19 |sm4 : 534D : 4B34
+  //   20 |png : 8950 : 4E47
+  //   21 |jpg : FFD8 : FFE0
+
 #include "engine.h"
 #include "walker.h"
 #include <QThread>
@@ -307,7 +332,7 @@ void Engine::scan_file_v1(const QString &file_name)
     file.close();
 }
 
-void Engine::scan_file_v3(const QString &file_name)
+void Engine::scan_file_v5(const QString &file_name)
 {
     file.setFileName(file_name);
     file_size = file.size();
@@ -343,38 +368,38 @@ void Engine::scan_file_v3(const QString &file_name)
 
     Label aj_prolog_label = aj_asm.newLabel();
     Label aj_loop_start_label = aj_asm.newLabel();
-    Label aj_dw_signatures_start_label = aj_asm.newLabel();
-    Label aj_dw_signatures_labels[amount_dw];
-    Label aj_w_signatures_labels[amount_w];
     Label aj_loop_check_label = aj_asm.newLabel();
     Label aj_epilog_label = aj_asm.newLabel();
 
+    Label aj_signat_labels[30]; // 30 - с запасом
+    Label aj_sub_labels[30]; // 30 - с запасом
     int s_idx;
-    for (s_idx = 0; s_idx < amount_w; ++s_idx) // готовим w-лейблы под каждую сигнатуру
+    for (s_idx = 0; s_idx < 30; ++s_idx) // готовим w-лейблы под каждую сигнатуру
     {
-        aj_w_signatures_labels[s_idx] = aj_asm.newLabel();
-    }
-    for (s_idx = 0; s_idx < amount_dw; ++s_idx) // готовим dw-лейблы под каждую сигнатуру
-    {
-        aj_dw_signatures_labels[s_idx] = aj_asm.newLabel();
+        aj_signat_labels[s_idx] = aj_asm.newLabel();
+        aj_sub_labels[s_idx] = aj_asm.newLabel();
     }
 
-    // x86::Mem rbp_plus_16 = x86::ptr(x86::rbp, 16);
-    // x86::Mem rbp_plus_24 = x86::ptr(x86::rbp, 24);
+    x86::Mem rbp_plus_16 = x86::ptr(x86::rbp, 16); // указатель на наш "home rcx"
+    x86::Mem rdi_edx_mul8 = x86::ptr(x86::rdi, x86::edx, 3); // shift = 3, равноценно *8 : [rdi + r15*8]
 
-//  входные параметры
-//  rdx - last_offset
-//  rcx - start_offset
+    //  входные параметры
+    //  rdx - last_offset
+    //  rcx - start_offset
 
 // ; prolog
 aj_asm.bind(aj_prolog_label);
     aj_asm.push(x86::rbp);
     aj_asm.mov(x86::rbp, x86::rsp);
+    aj_asm.push(x86::rdi);
     aj_asm.push(x86::rsi);
     aj_asm.push(x86::r12);
     aj_asm.push(x86::r13);
     aj_asm.push(x86::r14);
+    aj_asm.push(x86::r15);
     aj_asm.push(x86::rbx);
+    aj_asm.sub(x86::rsp, imm(256*8)); // резервируем под вектор переходов
+    aj_asm.mov(x86::rdi, x86::rsp); // фиксируем rdi на начале вектора
     aj_asm.sub(x86::rsp, 40); // сразу формируем home-регион для callee-функций : 40 вместо 32, чтобы выровнять по 16-байт (там уже лежит 8 байт возврата, поэтому 32+8 будет плохо, а 40+8 в самый раз)
 
     aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // теперь адрес буфера сканирования в rsi
@@ -384,40 +409,192 @@ aj_asm.bind(aj_prolog_label);
     aj_asm.mov(x86::r14, x86::rcx); // теперь в r14 относительный счётчик; далее rcx будем использовать только для передачи параметров в callee
     aj_asm.mov(x86::r13, imm(&this->scanbuf_offset)); // теперь в [r13] адрес переменной this->scanbuf_offset
 
+    // заполняем вектор адресом по-умолчанию (aj_loop_check_label);
+    // rdi стоит на начале вектора;
+    aj_asm.lea(x86::rax, x86::ptr(aj_loop_check_label)); // грузим абсолютный адрес лейбла в rax
+    aj_asm.mov(x86::rcx, imm(256)); // количество повторений
+    aj_asm.cld(); // сброс Direction Flag = увеличение rdi
+    aj_asm.rep();
+    aj_asm.stosq();
+    aj_asm.sub(x86::rdi, imm(256*8)); // возвращаем rdi на начало вектора
+
+    // выборочно заполняем вектор адресами предобработчиков
+    aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[0])); // tga
+    aj_asm.mov(x86::ptr(x86::rdi, 0x00 * 8), x86::rax);
+
+    aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[1])); // pcx
+    aj_asm.mov(x86::ptr(x86::rdi, 0x0A * 8), x86::rax);
+
+    aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[2])); // fli
+    aj_asm.mov(x86::ptr(x86::rdi, 0x11 * 8), x86::rax);
+
+    aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[3])); // flc
+    aj_asm.mov(x86::ptr(x86::rdi, 0x12 * 8), x86::rax);
+
+    aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[4])); // bik, bmp
+    aj_asm.mov(x86::ptr(x86::rdi, 0x42 * 8), x86::rax);
+
+    aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[6])); // flx
+    aj_asm.mov(x86::ptr(x86::rdi, 0x44 * 8), x86::rax);
+
+    aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[7])); // xm
+    aj_asm.mov(x86::ptr(x86::rdi, 0x45 * 8), x86::rax);
+
+    aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[8])); // iff
+    aj_asm.mov(x86::ptr(x86::rdi, 0x46 * 8), x86::rax);
+
+    aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[9])); // gif
+    aj_asm.mov(x86::ptr(x86::rdi, 0x47 * 8), x86::rax);
+
+
 // ; loop_start
 aj_asm.bind(aj_loop_start_label);
-    aj_asm.mov(x86::ebx, x86::dword_ptr(x86::rsi)); // в ebx лежит анализируемый dword
+    aj_asm.mov(x86::eax, x86::dword_ptr(x86::rsi)); // в eax лежит анализируемый dword
+    aj_asm.bswap(x86::eax);
+    aj_asm.mov(x86::bx, x86::ax);
+    aj_asm.shr(x86::eax, 16);
+    // теперь в :ah - 1 байт, al - 2 байт, bh - 3 байт, bl - 4 байт.
+    aj_asm.movzx(x86::edx, x86::ah);
+    aj_asm.jmp(rdi_edx_mul8);
+    aj_asm.nop();
+    aj_asm.nop();
+    aj_asm.nop();
 
-    bool last_cmp_section = false;
-// compare words sections
-    for (s_idx = 0; s_idx < amount_w; ++s_idx)
-    {
-        last_cmp_section = ( (amount_w - s_idx) == 1 );
-// ; w_signature_X
-aj_asm.bind(aj_w_signatures_labels[s_idx]);
-    aj_asm.cmp(x86::bx, imm(u16i(w_signatures_ordered[s_idx])));
-    last_cmp_section ? aj_asm.jne(aj_dw_signatures_start_label) : aj_asm.jne(aj_w_signatures_labels[s_idx + 1]);
+// ; 0x00
+aj_asm.bind(aj_signat_labels[0]);
+// ; tga : 0x00'00 : 0x02'00
+    aj_asm.cmp(x86::al, 0x00);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x0200);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_tga
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
-    aj_asm.call(w_recognizers_ordered[s_idx]); // прямой вызов
-    if (!last_cmp_section) aj_asm.jmp(aj_loop_check_label);
-    }
+    aj_asm.call(imm((u64i)Engine::recognize_tga));
+    //
+    aj_asm.jmp(aj_loop_check_label);
 
-// ; dw_signatures_start
-aj_asm.bind(aj_dw_signatures_start_label);
-    last_cmp_section = false;
-    for (s_idx = 0; s_idx < amount_dw; ++s_idx)
-    {
-        last_cmp_section = ( (amount_dw - s_idx) == 1 );
-// ; dw_signature_X
-aj_asm.bind(aj_dw_signatures_labels[s_idx]);
-    aj_asm.cmp(x86::ebx, imm(u32i(dw_signatures_ordered[s_idx])));
-    last_cmp_section ? aj_asm.jne(aj_loop_check_label) : aj_asm.jne(aj_dw_signatures_labels[s_idx + 1]);
-    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу из r13
+// ; 0x0A
+aj_asm.bind(aj_signat_labels[1]);
+// ; pcx : 0x0A'05
+    aj_asm.cmp(x86::al, 0x05);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_pcx
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
-    aj_asm.call(dw_recognizers_ordered[s_idx]); // прямой вызов
-    if (!last_cmp_section) aj_asm.jmp(aj_loop_check_label);
+    aj_asm.call(imm((u64i)Engine::recognize_pcx));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x11
+aj_asm.bind(aj_signat_labels[2]);
+// ; fli : 0x11'AF
+    aj_asm.cmp(x86::al, 0xAF);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_flc
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_flc));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x12
+aj_asm.bind(aj_signat_labels[3]);
+    // ; flc : 0x12'AF
+    aj_asm.cmp(x86::al, 0xAF);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_flc
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_flc));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x42
+aj_asm.bind(aj_signat_labels[4]);
+    // ; bik : 0x42'49
+    // ; bmp : 0x42'4D
+aj_asm.bind(aj_sub_labels[0]); // bik ?
+    if ( selected_formats[fformats["bik"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x49);
+        aj_asm.jne(aj_sub_labels[1]);
+        // вызов recognize_bink
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        //aj_asm.call(imm((u64i)Engine::recognize_bink));
+        //
+        aj_asm.jmp(aj_loop_check_label);
     }
+aj_asm.bind(aj_sub_labels[1]); // bmp ?
+    if ( selected_formats[fformats["bmp"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x4D);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_bmp
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        //aj_asm.call(imm((u64i)Engine::recognize_bmp));
+        //
+    }
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x44
+aj_asm.bind(aj_signat_labels[6]);
+    // ; flx : 0x44'AF
+    aj_asm.cmp(x86::al, 0xAF);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_flc
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_flc));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x45
+aj_asm.bind(aj_signat_labels[7]);
+    // ; xm : 0x45'78 : 0x74'65
+    aj_asm.cmp(x86::al, 0x78);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x7465);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_xm
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_xm));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x46
+aj_asm.bind(aj_signat_labels[8]);
+    // ; iff : 0x46'4F : 0x52'4D
+    aj_asm.cmp(x86::al, 0x4F);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x524D);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_xm
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_iff));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x47
+aj_asm.bind(aj_signat_labels[9]);
+    // ; iff : 0x47'49 : 0x46'38
+    aj_asm.cmp(x86::al, 0x49);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x4638);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_xm
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_gif));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+
+
 
 // ; loop_check
 aj_asm.bind(aj_loop_check_label);
@@ -430,20 +607,23 @@ aj_asm.bind(aj_loop_check_label);
 aj_asm.bind(aj_epilog_label);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из rsi в this->scanbuf_offset, который по адресу из r13
     aj_asm.add(x86::rsp, 40); // удаляем home-регион для callee-функций (для recognizer'ов)
+    aj_asm.add(x86::rsp, imm(256*8));
     aj_asm.pop(x86::rbx);
+    aj_asm.pop(x86::r15);
     aj_asm.pop(x86::r14);
     aj_asm.pop(x86::r13);
     aj_asm.pop(x86::r12);
     aj_asm.pop(x86::rsi);
+    aj_asm.pop(x86::rdi);
     aj_asm.pop(x86::rbp);
     aj_asm.ret();
 
     typedef int (*ComparationFunc)(u64i start_offset, u64i last_offset); // от start_offset до last_offset, не включая last_offset
     ComparationFunc comparation_func;
     Error err = aj_runtime.add(&comparation_func, &aj_code);
-    // qInfo() << "runtime_add_error:" << err;
-    // qInfo() << "---- ASMJIT Code ----";
-    // qInfo() << aj_logger.data();
+    qInfo() << "runtime_add_error:" << err;
+    qInfo() << "---- ASMJIT Code ----";
+    qInfo() << aj_logger.data();
     //////////////////////////////////////////////////////////////
 
     for (iteration = 1; iteration <= max_iterations; ++iteration)
@@ -548,6 +728,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
         //
     };
 #pragma pack(pop)
+    //qInfo() << " BMP recognizer called!";
     static const u32i bmp_id = fformats["bmp"].index;
     static constexpr u64i min_room_need = sizeof(FileHeader);
     static const QSet <u32i> VALID_BMP_HEADER_SIZE { 12, 40, 108 };
@@ -619,9 +800,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
-    if ( *(u64i*)buffer != 0x0A1A0A0D474E5089 /*.PNG\r\n \n*/ ) return 0;
-    if ( *((u64i*)(&buffer[0x08])) != 0x524448490D000000 ) return 0;
-    IHDRData *ihdr_data = (IHDRData*)(&buffer[0x10]);
+    if ( *((u64i*)&buffer[base_index]) != 0x0A1A0A0D474E5089 /*.PNG\r\n \n*/ ) return 0;
+    if ( *((u64i*)(&buffer[base_index + 0x08])) != 0x524448490D000000 ) return 0;
+    IHDRData *ihdr_data = (IHDRData*)(&buffer[base_index + 0x10]);
     if ( !VALID_BIT_DEPTH.contains(ihdr_data->bit_depth) ) return 0;
     if ( !VALID_COLOR_TYPE.contains(ihdr_data->color_type) ) return 0;
     if ( !VALID_INTERLACE.contains(ihdr_data->interlace) ) return 0;
@@ -940,6 +1121,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_pcx RECOGNIZE_FUNC_HEADER
         u8i  padding[54];
     };
 #pragma pack(pop)
+    //qInfo() << " PCX RECOGNIZER CALLED!";
     static u32i pcx_id {fformats["pcx"].index};
     static const u64i min_room_need = sizeof(PcxHeader);
     if ( ( !e->selected_formats[pcx_id] ) ) return 0;
@@ -1023,6 +1205,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
         u8i separator; // 0x3B
     };
 #pragma pack(pop)
+    //qInfo() << " GIF recognizer called!";
     static u32i gif_id {fformats["gif"].index};
     static constexpr u64i min_room_need = sizeof(FileHeader) + 1; // где +1 на u8i separator
     static const QSet <u16i> VALID_VERSIONS  { 0x6137 /*7a*/, 0x6139 /*9a*/ };
@@ -2042,5 +2225,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
 #pragma pack(pop)
+    //qInfo() << " !!! TGA RECOGNIZER CALLED !!!";
     return 0;
 }

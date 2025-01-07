@@ -75,7 +75,7 @@ public:
     Engine(WalkerThread *walker_parent);
     ~Engine();
     void scan_file_v1(const QString &file_name); // по dword-сигнатурам через авл-дерево в буфере
-    void scan_file_v3(const QString &file_name); // эксперименты с asmjit
+    void scan_file_v5(const QString &file_name); // asmjit : индексный вектор переходов
 
     RECOGNIZE_FUNC_DECL_RETURN recognize_special RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_bmp RECOGNIZE_FUNC_HEADER;
