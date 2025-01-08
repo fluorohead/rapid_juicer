@@ -1465,6 +1465,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
             channels = buffer[base_index - offset_correction];
             if ( ( channels < 0x31 ) or ( channels > 0x39) ) return 0;
             channels -= 0x30;
+            if ( channels % 2 ) return 0; // отсекаем с нечётным количеством каналов
         }
         else // 'xxCH'
         {
@@ -1477,6 +1478,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
             if ( ( tens_place_ch_num < 0x31 ) or ( tens_place_ch_num > 0x33) ) return 0;
             if ( ( units_place_ch_num < 0x30 ) or ( units_place_ch_num > 0x39) ) return 0;
             channels = (tens_place_ch_num - 0x30) * 10 + (units_place_ch_num - 0x30);
+            if ( channels % 2 ) return 0; // отсекаем с нечётным количеством каналов
             if ( channels > 32 ) return 0;
         }
     }
@@ -1484,6 +1486,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     if ( e->scanbuf_offset < sizeof(MOD_31_Header) + offset_correction ) return 0;
     base_index = e->scanbuf_offset - (sizeof(MOD_31_Header) + offset_correction);
     MOD_31_Header *info_header = (MOD_31_Header*)(&buffer[base_index]);
+    // сигнатура 'CH' часто встречается, поэтому надёжный метод проверить название модуля на запрещённые символы
+    for (u8i idx = 0; idx < sizeof(MOD_31_Header::song_name); ++idx)
+    {
+        if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] < 32 )) return 0;
+        if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] > 126 )) return 0;
+    }
+    //
     u64i samples_block_size = 0;
     for (int sample_id = 0; sample_id < 31; ++sample_id) // калькуляция размера блока сэмплов
     {
