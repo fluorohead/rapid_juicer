@@ -4,6 +4,7 @@
   //   1  |pcx : 0A05
   //   2  |fli : 11AF
   //   3  |flc : 12AF
+  //   25 |au  : 2E73 : 6E64
   //   4  |bik : 4249
   //   5  |bmp : 424D
   //   24 |ch  : 4348
@@ -71,6 +72,7 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "669_if",     { 0x0000000000006669, 2, Engine::recognize_669      } }, // "if"
     { "669_jn",     { 0x0000000000004E4A, 2, Engine::recognize_669      } }, // "JN"
     { "mod_ch",     { 0x0000000000004843, 2, Engine::recognize_mod      } }, // "CH"
+    { "au",         { 0x00000000646E732E, 4, Engine::recognize_au       } }, // ".snd"
 };
 
 u16i be2le(u16i be) {
@@ -215,6 +217,12 @@ aj_asm.bind(aj_prolog_label);
 
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[3])); // flc
         aj_asm.mov(x86::ptr(x86::rdi, 0x12 * 8), x86::rax);
+    }
+
+    if ( selected_formats[fformats["au"].index] )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[25])); // au
+        aj_asm.mov(x86::ptr(x86::rdi, 0x2E * 8), x86::rax);
     }
 
     if ( selected_formats[fformats["bik"].index] or selected_formats[fformats["bmp"].index] )
@@ -368,6 +376,20 @@ aj_asm.bind(aj_signat_labels[3]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_flc));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x2E
+aj_asm.bind(aj_signat_labels[25]);
+    // ; au : 0x2E'73 : 0x6E'64
+    aj_asm.cmp(x86::al, 0x73);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x6E'64);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_au
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_au));
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -2392,6 +2414,42 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     }
     QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     Q_EMIT e->txResourceFound("669", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_au RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct AU_Header
+    {
+        u32i magic_number;
+        u32i data_offset;
+        u32i data_size;
+        u32i encoding;
+        u32i sample_rate;
+        u32i channels;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! AU RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static u32i au_id {fformats["au"].index};
+    static constexpr u64i min_room_need = sizeof(AU_Header);
+    static const QSet <u32i> VALID_SAMPLE_RATE { 8000, 8012, 8013, 11025, 22050, 44100, 48000 };
+    if ( !e->selected_formats[au_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    uchar *buffer = e->mmf_scanbuf;
+    AU_Header *info_header = (AU_Header*)(&buffer[base_index]);
+    if ( be2le(info_header->data_offset) < sizeof(AU_Header) ) return 0;
+    qInfo() << "encoding:" << be2le(info_header->encoding) << " sample_rate:" << be2le(info_header->sample_rate) << " channels:" << be2le(info_header->channels);
+    if ( be2le(info_header->encoding) > 27 ) return 0;
+    if ( !VALID_SAMPLE_RATE.contains(be2le(info_header->sample_rate)) ) return 0;
+    if ( ( be2le(info_header->channels) < 1 ) or ( be2le(info_header->channels) > 2 ) ) return 0;
+    if ( info_header->data_size == 0xFFFFFFFF ) return 0; // судя по докам, такое значение в случае неопределённого размера данных - нам такое не подходит, т.к. невозможно определить размер ресурса
+    u64i last_index = base_index + be2le(info_header->data_offset) + be2le(info_header->data_size);
+    if ( last_index > e->file_size ) return 0;
+    u64i resource_size = last_index - base_index;
+    Q_EMIT e->txResourceFound("au", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }

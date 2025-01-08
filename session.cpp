@@ -315,7 +315,7 @@ void SessionWindow::create_and_start_walker()
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\title2.gif)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\1671625086303.jpg)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\CURE1.MOD)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mus_mod_ch\6CHN_ARIA2.MOD)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\au\VioletArcana_Scene_Mind(lng).au)", "", false});
 
     if ( !task.task_paths.empty() and !settings.selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
     {
