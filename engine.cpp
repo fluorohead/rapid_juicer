@@ -12,6 +12,7 @@
   //   9  |gif : 4749 : 4638
   //   10 |tfi : 4949 : 2A00
   //   11 |it  : 494D : 504D
+  //   23 |669 : 4A4E
   //   12 |bk2 : 4B42
   //   13 |mk  : 4D2E : 4B2E
   //   14 |tfm : 4D4D : 002A
@@ -20,8 +21,10 @@
   //   17 |s3m : 5343 : 524D
   //   18 |sm2 : 534D : 4B32
   //   19 |sm4 : 534D : 4B34
+  //   22 |669 : 6966
   //   20 |png : 8950 : 4E47
   //   21 |jpg : FFD8 : FFE0
+
 
 #include "engine.h"
 #include "walker.h"
@@ -64,9 +67,9 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "fli_af11",   { 0x000000000000AF11, 2, Engine::recognize_flc      } }, // "\0x11\0xAF
     { "flc_af12",   { 0x000000000000AF12, 2, Engine::recognize_flc      } }, // "\0x12\0xAF
     { "flx_af44",   { 0x000000000000AF44, 2, Engine::recognize_flc      } }, // "\0x44\0xAF "Dave's Targa Animator (DTA)" software
+    { "669_if",     { 0x0000000000006669, 2, Engine::recognize_669      } }, // "if"
+    { "669_jn",     { 0x0000000000004E4A, 2, Engine::recognize_669      } }, // "JN"
 };
-
-const u32i Engine::special_signature = signatures["special"].as_u64i;
 
 u16i be2le(u16i be) {
     union {
@@ -99,240 +102,15 @@ Engine::Engine(WalkerThread *walker_parent)
     read_buffer_size = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
     qInfo() << "READ_BUFFER_SIZE" << read_buffer_size;
     total_buffer_size = read_buffer_size + MAX_SIGNATURE_SIZE/*4*/;
-    amount_dw = my_walker_parent->amount_dw;
-    amount_w  = my_walker_parent->amount_w;
-
     selected_formats = my_walker_parent->selected_formats_fast;
-
-    scanbuf_ptr = new u8i[total_buffer_size];
-    auxbuf_ptr  = new u8i[AUX_BUFFER_SIZE];
-    fillbuf_ptr = scanbuf_ptr + MAX_SIGNATURE_SIZE/*4*/;
-
-    u64i selected_dw_signatures_array[amount_dw];  // на стэке
-    u64i selected_dw_recognizers_array[amount_dw]; //
-
-    int s_idx = 0;
-    for (auto &&signature_name: my_walker_parent->uniq_signature_names_dw) // наполняем без упорядочивания (они упорядочены по ключам, а нам нужно упорядочивание по значению сигнатур, что сделаем ниже)
-    {
-        selected_dw_signatures_array[s_idx] = signatures[signature_name].as_u64i;
-        selected_dw_recognizers_array[s_idx] = (u64i)signatures[signature_name].recognizer_ptr;
-        ++s_idx;
-    }
-
-    if ( amount_dw > 1 )
-    {
-        bool was_swap;
-        u64i tmp_u64i;
-        do // bubble sort : по значению сигнатур
-        {
-            was_swap = false;
-            for (s_idx = 0; s_idx < amount_dw - 1; ++s_idx)
-            {
-                if ( selected_dw_signatures_array[s_idx] > selected_dw_signatures_array[s_idx + 1] )
-                {
-                    // своп в массиве сигнатур
-                    tmp_u64i = selected_dw_signatures_array[s_idx + 1];
-                    selected_dw_signatures_array[s_idx + 1] = selected_dw_signatures_array[s_idx];
-                    selected_dw_signatures_array[s_idx] = tmp_u64i;
-
-                    // и такой же своп в массиве recognizer'ов, чтобы сохранить соответствие (очень важно!)
-                    tmp_u64i = selected_dw_recognizers_array[s_idx + 1];
-                    selected_dw_recognizers_array[s_idx + 1] = selected_dw_recognizers_array[s_idx];
-                    selected_dw_recognizers_array[s_idx] = tmp_u64i;
-
-                    was_swap = true;
-                }
-            }
-        } while(was_swap);
-    }
-
-    // переносим данные из стека в вектора
-    dw_signatures_ordered.reserve(amount_dw);
-    dw_recognizers_ordered.reserve(amount_dw);
-    for (s_idx = 0; s_idx < amount_dw; ++s_idx)
-    {
-        dw_signatures_ordered.append(selected_dw_signatures_array[s_idx]);
-        dw_recognizers_ordered.append(selected_dw_recognizers_array[s_idx]);
-    }
-
-    u64i selected_w_signatures_array[amount_w];  // на стэке
-    u64i selected_w_recognizers_array[amount_w]; //
-
-    s_idx = 0;
-    for (auto &&signature_name: my_walker_parent->uniq_signature_names_w) // наполняем без упорядочивания (они упорядочены по ключам, а нам нужно упорядочивание по значению сигнатур, что сделаем ниже)
-    {
-        selected_w_signatures_array[s_idx] = signatures[signature_name].as_u64i;
-        selected_w_recognizers_array[s_idx] = (u64i)signatures[signature_name].recognizer_ptr;
-        ++s_idx;
-    }
-
-    if ( amount_w > 1 )
-    {
-        bool was_swap;
-        u64i tmp_u64i;
-        do // bubble sort : по значению сигнатур
-        {
-            was_swap = false;
-            for (s_idx = 0; s_idx < amount_w - 1; ++s_idx)
-            {
-                if ( selected_w_signatures_array[s_idx] > selected_w_signatures_array[s_idx + 1] )
-                {
-                    // своп в массиве сигнатур
-                    tmp_u64i = selected_w_signatures_array[s_idx + 1];
-                    selected_w_signatures_array[s_idx + 1] = selected_w_signatures_array[s_idx];
-                    selected_w_signatures_array[s_idx] = tmp_u64i;
-
-                    // и такой же своп в массиве recognizer'ов, чтобы сохранить соответствие (очень важно!)
-                    tmp_u64i = selected_w_recognizers_array[s_idx + 1];
-                    selected_w_recognizers_array[s_idx + 1] = selected_w_recognizers_array[s_idx];
-                    selected_w_recognizers_array[s_idx] = tmp_u64i;
-
-                    was_swap = true;
-                }
-            }
-        } while(was_swap);
-    }
-
-    // переносим данные из стека в вектора
-    w_signatures_ordered.reserve(amount_w);
-    w_recognizers_ordered.reserve(amount_w);
-    for (s_idx = 0; s_idx < amount_w; ++s_idx)
-    {
-        w_signatures_ordered.append(selected_w_signatures_array[s_idx]);
-        w_recognizers_ordered.append(selected_w_recognizers_array[s_idx]);
-    }
 }
 
 Engine::~Engine()
 {
-    delete [] scanbuf_ptr;
-    delete [] auxbuf_ptr;
     qInfo() << "Engine destructor called in thread id" << QThread::currentThreadId();
 }
 
-void Engine::scan_file_v1(const QString &file_name)
-{
-    file.setFileName(file_name);
-    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( (file.size() < MIN_RESOURCE_SIZE) ) )
-    {
-        return;
-    }
-
-    ////// объявление рабочих переменных на стеке (так эффективней, чем в классе) //////
-    s64i last_read_amount; // количество прочитанного из файла за последнюю операцию чтения
-    bool zero_phase; // индикатор нулевой фазы, когда первые 4 байта заполнены специальной сигнатурой
-    u64i scanbuf_offset; // текущее смещение в буфере scanbuf_ptr
-    u32i analyzed_dword;
-    TreeNode *node;
-    TreeNode *tree_dw = my_walker_parent->tree_dw;
-    TreeNode *tree_w  = my_walker_parent->tree_w;
-    u64i resource_size;
-    s64i save_restore_seek; // перед вызовом recognizer'а запоминаем последнюю позицию в файле, т.к. recognizer может перемещать позицию для дополнительных чтений
-    s64i file_size = file.size();
-    //////////////////////////////////////////////////////////////
-
-    ////// выставление начальных значений важных переменных //////
-    previous_file_progress = 0;
-    previous_msecs = QDateTime::currentMSecsSinceEpoch();
-    zero_phase = true;
-    *(u32i *)(&scanbuf_ptr[0]) = special_signature;
-    signature_file_pos = 0 - MAX_SIGNATURE_SIZE; // начинаем со значения -4, чтобы компенсировать нулевую фазу
-    //////////////////////////////////////////////////////////////
-
-    do /// цикл итерационных чтений из файла
-    {
-
-        last_read_amount = file.read((char *)fillbuf_ptr, read_buffer_size); // размер хвоста
-        // на нулевой фазе минимальный хвост должен быть >= MIN_RESOURCE_SIZE;
-        // на ненелувой фазе должен быть >= (MIN_RESOURCE_SIZE - 4), т.к. в начальных 4 байтах буфера уже что-то есть и это не спец-заполнитель
-        if ( last_read_amount < (MIN_RESOURCE_SIZE - (!zero_phase) * MAX_SIGNATURE_SIZE) ) // ищём только в достаточном отрезке, иначе пропускаем короткий файл или недостаточно длинный хвост
-        {
-            break; // слишком короткий хвост -> выход из do-while итерационных чтений
-        }
-
-        for (scanbuf_offset = 0; scanbuf_offset < last_read_amount; ++scanbuf_offset) // цикл прохода по буферу dword-сигнатур
-        {
-            node = &tree_dw[0]; // для каждого очередного dword'а выставляем текущий узел в [0] индекс дерева, т.к. у бинарных деревьев это корень
-            analyzed_dword = *(u32i *)(scanbuf_ptr + scanbuf_offset);
-
-            do /// цикл обхода авл-дерева
-            {
-                if ( node != nullptr )
-                {
-                    if ( analyzed_dword == node->signature.as_u64i ) // совпадение сигнатуры!
-                    {
-                        if ( file.size() - signature_file_pos >= MIN_RESOURCE_SIZE )
-                        {
-                            save_restore_seek = file.pos();
-                            resource_size = node->signature.recognizer_ptr(this); // вызов функции-распознавателя через указатель
-                            file.seek(save_restore_seek);
-                        }
-                        break;
-                    }
-                    if ( analyzed_dword > node->signature.as_u64i )
-                    { // переход в правое поддерево
-                        node = node->right;
-                    }
-                    else
-                    { // иначе переход в левое поддерево
-                        node = node->left;
-                    }
-                }
-                else // достигли nullptr, значит в дереве не было совпадений
-                {
-                    break;
-                }
-            } while ( true );
-            /// end of avl-tree do-while
-
-            ++signature_file_pos; // счётчик позиции сигнатуры в файле
-         }
-        /// end of for
-
-        //qInfo() << "  :: iteration reading from file to buffer";
-        //QThread::msleep(2000);
-
-        switch (*command) // проверка на поступление команды управления
-        {
-        case WalkerCommand::Stop:
-            qInfo() << "-> Engine: i'm stopped due to Stop command";
-            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
-            break;
-        case WalkerCommand::Pause:
-            qInfo() << "-> Engine: i'm paused due to Pause command";
-            Q_EMIT my_walker_parent->txImPaused();
-            control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
-            // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
-            control_mutex->unlock();
-            if ( *command == WalkerCommand::Stop ) // вдруг, пока мы стояли на паузе, была нажата кнопка Stop?
-            {
-                last_read_amount = 0; // условие выхода из внешнего цикла do-while итерационных чтений файла
-                break;
-            }
-            Q_EMIT my_walker_parent->txImResumed();
-            qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
-            break;
-        case WalkerCommand::Skip:
-            qInfo() << " >>>> Engine : current file skipped :" << file_name;
-            *command = WalkerCommand::Run;
-            last_read_amount = 0;  // условие выхода из внешнего цикла do-while итерационных чтений файла
-            break;
-        default:; // сюда в случае WalkerCommand::Run
-        }
-
-        update_file_progress(file_name, file_size, signature_file_pos + 4); // посылаем сигнал обновить progress bar для файла
-        *(u32i *)(&scanbuf_ptr[0]) = *(u32i *)(&scanbuf_ptr[read_buffer_size]); // копируем последние 4 байта в начало буфера scanbuf_ptr
-        zero_phase = false;
-
-    } while ( last_read_amount == read_buffer_size );
-    /// end of do-while итерационных чтений из файла
-
-    qInfo() << "closing file";
-    qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
-    file.close();
-}
-
-void Engine::scan_file_v5(const QString &file_name)
+void Engine::scan_file(const QString &file_name)
 {
     file.setFileName(file_name);
     file_size = file.size();
@@ -357,8 +135,8 @@ void Engine::scan_file_v5(const QString &file_name)
     u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
     u64i resource_size = 0;
     //////////////////////////////////////////////////////////////
-    using namespace asmjit;
 
+    using namespace asmjit;
     JitRuntime aj_runtime;
     CodeHolder aj_code;
     StringLogger aj_logger;
@@ -446,7 +224,7 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x42 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["flx"].index]  )
+    if ( selected_formats[fformats["flc"].index]  )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[6])); // flx
         aj_asm.mov(x86::ptr(x86::rdi, 0x44 * 8), x86::rax);
@@ -476,6 +254,13 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x49 * 8), x86::rax);
     }
 
+    qInfo() << " 669 index:" << fformats["669"].index;
+    if ( selected_formats[fformats["669"].index] )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[23])); // 669_jn
+        aj_asm.mov(x86::ptr(x86::rdi, 0x4A * 8), x86::rax);
+    }
+
     if ( selected_formats[fformats["bk2"].index]  )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[12])); // bk2
@@ -500,6 +285,12 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x53 * 8), x86::rax);
     }
 
+    if ( selected_formats[fformats["669"].index]  )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[22])); // 669_if
+        aj_asm.mov(x86::ptr(x86::rdi, 0x69 * 8), x86::rax);
+    }
+
     if ( selected_formats[fformats["png"].index]  )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[20])); // png
@@ -512,6 +303,7 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0xFF * 8), x86::rax);
     }
 
+
 // ; loop_start
 aj_asm.bind(aj_loop_start_label);
     aj_asm.mov(x86::eax, x86::dword_ptr(x86::rsi)); // в eax лежит анализируемый dword
@@ -521,9 +313,9 @@ aj_asm.bind(aj_loop_start_label);
     // теперь в :ah - 1 байт, al - 2 байт, bh - 3 байт, bl - 4 байт.
     aj_asm.movzx(x86::edx, x86::ah);
     aj_asm.jmp(rdi_edx_mul8);
-    aj_asm.nop();
-    aj_asm.nop();
-    aj_asm.nop();
+    // aj_asm.nop(); // пока неясно есть какая-то польза от выравнивания или нет
+    // aj_asm.nop();
+    // aj_asm.nop();
 
 // ; 0x00
 aj_asm.bind(aj_signat_labels[0]);
@@ -646,7 +438,7 @@ aj_asm.bind(aj_signat_labels[8]);
 
 // ; 0x47
 aj_asm.bind(aj_signat_labels[9]);
-    // ; iff : 0x47'49 : 0x46'38
+    // ; gif : 0x47'49 : 0x46'38
     aj_asm.cmp(x86::al, 0x49);
     aj_asm.jne(aj_loop_check_label);
     aj_asm.cmp(x86::bx, 0x46'38);
@@ -691,7 +483,19 @@ aj_asm.bind(aj_sub_labels[3]); // it ?
     }
     aj_asm.jmp(aj_loop_check_label);
 
-// ; 0x4B
+// ; 4A
+aj_asm.bind(aj_signat_labels[23]);
+    // ; 669_jn : 0x4A'4E
+    aj_asm.cmp(x86::ax, 0x4A'4E);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_669
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_669));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+ // ; 0x4B
 aj_asm.bind(aj_signat_labels[12]);
     // ; bk2 : 0x4B'42
     aj_asm.cmp(x86::al, 0x42);
@@ -801,6 +605,18 @@ aj_asm.bind(aj_sub_labels[8]); // smk ?
         aj_asm.call(imm((u64i)Engine::recognize_smk));
         //
     }
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x69
+aj_asm.bind(aj_signat_labels[22]);
+    // ; 669_if : 0x69'66
+    aj_asm.cmp(x86::ax, 0x69'66);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_669
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_669));
+    //
     aj_asm.jmp(aj_loop_check_label);
 
 // ; 0x89
@@ -1117,6 +933,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         u16i division;
     };
 #pragma pack(pop)
+    qInfo() << " RIFF RECOGNIZER CALLED:";
     static u32i avi_id {fformats["avi"].index};
     static u32i wav_id {fformats["wav"].index};
     static u32i rmi_id {fformats["rmi"].index};
@@ -1899,7 +1716,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     int song_name_len;
-    for (song_name_len = 0; song_name_len < 28; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
+    for (song_name_len = 0; song_name_len < 28; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [27]
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
@@ -2015,7 +1832,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
     int song_name_len;
-    for (song_name_len = 0; song_name_len < 26; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
+    for (song_name_len = 0; song_name_len < 26; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [25]
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
@@ -2456,6 +2273,76 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
+RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct _669_Header
+    {
+        u16i marker;
+        u8i  song_name[108];
+        u8i  smpnum;
+        u8i  patnum;
+        u8i  loop_order;
+        u8i  order_list[128];
+        u8i  tempo_list[128];
+        u8i  break_list[128];
+    };
+    struct SampleHeader
+    {
+        u8i  sample_name[13];
+        u32i sample_size;
+        u32i loop_begin;
+        u32i loop_end;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! 669 RECOGNIZER CALLED !!!";
+    static u32i _669_id {fformats["669"].index};
+    static constexpr u64i min_room_need = sizeof(_669_Header);
+    if ( !e->selected_formats[_669_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    uchar *buffer = e->mmf_scanbuf;
+    _669_Header *info_header = (_669_Header*)(&buffer[base_index]);
+    if ( ( info_header->smpnum == 0 ) and ( info_header->patnum == 0 ) ) return 0; // модуль без сэмплов и паттернов не имеет смысла
+    if ( info_header->smpnum > 32 ) return 0; // не находил такого модуля, чтобы сэмплов было больше 32
+    if ( ( info_header->song_name[0] != 0 ) and ( info_header->song_name[0] < 32 )) return 0;
+    if ( ( info_header->song_name[0] != 0 ) and ( info_header->song_name[0] > 126 )) return 0;
+    s64i file_size = e->file_size;
+    if ( base_index + sizeof(_669_Header) + sizeof(SampleHeader) * info_header->smpnum + info_header->patnum * 1536 > file_size) return 0; // 1536 - размер одного паттерна
+    u64i last_index = base_index + sizeof(_669_Header); // переставляем last_index на первый заголовок сэмпла
+    SampleHeader *sample_header;
+    u64i samples_block = 0; // суммарный размер тел сэмплов
+    for (u8i idx = 0; idx < info_header->smpnum; ++idx)
+    {
+        if ( last_index + sizeof(SampleHeader) > file_size ) return 0; // не хватает места для заголовка сэмпла
+        sample_header = (SampleHeader*)&buffer[last_index];
+        //qInfo() << " sample_id:" << idx << " sample_size:" << sample_header->sample_size;
+
+        // далее "наивная", но нужная проверка. сигнатура 'if' очень часто встречается. формат CAT_PERFRISK.
+        // проверка на ASCII имена сэмплов. ну хоть так, чем никак.
+        if ( ( sample_header->sample_name[0] != 0 ) and ( sample_header->sample_name[0] < 32 )) return 0;
+        if ( ( sample_header->sample_name[0] != 0 ) and ( sample_header->sample_name[0] > 126 )) return 0;
+
+        //if ( sample_header->sample_size > 1024 * 1024 ) return 0;
+
+        samples_block += sample_header->sample_size;
+        last_index += sizeof(SampleHeader); // переставляем last_index на следующий заголовок сэмпла (или начало паттернов, если завершение цикла)
+    }
+    //qInfo() << " summary sample bodies size:" << samples_block;
+    last_index += (info_header->patnum * 1536 + samples_block);
+    if ( last_index > file_size ) return 0;
+    u64i resource_size = last_index - base_index;
+    int song_name_len;
+    for (song_name_len = 0; song_name_len < 32; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [31]
+    {
+        if ( info_header->song_name[song_name_len] == 0 ) break;
+    }
+    QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    Q_EMIT e->txResourceFound("669", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
 RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
@@ -2463,3 +2350,4 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     //qInfo() << " !!! TGA RECOGNIZER CALLED !!!";
     return 0;
 }
+

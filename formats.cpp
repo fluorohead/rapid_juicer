@@ -1,4 +1,5 @@
 #include "formats.h"
+#include "qdebug.h"
 #include <QString>
 
 // Все возможные категории ресурсов
@@ -89,8 +90,8 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     // <ключ,     FileFormat>
     // |          |
     // V          V
-    { "bmp",      { "Microsoft Windows Bitmap", "", "BMP", {CAT_IMAGE, CAT_WIN, CAT_PERFRISK}, CAT_RASTER, {"bmp"}, 0, "" } },
-    { "pcx",      { "Zsoft PC Paintbrush", "only v3.0", "PCX", { CAT_IMAGE, CAT_DOS, CAT_PERFRISK }, CAT_RASTER, { "pcx_05" }, 0, "" } },
+    { "bmp",      { "Microsoft Windows Bitmap", "", "BMP", {CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_RASTER, {"bmp"}, 0, "" } },
+    { "pcx",      { "Zsoft PC Paintbrush", "only v3.0", "PCX", { CAT_IMAGE, CAT_DOS, CAT_NONE }, CAT_RASTER, { "pcx_05" }, 0, "" } },
     { "png",      { "Portable Network Graphics", "", "PNG", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "png" }, 0, "" } },
     { "avi",      { "Audio-Video Interleaved", "RIFF container", "AVI", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "riff" }, 0, "" } },
     { "wav",      { "Wave Audio Data", "RIFF container", "WAV", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "riff" }, 0, "" } },
@@ -100,7 +101,7 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "lbm",      { "Interleaved Bitmap", "IFF container", "LBM", { CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED }, CAT_RASTER | CAT_DOS, { "iff" }, 0, "" } },
     { "gif",      { "Graphics Interchange Format", "", "GIF", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "gif" }, 0, "" } },
     { "tif_ii",   { "Tag Image File Format", "Intel byte order", "TIF", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER | CAT_INTELX86, { "tiff_ii" }, 0, "" } },
-    { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "TIF", { CAT_IMAGE, CAT_OUTDATED, CAT_NONE }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "" } },
+    { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "TIF", { CAT_IMAGE, CAT_MAC, CAT_OUTDATED }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "" } },
     { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "TGA", { CAT_IMAGE, CAT_OUTDATED, CAT_NONE }, CAT_RASTER, { "tga_tc32" }, 0, "" } },
     { "jpg",      { "JPEG File Interchange Format", "", "JPG", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "" } },
     { "acon",     { "Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
@@ -109,10 +110,11 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "xm",       { "FastTracker II Module" , "", "XM", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "xm" }, 0, "" } },
     { "s3m",      { "ScreamTracker 3 Module", "", "S3M", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "s3m" }, 0, "" } },
     { "it",       { "ImpulseTracker Module", "", "IT", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "it" }, 0, "" } },
-    { "bik",      { "Bink Video", "", "BIK", { CAT_VIDEO, CAT_OUTDATED, CAT_PERFRISK }, CAT_NONE, { "bink1" }, 0, "" } },
-    { "bk2",      { "Bink2 Video", "", "BK2", { CAT_VIDEO, CAT_NONE, CAT_PERFRISK }, CAT_NONE, { "bink2" }, 0, "" } },
-    { "smk",      { "Smacker Video", "", "SMK", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_NONE, { "smk2", "smk4" }, 0, "" } },
-    { "flc",      { "FLIC Animation", "FLI/FLC/FLX", "FLC", { CAT_VIDEO, CAT_OUTDATED, CAT_PERFRISK }, CAT_ANIM, { "fli_af11", "flc_af12", "flx_af44" }, 0, "" } }
+    { "bik",      { "Bink Video", "", "BIK", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_NONE, { "bink1" }, 0, "" } },
+    { "bk2",      { "Bink2 Video", "", "BK2", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "bink2" }, 0, "" } },
+    { "smk",      { "Smacker Video", "", "SMK", { CAT_VIDEO, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "smk2", "smk4" }, 0, "" } },
+    { "flc",      { "FLIC Animation", "FLI/FLC/FLX", "FLC", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_ANIM, { "fli_af11", "flc_af12", "flx_af44" }, 0, "" } },
+    { "669",      { "Composer 669 Module", "", "669", { CAT_AUDIO, CAT_MUSIC, CAT_PERFRISK }, CAT_DOS, { "669_if", "669_jn" }, 0, "" } }
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 
@@ -126,20 +128,20 @@ void indexFilesFormats() {
         {
             if (it.value().base_categories[idx] != CAT_NONE)
             {
-                it->cat_str.append(categories[it.value().base_categories[idx]]);
-                it->cat_str.append(", ");
+                it->tooltip_str.append(categories[it.value().base_categories[idx]]);
+                it->tooltip_str.append(", ");
             }
         }
         for (u32i rshift = 0; rshift < 64; ++rshift) // дополнительные категории
         {
             if ((it->additional_categories >> rshift) & 1)
             {
-                it->cat_str.append(categories[qPow(2, rshift)]);
-                it->cat_str.append(", ");
+                it->tooltip_str.append(categories[qPow(2, rshift)]);
+                it->tooltip_str.append(", ");
             }
         }
-        it->cat_str.removeLast();
-        it->cat_str.removeLast();
+        it->tooltip_str.removeLast();
+        it->tooltip_str.removeLast();
         ++cnt;
     }
 }

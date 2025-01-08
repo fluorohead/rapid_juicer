@@ -251,14 +251,14 @@ FormatsTable::FormatsTable(QWidget *parent)
             descr_label->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
             descr_label->setFont(column1_font);
             descr_label->setStyleSheet("QToolTip:enabled {background : #888663; color: #ffffff; border: 0px}");
-            descr_label->setToolTip(it.value().cat_str);
+            descr_label->setToolTip(it.value().tooltip_str);
         }
         else
         {
             descr_label = new DescriptionLabel;
             descr_label->setFixedSize(FORMATS_TABLE_COL1_W - 1, FORMATS_TABLE_ROW_H - 1);
             descr_label->setStyleSheet("QToolTip:enabled {background : #888663; color: #ffffff; border: 0px}");
-            descr_label->setToolTip(it.value().cat_str);
+            descr_label->setToolTip(it.value().tooltip_str);
             auto child_descr_label = new QLabel(descr_label);
             child_descr_label->setFixedSize(FORMATS_TABLE_COL1_W, FORMATS_TABLE_ROW_H / 2);
             child_descr_label->setFont(column1_font);

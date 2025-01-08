@@ -10,7 +10,7 @@ WalkerThread::WalkerThread(SessionWindow *receiver, QMutex *control_mtx, const T
     , walker_config(config)
     , my_formats(formats_to_scan)
 {
-
+    //qInfo() << " my_formats:" << my_formats;
 }
 
 WalkerThread::~WalkerThread()
@@ -33,161 +33,21 @@ inline void WalkerThread::update_general_progress(int paths_total, int current_p
     }
 }
 
-void WalkerThread::sort_signatures_array(Signature **signs_to_scan, int amount)
-{
-    if ( amount > 1 )
-    {
-        Signature *tmp_sign;
-        bool was_swap;
-        do
-        {
-            was_swap = false;
-            for (int idx = 0; idx < amount - 1; ++idx)
-            {
-                if ( signs_to_scan[idx]->as_u64i > signs_to_scan[idx+1]->as_u64i )
-                {
-                    tmp_sign = signs_to_scan[idx + 1];
-                    signs_to_scan[idx + 1] = signs_to_scan[idx];
-                    signs_to_scan[idx] = tmp_sign;
-                    was_swap = true;
-                }
-            }
-        } while (was_swap);
-    }
-}
-
-void WalkerThread::prepare_avl_tree(TreeNode *tree, Signature **signs_to_scan, int first_index, int last_index, int *idx)
-{
-    int base_index = first_index + (last_index - first_index + 1) / 2;
-    tree[*idx] = TreeNode{*signs_to_scan[base_index], nullptr, nullptr}; // заполняем новый узел
-    TreeNode *we_as_parent = &tree[*idx]; // указатель на нас самих, т.е. на TreeNode, записанный под индексом idx в tree
-    (*idx)++; // инкремент ячейки в массиве tree
-    if ( last_index != first_index ) // проверка на размер поддерева : если оно из 1 элемента, то это stop_condition для рекурсии
-    {
-        int new_first_index;
-        int new_last_index;
-        if ( base_index > first_index ) // значит слева ещё остались элементы
-        {
-            new_first_index = first_index;
-            new_last_index  = base_index - 1;
-            we_as_parent->left = &tree[*idx]; // записываем себе в левого потомка следующий TreeNode, который точно будет, потому что base_index > first_index
-            prepare_avl_tree(tree, signs_to_scan, new_first_index, new_last_index, idx);
-        }
-        if ( base_index < last_index ) // значит справа ещё остались элементы
-        {
-            new_first_index = base_index + 1;
-            new_last_index  = last_index;
-            we_as_parent->right = &tree[*idx]; // записываем себе в правого потомка следующий TreeNode, который точно будет, потому что base_index < last_index
-            prepare_avl_tree(tree, signs_to_scan, new_first_index, new_last_index, idx);
-        }
-    }
-}
-
-void WalkerThread::print_avl_tree(TreeNode *tree, int amount)
-{
-    for (int idx = 0; idx < amount; idx++)
-    {
-        qInfo() <<  "avl_tree index :" << idx << "; value :" << QString::number(tree[idx].signature.as_u64i, 16);
-        if (tree[idx].left != nullptr)
-        {
-            qInfo() << "      : left child  :" << QString::number(tree[idx].left->signature.as_u64i, 16);
-        } else {
-            qInfo() << "      : left child  : {nullptr}";
-        }
-        if (tree[idx].right != nullptr)
-        {
-            qInfo() << "      : right child :" << QString::number(tree[idx].right->signature.as_u64i, 16);
-        } else {
-            qInfo() << "      : right child : {nullptr}";
-        }
-    }
-}
-
 void WalkerThread::prepare_structures_before_engine()
 {
-    int global_signs_num = signatures.size(); // общее количество известных сигнатур
-
-    Signature **signatures_array_dw = new Signature*[global_signs_num]; // массив dword-сигнатур для поиска (массив указателей на элементы структуры signatures)
-    Signature **signatures_array_w  = new Signature*[global_signs_num]; // массив word-сигнатур для поиска  (массив указателей на элементы структуры signatures)
-    // ^^^для простоты выделяем памяти на всё кол-во известных сигнатур; реально используемое кол-во будет хранится в amount_(d)w
-
     selected_formats_fast = new bool[fformats.size()];
-
-    uniq_signature_names_dw.reserve(global_signs_num);
-    uniq_signature_names_w.reserve(global_signs_num);
-
-    tree_dw = new TreeNode[global_signs_num];
-    tree_w  = new TreeNode[global_signs_num];
-    // ^^^для простоты выделяем памяти на всё кол-во известных сигнатур; реально используемое кол-во будет хранится в amount_(d)w
-
-    // заполнение массива selected_formats_fast (назван fast, потому что будет использоваться в recognizer'ах
+    // заполнение массива selected_formats_fast (будет использоваться в recognizer'ах
     // для быстрого лукапа, вместо использования my_formats.contains(), который гораздо медленнее;
-    // и одновременно добавление сигнатур в множества uniq_signature_names_(d)w, чтобы исключить повторения, т.к.
-    // разные форматы могут иметь одну и ту же сигнатуру, например WAV "RIFF" и AVI "RIFF";
     for (const auto & [key, val] : fformats.asKeyValueRange())
     {
-        if (this->my_formats.contains(key))
-        {
-            selected_formats_fast[val.index] = true;
-            for (const auto &name: val.signature_ids) // перербор всех сигнатур отдельного формата (у одного формата может быть несколько сигнатур, например у )
-            {
-                switch(signatures[name].signature_size)
-                {
-                case 2:
-                    uniq_signature_names_w.insert(name);
-                    break;
-                case 4:
-                    uniq_signature_names_dw.insert(name);
-                    break;
-                }
-            }
-        }
-        else
-        {
-            selected_formats_fast[val.index] = false;
-        }
+        selected_formats_fast[val.index] = this->my_formats.contains(key);
+        //qInfo() << " inside 'for': key:" << key << " val:" << val.index << " fast bool:" << selected_formats_fast[val.index];
     }
-
-    qInfo() << "uniq_signature_names_dw:"<< uniq_signature_names_dw;
-    qInfo() << "uniq_signature_names_w :"<< uniq_signature_names_w;
-
-    // добавление указателей на сигнатуры в таблицу signs_to_scan_(d)w
-    amount_dw = 0;
-    amount_w = 0;
-    for (const auto &name : uniq_signature_names_dw)
-    {
-        signatures_array_dw[amount_dw] = &signatures[name];
-        amount_dw++;
-    }
-    for (const auto &name : uniq_signature_names_w)
-    {
-        signatures_array_w[amount_w] = &signatures[name];
-        amount_w++;
-    }
-
-    // сортировка signs_to_scan_(d)w, т.к. для построения авл-дерева массив сигнатур должен быть предварительно упорядочен
-    sort_signatures_array(signatures_array_dw, amount_dw);
-    sort_signatures_array(signatures_array_w, amount_w);
-
-    // формируем АВЛ-деревья для сигнатур типа dword и word
-    int avl_index = 0;
-    if ( amount_dw > 0 ) prepare_avl_tree(tree_dw, signatures_array_dw, 0, amount_dw - 1, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
-    avl_index = 0;
-    if ( amount_w > 0 )  prepare_avl_tree(tree_w, signatures_array_w, 0, amount_w - 1, &avl_index); // рекурсивная ф-я, начальный диапазон от [#0 до #n], где #n = кол-во сигнатур - 1
-
-    // print_avl_tree(tree_dw, amount_dw);
-    // print_avl_tree(tree_w, amount_w);
-
-    // освобождаем массивы signs_to_scan_(d)w, т.к. дерево построили и они больше не нужны
-    delete [] signatures_array_dw;
-    delete [] signatures_array_w;
 }
 
 void WalkerThread::clean_structures_after_engine()
 {
     delete [] selected_formats_fast;
-    delete [] tree_dw;
-    delete [] tree_w;
 }
 
 void WalkerThread::run()
@@ -214,7 +74,7 @@ void WalkerThread::run()
 
             /////  запуск поискового движка
             s64i fix_msecs = QDateTime::currentMSecsSinceEpoch();
-            engine->scan_file_v5(walker_task.task_paths[tp_idx].path);
+            engine->scan_file(walker_task.task_paths[tp_idx].path);
             qInfo() << "scan_file worked for:" << (QDateTime::currentMSecsSinceEpoch() - fix_msecs) << "msecs";
             /////
 
@@ -256,7 +116,7 @@ void WalkerThread::run()
 
                         /////  запуск поискового движка
                         s64i fix_msecs = QDateTime::currentMSecsSinceEpoch();
-                        engine->scan_file_v5(file_infolist[idx].absoluteFilePath());
+                        engine->scan_file(file_infolist[idx].absoluteFilePath());
                         qInfo() << "scan_file worked for:" << (QDateTime::currentMSecsSinceEpoch() - fix_msecs) << "msecs";
                         /////
 

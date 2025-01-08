@@ -78,7 +78,7 @@ struct FileFormat
     u64i           additional_categories; // задаётся через битовое "|"
     QList<QString> signature_ids;  // список сигнатур для формата (может быть >= 1)
     u32i           index;
-    QString        cat_str; // для отображения в tooltip'ах
+    QString        tooltip_str; // для отображения в tooltip'ах
 };
 
 extern QMap <QString, FileFormat> fformats;
