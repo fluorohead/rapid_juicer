@@ -6,6 +6,7 @@
   //   3  |flc : 12AF
   //   4  |bik : 4249
   //   5  |bmp : 424D
+  //   24 |ch  : 4348
   //   6  |flx : 44AF
   //   7  |xm  : 4578 : 7465
   //   8  |iff : 464F : 524D
@@ -34,7 +35,7 @@
 #include <QByteArray>
 #include <asmjit/asmjit.h>
 
-//#define ASMJIT_STATIC
+// #define ASMJIT_STATIC
 // #define ASMJIT_NO_AARCH64
 // #define ASMJIT_NO_FOREIGN
 
@@ -56,7 +57,7 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "tga_tc32",   { 0x0000000000020000, 4, Engine::recognize_tga      } }, // "\0x00\0x00\0x02\0x00"
     { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_jpg      } }, // "\0xFF\0xD8\0xFF\0xE0"
     { "mid",        { 0x000000006468544D, 4, Engine::recognize_mid      } }, // "MThd"
-    { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod_mk   } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
+    { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod      } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
     { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm       } }, // "Exte"
     { "s3m",        { 0x000000004D524353, 4, Engine::recognize_s3m      } }, // "SCRM"
     { "it",         { 0x000000004D504D49, 4, Engine::recognize_it       } }, // "IMPM"
@@ -69,6 +70,7 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "flx_af44",   { 0x000000000000AF44, 2, Engine::recognize_flc      } }, // "\0x44\0xAF "Dave's Targa Animator (DTA)" software
     { "669_if",     { 0x0000000000006669, 2, Engine::recognize_669      } }, // "if"
     { "669_jn",     { 0x0000000000004E4A, 2, Engine::recognize_669      } }, // "JN"
+    { "mod_ch",     { 0x0000000000004843, 2, Engine::recognize_mod      } }, // "CH"
 };
 
 u16i be2le(u16i be) {
@@ -99,9 +101,6 @@ Engine::Engine(WalkerThread *walker_parent)
     command = &my_walker_parent->command;
     control_mutex = my_walker_parent->walker_control_mutex;
     scrupulous = my_walker_parent->walker_config.scrupulous;
-    read_buffer_size = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
-    qInfo() << "READ_BUFFER_SIZE" << read_buffer_size;
-    total_buffer_size = read_buffer_size + MAX_SIGNATURE_SIZE/*4*/;
     selected_formats = my_walker_parent->selected_formats_fast;
 }
 
@@ -224,6 +223,12 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x42 * 8), x86::rax);
     }
 
+    if ( selected_formats[fformats["mod"].index] )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[24])); // mod 'CH'
+        aj_asm.mov(x86::ptr(x86::rdi, 0x43 * 8), x86::rax);
+    }
+
     if ( selected_formats[fformats["flc"].index]  )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[6])); // flx
@@ -254,7 +259,6 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x49 * 8), x86::rax);
     }
 
-    qInfo() << " 669 index:" << fformats["669"].index;
     if ( selected_formats[fformats["669"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[23])); // 669_jn
@@ -267,9 +271,9 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x4B * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["mod_m.k."].index] or selected_formats[fformats["tif_mm"].index] or selected_formats[fformats["mid"].index] )
+    if ( selected_formats[fformats["mod"].index] or selected_formats[fformats["tif_mm"].index] or selected_formats[fformats["mid"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[13])); // mk, tif_mm, mid
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[13])); // mod 'M.K.', tif_mm, mid
         aj_asm.mov(x86::ptr(x86::rdi, 0x4D * 8), x86::rax);
     }
 
@@ -396,6 +400,18 @@ aj_asm.bind(aj_sub_labels[1]); // bmp ?
     }
     aj_asm.jmp(aj_loop_check_label);
 
+// ; 0x43
+aj_asm.bind(aj_signat_labels[24]);
+    // ; ch : 0x43'48
+    aj_asm.cmp(x86::al, 0x48);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_mod
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_mod));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
 // ; 0x44
 aj_asm.bind(aj_signat_labels[6]);
     // ; flx : 0x44'AF
@@ -509,11 +525,11 @@ aj_asm.bind(aj_signat_labels[12]);
 
 // ; 0x4D
 aj_asm.bind(aj_signat_labels[13]);
-    // ; mk  : 0x4D'2E : 0x4B'2E
-    // ; tfm : 0x4D'4D : 0x00'2A
-    // ; mid : 0x4D'54 : 0x68'64
+    // ; mk  : 0x4D'2E : 0x4B'2E   ('M.K.')
+    // ; tfm : 0x4D'4D : 0x00'2A   ('II\x00\x2A')
+    // ; mid : 0x4D'54 : 0x68'64   ('MThd')
 aj_asm.bind(aj_sub_labels[4]); // mod_m.k. ?
-    if ( selected_formats[fformats["mod_m.k."].index] )
+    if ( selected_formats[fformats["mod"].index] )
     {
         aj_asm.cmp(x86::al, 0x2E);
         aj_asm.jne(aj_sub_labels[5]);
@@ -522,7 +538,7 @@ aj_asm.bind(aj_sub_labels[4]); // mod_m.k. ?
         // вызов recognize_mod_mk
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
-        aj_asm.call(imm((u64i)Engine::recognize_mod_mk));
+        aj_asm.call(imm((u64i)Engine::recognize_mod));
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -933,7 +949,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         u16i division;
     };
 #pragma pack(pop)
-    qInfo() << " RIFF RECOGNIZER CALLED:";
+    //qInfo() << " RIFF RECOGNIZER CALLED:";
     static u32i avi_id {fformats["avi"].index};
     static u32i wav_id {fformats["wav"].index};
     static u32i rmi_id {fformats["rmi"].index};
@@ -945,7 +961,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
                                                     0x5453494C4E4F4341 /*ACONLIST*/,
                                                     0x68696E614E4F4341 /*ACONanih*/
                                                     };
-
     if ( ( !e->selected_formats[avi_id] ) and ( !e->selected_formats[wav_id] ) and ( e->selected_formats[rmi_id] ) and ( e->selected_formats[ani_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
@@ -997,14 +1012,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     case 0x5453494C4E4F4341: // ani - animated cursor with ACONLIST subchunk
     {
         if ( ( !e->selected_formats[ani_id] ) ) return 0;
-        Q_EMIT e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
+        Q_EMIT e->txResourceFound("acon", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
     case 0x68696E614E4F4341: // ani - animated cursor with ACONanih subchunk
     {
         if ( ( !e->selected_formats[ani_id] ) ) return 0;
-        Q_EMIT e->txResourceFound("ani", e->file.fileName(), base_index, resource_size, "");
+        Q_EMIT e->txResourceFound("acon", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
@@ -1407,7 +1422,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
-RECOGNIZE_FUNC_RETURN Engine::recognize_mod_mk RECOGNIZE_FUNC_HEADER
+RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
     struct SampleDescriptor
@@ -1428,12 +1443,46 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod_mk RECOGNIZE_FUNC_HEADER
         u8i  pattern_table[128];
     };
 #pragma pack(pop)
-    static u32i mod_mk_id {fformats["mod_m.k."].index};
-    if ( ( !e->selected_formats[mod_mk_id] ) ) return 0;
-    if ( e->scanbuf_offset < sizeof(MOD_31_Header) ) return 0;
+    //qInfo() << " MOD RECOGNIZER CALLED: " << e->scanbuf_offset;
+    static u32i mod_id {fformats["mod"].index};
+    if ( ( !e->selected_formats[mod_id] ) ) return 0;
     uchar *buffer = e->mmf_scanbuf;
-    u32i signature = *((u32i*)(&buffer[e->scanbuf_offset]));
-    u64i base_index = e->scanbuf_offset - sizeof(MOD_31_Header);
+    u64i base_index = e->scanbuf_offset;
+    // определяем положительную поправку для размера заголовка :
+    // +0 - для 'M.K.'
+    // +1 - для 'xCHN'
+    // +2 - для 'xxCH'
+    u64i offset_correction = 0;
+    u64i channels = 4;             // это стандартное значение для M.K.-модуля (далее может меняться)
+    u64i steps_in_pattern = 64;    // это стандартное значение для M.K.-модуля
+    u64i one_note_size = 4;        // это стандартное значение для M.K.-модуля
+    if ( *((u16i*)&buffer[base_index]) == 0x4843 )
+    {
+        if ( buffer[base_index + 2] == 'N' ) // 'xCHN'
+        {
+            offset_correction = 1;
+            if ( base_index < offset_correction) return 0;
+            channels = buffer[base_index - offset_correction];
+            if ( ( channels < 0x31 ) or ( channels > 0x39) ) return 0;
+            channels -= 0x30;
+        }
+        else // 'xxCH'
+        {
+            offset_correction = 2;
+            if ( base_index < offset_correction ) return 0;
+            u8i tens_place_ch_num;  // разряд десятков
+            u8i units_place_ch_num; // разряд единиц
+            tens_place_ch_num =  buffer[base_index - offset_correction];
+            units_place_ch_num = buffer[base_index - offset_correction + 1];
+            if ( ( tens_place_ch_num < 0x31 ) or ( tens_place_ch_num > 0x33) ) return 0;
+            if ( ( units_place_ch_num < 0x30 ) or ( units_place_ch_num > 0x39) ) return 0;
+            channels = (tens_place_ch_num - 0x30) * 10 + (units_place_ch_num - 0x30);
+            if ( channels > 32 ) return 0;
+        }
+    }
+    //
+    if ( e->scanbuf_offset < sizeof(MOD_31_Header) + offset_correction ) return 0;
+    base_index = e->scanbuf_offset - (sizeof(MOD_31_Header) + offset_correction);
     MOD_31_Header *info_header = (MOD_31_Header*)(&buffer[base_index]);
     u64i samples_block_size = 0;
     for (int sample_id = 0; sample_id < 31; ++sample_id) // калькуляция размера блока сэмплов
@@ -1448,17 +1497,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod_mk RECOGNIZE_FUNC_HEADER
     }
     // нашли самый большой номер -> это общее количество паттернов минус 1
     most_pattern_number += 1; // поэтому +1
-    u64i steps_in_pattern;
-    u64i channels;
-    u64i one_note_size;
-    switch(signature)
-    {
-    case 0x2E4B2E4D: // "M.K." - 64 steps, 4 channels, one note is 4 bytes
-        steps_in_pattern = 64;
-        channels = 4;
-        one_note_size = 4;
-        break;
-    }
     u64i patterns_block_size = (steps_in_pattern * channels * one_note_size) * most_pattern_number;
     u64i last_index = base_index + sizeof(MOD_31_Header) + 4 /*signature size*/ + patterns_block_size + samples_block_size;
     if ( last_index > e->file_size) return 0; // капитуляция при неверном размере; обрезанные не сохраняем
@@ -2089,7 +2127,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
     // qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
-    Q_EMIT e->txResourceFound("tif", e->file.fileName(), base_index, resource_size, "");
+    Q_EMIT e->txResourceFound("tif_ii", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -2230,7 +2268,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
     // qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
-    Q_EMIT e->txResourceFound("tif", e->file.fileName(), base_index, resource_size, "");
+    Q_EMIT e->txResourceFound("tif_mm", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -2305,8 +2343,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     _669_Header *info_header = (_669_Header*)(&buffer[base_index]);
     if ( ( info_header->smpnum == 0 ) and ( info_header->patnum == 0 ) ) return 0; // модуль без сэмплов и паттернов не имеет смысла
     if ( info_header->smpnum > 32 ) return 0; // не находил такого модуля, чтобы сэмплов было больше 32
-    if ( ( info_header->song_name[0] != 0 ) and ( info_header->song_name[0] < 32 )) return 0;
-    if ( ( info_header->song_name[0] != 0 ) and ( info_header->song_name[0] > 126 )) return 0;
+    for (u8i idx = 0; idx < sizeof(_669_Header::song_name); ++idx) // проверка на неподпустимые символы в названии песни
+    {
+        if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] < 32 )) return 0;
+        if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] > 126 )) return 0;
+    }
     s64i file_size = e->file_size;
     if ( base_index + sizeof(_669_Header) + sizeof(SampleHeader) * info_header->smpnum + info_header->patnum * 1536 > file_size) return 0; // 1536 - размер одного паттерна
     u64i last_index = base_index + sizeof(_669_Header); // переставляем last_index на первый заголовок сэмпла
@@ -2316,15 +2357,18 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     {
         if ( last_index + sizeof(SampleHeader) > file_size ) return 0; // не хватает места для заголовка сэмпла
         sample_header = (SampleHeader*)&buffer[last_index];
-        //qInfo() << " sample_id:" << idx << " sample_size:" << sample_header->sample_size;
+        //qInfo() << " sample_id:" << idx << " sample_size:" << sample_header->sample_size << " loop_begin:" << sample_header->loop_begin << " loop end:" << sample_header->loop_end;
 
-        // далее "наивная", но нужная проверка. сигнатура 'if' очень часто встречается. формат CAT_PERFRISK.
-        // проверка на ASCII имена сэмплов. ну хоть так, чем никак.
-        if ( ( sample_header->sample_name[0] != 0 ) and ( sample_header->sample_name[0] < 32 )) return 0;
-        if ( ( sample_header->sample_name[0] != 0 ) and ( sample_header->sample_name[0] > 126 )) return 0;
-
-        //if ( sample_header->sample_size > 1024 * 1024 ) return 0;
-
+        // сигнатура 'if' очень часто встречается, поэтому формат CAT_PERFRISK.
+        // нужны тщательные проверки :
+        if ( sample_header->loop_begin > sample_header->sample_size ) return 0;
+        if ( sample_header->loop_begin > sample_header->loop_end ) return 0;
+        for (u8i sub_idx = 0; idx < sizeof(SampleHeader::sample_name); ++idx) // проверка на неподпустимые символы в названии сэмпла
+        {
+            if ( ( sample_header->sample_name[sub_idx] != 0 ) and ( sample_header->sample_name[sub_idx] < 32 )) return 0;
+            if ( ( sample_header->sample_name[sub_idx] != 0 ) and ( sample_header->sample_name[sub_idx] > 126 )) return 0;
+        }
+        //
         samples_block += sample_header->sample_size;
         last_index += sizeof(SampleHeader); // переставляем last_index на следующий заголовок сэмпла (или начало паттернов, если завершение цикла)
     }

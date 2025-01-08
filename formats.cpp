@@ -106,7 +106,7 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "jpg",      { "JPEG File Interchange Format", "", "JPG", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "" } },
     { "acon",     { "Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
     { "aif",      { "Audio Interchange Format", "IFF container", "AIF", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "iff" }, 0, "" } },
-    { "mod_m.k.", { "Tracker Module", "most popular 'M.K.'", "MOD", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_NONE, { "mod_m.k." }, 0, "" } },
+    { "mod",      { "Tracker Module", "M.K./xCHN/xxCH", "MOD", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_NONE, { "mod_m.k.", "mod_ch" }, 0, "" } },
     { "xm",       { "FastTracker II Module" , "", "XM", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "xm" }, 0, "" } },
     { "s3m",      { "ScreamTracker 3 Module", "", "S3M", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "s3m" }, 0, "" } },
     { "it",       { "ImpulseTracker Module", "", "IT", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "it" }, 0, "" } },

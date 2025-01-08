@@ -49,8 +49,6 @@ class Engine: public QObject
     bool *selected_formats;
     QFile file; // текущий файл
     bool scrupulous;
-    u64i read_buffer_size; // 2|10|50 MiB
-    u64i total_buffer_size; // read_buffer_size + 4
     s64i file_size; // заполняется в функции scan_file()
     u64i scanbuf_offset; // текущее смещение в буфере
     u64i resource_offset; // начало ресурса; заполняется recognizer'ом, когда ресурс найден (если размер не 0)
@@ -73,7 +71,7 @@ public:
     RECOGNIZE_FUNC_DECL_RETURN recognize_pcx RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_gif RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_jpg RECOGNIZE_FUNC_HEADER;
-    RECOGNIZE_FUNC_DECL_RETURN recognize_mod_mk RECOGNIZE_FUNC_HEADER;
+    RECOGNIZE_FUNC_DECL_RETURN recognize_mod RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_xm RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_s3m RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_it RECOGNIZE_FUNC_HEADER;
