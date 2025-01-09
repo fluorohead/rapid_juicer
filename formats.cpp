@@ -115,7 +115,8 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "smk",      { "Smacker Video", "", "SMK", { CAT_VIDEO, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "smk2", "smk4" }, 0, "" } },
     { "flc",      { "FLIC Animation", "FLI/FLC/FLX", "FLC", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_ANIM, { "fli_af11", "flc_af12", "flx_af44" }, 0, "" } },
     { "669",      { "Composer 669 Module", "", "669", { CAT_AUDIO, CAT_MUSIC, CAT_PERFRISK }, CAT_DOS, { "669_if", "669_jn" }, 0, "" } },
-    { "au",       { "Sun/NeXT/Java AU Sound", "", "AU", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "au" }, 0, "" } }
+    { "au",       { "Sun/NeXT/Java AU Sound", "", "AU", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "au" }, 0, "" } },
+    { "voc",      { "Creative Labs Voice", "", "VOC", { CAT_AUDIO, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "voc" }, 0, "" } }
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 

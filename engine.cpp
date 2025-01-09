@@ -6,23 +6,24 @@
   //   3  |flc : 12AF
   //   25 |au  : 2E73 : 6E64
   //   4  |bik : 4249
-  //   5  |bmp : 424D
+  //   4  |bmp : 424D
   //   24 |ch  : 4348
+  //   24 |voc : 4372 : 6561
   //   6  |flx : 44AF
   //   7  |xm  : 4578 : 7465
   //   8  |iff : 464F : 524D
   //   9  |gif : 4749 : 4638
   //   10 |tfi : 4949 : 2A00
-  //   11 |it  : 494D : 504D
+  //   10 |it  : 494D : 504D
   //   23 |669 : 4A4E
   //   12 |bk2 : 4B42
   //   13 |mk  : 4D2E : 4B2E
-  //   14 |tfm : 4D4D : 002A
-  //   15 |mid : 4D54 : 6864
+  //   13 |tfm : 4D4D : 002A
+  //   13 |mid : 4D54 : 6864
   //   16 |rif : 5249 : 4646
   //   17 |s3m : 5343 : 524D
-  //   18 |sm2 : 534D : 4B32
-  //   19 |sm4 : 534D : 4B34
+  //   17 |sm2 : 534D : 4B32
+  //   17 |sm4 : 534D : 4B34
   //   22 |669 : 6966
   //   20 |png : 8950 : 4E47
   //   21 |jpg : FFD8 : FFE0
@@ -231,9 +232,9 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x42 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["mod"].index] )
+    if ( selected_formats[fformats["mod"].index] or selected_formats[fformats["voc"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[24])); // mod 'CH'
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[24])); // mod 'CH', voc
         aj_asm.mov(x86::ptr(x86::rdi, 0x43 * 8), x86::rax);
     }
 
@@ -424,14 +425,33 @@ aj_asm.bind(aj_sub_labels[1]); // bmp ?
 
 // ; 0x43
 aj_asm.bind(aj_signat_labels[24]);
-    // ; ch : 0x43'48
-    aj_asm.cmp(x86::al, 0x48);
-    aj_asm.jne(aj_loop_check_label);
-    // вызов recognize_mod
-    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
-    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
-    aj_asm.call(imm((u64i)Engine::recognize_mod));
-    //
+    // ;  ch : 0x43'48
+    // ; voc : 0x43'72 : 0x65'61
+aj_asm.bind(aj_sub_labels[9]); // mod_ch ?
+    if ( selected_formats[fformats["mod"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x48);
+        aj_asm.jne(aj_sub_labels[10]);
+        // вызов recognize_mod
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_mod));
+        //
+        aj_asm.jmp(aj_loop_check_label);
+    }
+aj_asm.bind(aj_sub_labels[10]); // voc ?
+    if ( selected_formats[fformats["voc"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x72);
+        aj_asm.jne(aj_loop_check_label);
+        aj_asm.cmp(x86::bx, 0x65'61);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_voc
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_voc));
+        //
+    }
     aj_asm.jmp(aj_loop_check_label);
 
 // ; 0x44
@@ -2434,22 +2454,75 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_au RECOGNIZE_FUNC_HEADER
     //qInfo() << " !!! AU RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     static u32i au_id {fformats["au"].index};
     static constexpr u64i min_room_need = sizeof(AU_Header);
-    static const QSet <u32i> VALID_SAMPLE_RATE { 8000, 8012, 8013, 11025, 22050, 44100, 48000 };
+    static const QSet <u32i> VALID_SAMPLE_RATE { 5500, 7333, 8000, 8012, 8013, 8192, 8363, 11025, 16000, 22050, 32000, 44056, 44100, 48000 };
     if ( !e->selected_formats[au_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
     AU_Header *info_header = (AU_Header*)(&buffer[base_index]);
     if ( be2le(info_header->data_offset) < sizeof(AU_Header) ) return 0;
-    qInfo() << "encoding:" << be2le(info_header->encoding) << " sample_rate:" << be2le(info_header->sample_rate) << " channels:" << be2le(info_header->channels);
+    //qInfo() << "encoding:" << be2le(info_header->encoding) << " sample_rate:" << be2le(info_header->sample_rate) << " channels:" << be2le(info_header->channels);
     if ( be2le(info_header->encoding) > 27 ) return 0;
     if ( !VALID_SAMPLE_RATE.contains(be2le(info_header->sample_rate)) ) return 0;
     if ( ( be2le(info_header->channels) < 1 ) or ( be2le(info_header->channels) > 2 ) ) return 0;
-    if ( info_header->data_size == 0xFFFFFFFF ) return 0; // судя по докам, такое значение в случае неопределённого размера данных - нам такое не подходит, т.к. невозможно определить размер ресурса
+    if ( info_header->data_size == 0xFFFFFFFF ) return 0; // судя по докам, значение 0xFFFFFFFF в случае неопределённого размера данных - нам такое не подходит, т.к. невозможно определить размер ресурса
     u64i last_index = base_index + be2le(info_header->data_offset) + be2le(info_header->data_size);
     if ( last_index > e->file_size ) return 0;
     u64i resource_size = last_index - base_index;
     Q_EMIT e->txResourceFound("au", e->file.fileName(), base_index, resource_size, "");
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct VOC_Header
+    {
+        u64i signature1; // 'Creative'
+        u64i signature2; // ' Voice F'
+        u32i signature3; // 'ile\x1A'
+        u16i header_size;
+        u16i version;
+        u16i checksum;
+    };
+    struct DataBlock
+    {
+        u32i type_with_size;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! VOC RECOGNIZER CALLED !!!";
+    static u32i voc_id {fformats["voc"].index};
+    static constexpr u64i min_room_need = sizeof(VOC_Header);
+    static const QSet <u16i> VALID_VERSION { 0x0100, 0x010A, 0x0114 };
+    if ( !e->selected_formats[voc_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    uchar *buffer = e->mmf_scanbuf;
+    VOC_Header *info_header = (VOC_Header*)(&buffer[base_index]);
+    if ( info_header->signature1 != 0x6576697461657243 ) return 0;
+    if ( info_header->signature2 != 0x46206563696F5620) return 0;
+    if ( info_header->signature3 != 0x1A656C69 ) return 0;
+    if ( info_header->header_size < sizeof(VOC_Header) ) return 0;
+    if ( !VALID_VERSION.contains(info_header->version) ) return 0;
+    u64i last_index = base_index + info_header->header_size;
+    s64i file_size = e->file_size;
+    if ( last_index >= file_size ) return 0; // не осталось места на data block'и
+    DataBlock *data_block;
+    while(true)
+    {
+        if ( last_index + 1 > file_size) return 0; // нет места на тип блока
+        if ( buffer[last_index] == 0 ) break; // достигли терминатора
+        if ( last_index + sizeof(DataBlock) > file_size ) break; // нет места на очередной data block -> вероятно достигли конца
+        data_block = (DataBlock*)&buffer[last_index];
+        if ( ( data_block->type_with_size & 0xFF ) > 9 ) return 0; // неизвестный тип блока
+        //qInfo() << " data_block type:" << (data_block->type_with_size & 0xFF);
+        last_index += ((data_block->type_with_size >> 8) + sizeof(DataBlock)); // сдвигаем вправо на 8, чтобы затереть type и оставить только size
+    }
+    last_index += 1; // на размер терминатора
+    if ( last_index > file_size) return 0;
+    u64i resource_size = last_index - base_index;
+    Q_EMIT e->txResourceFound("voc", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }
