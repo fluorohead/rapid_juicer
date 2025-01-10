@@ -86,7 +86,7 @@ QHash <u64i, QString> categories {
     { CAT_OTHER,      "custom", },
 };
 
-QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОРЯДОЧИВАНИЕ ПО КЛЮЧУ ЗА СЧЁТ КОНТЕЙНЕРА QMap
+QMap <QString, FileFormat> fformats {  // QMap -> АВТОМАТИЧЕСКОЕ УПОРЯДОЧИВАНИЕ ПО КЛЮЧУ
     // <ключ,     FileFormat>
     // |          |
     // V          V
@@ -102,7 +102,7 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "gif",      { "Graphics Interchange Format", "", "GIF", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "gif" }, 0, "" } },
     { "tif_ii",   { "Tag Image File Format", "Intel byte order", "TIF", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER | CAT_INTELX86, { "tiff_ii" }, 0, "" } },
     { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "TIF", { CAT_IMAGE, CAT_MAC, CAT_OUTDATED }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "" } },
-    { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "TGA", { CAT_IMAGE, CAT_OUTDATED, CAT_NONE }, CAT_RASTER, { "tga_tc32" }, 0, "" } },
+    { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "TGA", { CAT_IMAGE, CAT_OUTDATED, CAT_NONE }, CAT_RASTER, { "tga_tp2", "tga_tp10" }, 0, "" } },
     { "jpg",      { "JPEG File Interchange Format", "", "JPG", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "" } },
     { "ani_riff", { "Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
     { "aif",      { "Audio Interchange Format", "IFF container", "AIF", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "iff" }, 0, "" } },
@@ -118,7 +118,7 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "au",       { "Sun/NeXT/Java AU Sound", "", "AU", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "au" }, 0, "" } },
     { "voc",      { "Creative Labs Voice", "", "VOC", { CAT_AUDIO, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "voc" }, 0, "" } },
     { "mov_qt",   { "QuickTime Movie", "", "MOV", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_MAC, { "qt_mdat", "qt_moov" }, 0, "" } },
-    { "mp4_qt",   { "MPEG-4 Video", "", "MP4", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "qt_mdat", "qt_moov" }, 0, "" } }
+    { "mp4_qt",   { "MPEG-4 Video", "ISO/IEC 14496-1/-14", "MP4", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "qt_mdat", "qt_moov" }, 0, "" } }
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 

@@ -1,6 +1,7 @@
   //   lbl|sign| AHAL | BHBL
   //   ---|----|------|------
   //   0  |tga : 0000 : 0200
+  //   0  |tga : 0000 : 0A00
   //   1  |pcx : 0A05
   //   2  |fli : 11AF
   //   3  |flc : 12AF
@@ -45,10 +46,9 @@
 extern const QMap <u32i, QString> wave_codecs;
 
 QMap <QString, Signature> signatures { // в QMap значения будут автоматически упорядочены по ключам
-    // ключ (он же сигнатура формата)
+    // ключ
     // |
-    // V                        00RREEZZ
-    { "special",    { 0x000000003052455A, 4, Engine::recognize_special  } }, // "ZER0" zero-phase buffer filler
+    // V
     { "bmp",        { 0x0000000000004D42, 2, Engine::recognize_bmp      } }, // "BM"
     { "pcx_05",     { 0x000000000000050A, 2, Engine::recognize_pcx      } }, // "\0x0A\x05"
     { "png",        { 0x00000000474E5089, 4, Engine::recognize_png      } }, // "\x89PNG"
@@ -57,7 +57,8 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "gif",        { 0x0000000038464947, 4, Engine::recognize_gif      } }, // "GIF8"
     { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_tif_ii   } }, // "II*\0x00"
     { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_tif_mm   } }, // "MM\0x00*"
-    { "tga_tc32",   { 0x0000000000020000, 4, Engine::recognize_tga      } }, // "\0x00\0x00\0x02\0x00"
+    { "tga_tp2",    { 0x0000000000020000, 4, Engine::recognize_tga      } }, // "\0x00\0x00\0x02\0x00"
+    { "tga_tp10",   { 0x00000000000A0000, 4, Engine::recognize_tga      } }, // "\0x00\0x00\0x0A\0x00"
     { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_jpg      } }, // "\0xFF\0xD8\0xFF\0xE0"
     { "mid",        { 0x000000006468544D, 4, Engine::recognize_mid      } }, // "MThd"
     { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod      } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
@@ -358,10 +359,14 @@ aj_asm.bind(aj_loop_start_label);
 // ; 0x00
 aj_asm.bind(aj_signat_labels[0]);
 // ; tga : 0x00'00 : 0x02'00
+// ; tga : 0x00'00 : 0x0A'00
     aj_asm.cmp(x86::al, 0x00);
     aj_asm.jne(aj_loop_check_label);
     aj_asm.cmp(x86::bx, 0x02'00);
+    aj_asm.je(aj_sub_labels[13]);
+    aj_asm.cmp(x86::bx, 0x0A'00);
     aj_asm.jne(aj_loop_check_label);
+aj_asm.bind(aj_sub_labels[13]);
     // вызов recognize_tga
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
@@ -2707,9 +2712,40 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mov_qt RECOGNIZE_FUNC_HEADER
 RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
+    struct TGA_Header
+    {
+        u8i  id_len, color_map_type, image_type;
+        u16i cmap_start, cmap_len;
+        u8i  cmap_depth;
+        u16i x_offset, y_offset;
+        u16i width, height;
+        u8i  pix_depth;
+        u8i  image_descriptor;
+    };
 #pragma pack(pop)
     //qInfo() << " !!! TGA RECOGNIZER CALLED !!!";
-
-    return 0;
+    static u32i tga_id {fformats["tga_tc32"].index};
+    static constexpr u64i min_room_need = sizeof(TGA_Header);
+    if ( !e->selected_formats[tga_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    uchar *buffer = e->mmf_scanbuf;
+    TGA_Header *info_header = (TGA_Header*)(&buffer[base_index]);
+    if ( info_header->cmap_start != 0 ) return 0;
+    if ( info_header->cmap_len != 0 ) return 0;
+    if ( info_header->cmap_depth != 0 ) return 0;
+    if ( ( info_header->width < 1) or ( info_header->width > 4096 ) ) return 0;
+    if ( info_header->width > 4096 ) return 0;
+    if ( ( info_header->pix_depth != 24 ) and ( info_header->pix_depth != 32 ) ) return 0;
+    u64i last_index = base_index + sizeof(TGA_Header) + info_header->width * info_header->height * (info_header->pix_depth / 8); // вычисление эмпирического размера
+    last_index += 4096; // накидываем ещё 4K, если вдруг это TGA v2 и есть области расширения и разработчика
+    if ( last_index > e->file_size ) last_index = e->file_size;
+    u64i resource_size = last_index - base_index;
+    QString info = QString("%1x%2 %3-bpp").arg( QString::number(info_header->width),
+                                                QString::number(info_header->height),
+                                                QString::number(info_header->pix_depth));
+    Q_EMIT e->txResourceFound("tga_tc32", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
 }
 
