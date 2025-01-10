@@ -2444,15 +2444,16 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
     _669_Header *info_header = (_669_Header*)(&buffer[base_index]);
-    if ( ( info_header->smpnum == 0 ) and ( info_header->patnum == 0 ) ) return 0; // модуль без сэмплов и паттернов не имеет смысла
-    if ( info_header->smpnum > 32 ) return 0; // не находил такого модуля, чтобы сэмплов было больше 32
+    if ( ( info_header->smpnum == 0 ) or ( info_header->patnum == 0 ) ) return 0; // жесткая проверка (т.к. в теории могут быть модули и без сэмплов и без паттернов), но вынужденная, иначе много ложных срабатываний
+    if ( info_header->smpnum > 64 ) return 0; // согласно описанию
+    if ( info_header->patnum > 128 ) return 0; // согласно описанию
     for (u8i idx = 0; idx < sizeof(_669_Header::song_name); ++idx) // проверка на неподпустимые символы в названии песни
     {
         if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] < 32 )) return 0;
         if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] > 126 )) return 0;
     }
     s64i file_size = e->file_size;
-    if ( base_index + sizeof(_669_Header) + sizeof(SampleHeader) * info_header->smpnum + info_header->patnum * 1536 > file_size) return 0; // 1536 - размер одного паттерна
+    if ( base_index + sizeof(_669_Header) + sizeof(SampleHeader) * info_header->smpnum + info_header->patnum * 1536 > file_size) return 0; // где 1536 - размер одного паттерна
     u64i last_index = base_index + sizeof(_669_Header); // переставляем last_index на первый заголовок сэмпла
     SampleHeader *sample_header;
     u64i samples_block = 0; // суммарный размер тел сэмплов
@@ -2460,13 +2461,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     {
         if ( last_index + sizeof(SampleHeader) > file_size ) return 0; // не хватает места для заголовка сэмпла
         sample_header = (SampleHeader*)&buffer[last_index];
-        //qInfo() << " sample_id:" << idx << " sample_size:" << sample_header->sample_size << " loop_begin:" << sample_header->loop_begin << " loop end:" << sample_header->loop_end;
-
+     // qInfo() << " sample_id:" << idx << " sample_size:" << sample_header->sample_size << " loop_begin:" << sample_header->loop_begin << " loop end:" << sample_header->loop_end;
         // сигнатура 'if' очень часто встречается, поэтому формат CAT_PERFRISK.
         // нужны тщательные проверки :
         if ( sample_header->loop_begin > sample_header->sample_size ) return 0;
+        if ( sample_header->loop_end > sample_header->sample_size ) return 0;
         if ( sample_header->loop_begin > sample_header->loop_end ) return 0;
-        for (u8i sub_idx = 0; idx < sizeof(SampleHeader::sample_name); ++idx) // проверка на неподпустимые символы в названии сэмпла
+        for (u8i sub_idx = 0; idx < sizeof(SampleHeader::sample_name); ++idx) // проверка на неподпустимые символы в названиях сэмплов
         {
             if ( ( sample_header->sample_name[sub_idx] != 0 ) and ( sample_header->sample_name[sub_idx] < 32 )) return 0;
             if ( ( sample_header->sample_name[sub_idx] != 0 ) and ( sample_header->sample_name[sub_idx] > 126 )) return 0;
