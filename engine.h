@@ -84,8 +84,8 @@ public:
     RECOGNIZE_FUNC_DECL_RETURN recognize_au RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_voc RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_mov_qt RECOGNIZE_FUNC_HEADER;
-
     RECOGNIZE_FUNC_DECL_RETURN recognize_tga RECOGNIZE_FUNC_HEADER;
+    RECOGNIZE_FUNC_DECL_RETURN recognize_ico_cur RECOGNIZE_FUNC_HEADER;
 
 Q_SIGNALS:
     void txFileProgress(QString file_name, s64i percentage_value);

@@ -2,6 +2,8 @@
   //   ---|----|------|------
   //   0  |tga : 0000 : 0200
   //   0  |tga : 0000 : 0A00
+  //   0  |ico : 0000 : 0100
+  //   0  |cur : 0000 : 0200 <- crossing with tga
   //   1  |pcx : 0A05
   //   2  |fli : 11AF
   //   3  |flc : 12AF
@@ -50,16 +52,16 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     // |
     // V
     { "bmp",        { 0x0000000000004D42, 2, Engine::recognize_bmp      } }, // "BM"
-    { "pcx_05",     { 0x000000000000050A, 2, Engine::recognize_pcx      } }, // "\0x0A\x05"
+    { "pcx_05",     { 0x000000000000050A, 2, Engine::recognize_pcx      } }, // "\x0A\x05"
     { "png",        { 0x00000000474E5089, 4, Engine::recognize_png      } }, // "\x89PNG"
     { "riff",       { 0x0000000046464952, 4, Engine::recognize_riff     } }, // "RIFF"
     { "iff",        { 0x000000004D524F46, 4, Engine::recognize_iff      } }, // "FORM"
     { "gif",        { 0x0000000038464947, 4, Engine::recognize_gif      } }, // "GIF8"
-    { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_tif_ii   } }, // "II*\0x00"
-    { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_tif_mm   } }, // "MM\0x00*"
-    { "tga_tp2",    { 0x0000000000020000, 4, Engine::recognize_tga      } }, // "\0x00\0x00\0x02\0x00"
-    { "tga_tp10",   { 0x00000000000A0000, 4, Engine::recognize_tga      } }, // "\0x00\0x00\0x0A\0x00"
-    { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_jpg      } }, // "\0xFF\0xD8\0xFF\0xE0"
+    { "tiff_ii",    { 0x00000000002A4949, 4, Engine::recognize_tif_ii   } }, // "II*\x00"
+    { "tiff_mm",    { 0x000000002A004D4D, 4, Engine::recognize_tif_mm   } }, // "MM\x00*"
+    { "tga_tp2",    { 0x0000000000020000, 4, Engine::recognize_tga      } }, // "\x00\x00\x02\x00"
+    { "tga_tp10",   { 0x00000000000A0000, 4, Engine::recognize_tga      } }, // "\x00\x00\x0A\x00"
+    { "jpg",        { 0x00000000E0FFD8FF, 4, Engine::recognize_jpg      } }, // "\xFF\xD8\xFF\xE0"
     { "mid",        { 0x000000006468544D, 4, Engine::recognize_mid      } }, // "MThd"
     { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod      } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
     { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm       } }, // "Exte"
@@ -69,15 +71,18 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "bink2",      { 0x000000000000424B, 2, Engine::recognize_bink     } }, // "KB"
     { "smk2",       { 0x00000000324B4D53, 4, Engine::recognize_smk      } }, // "SMK2"
     { "smk4",       { 0x00000000344B4D53, 4, Engine::recognize_smk      } }, // "SMK4"
-    { "fli_af11",   { 0x000000000000AF11, 2, Engine::recognize_flc      } }, // "\0x11\0xAF
-    { "flc_af12",   { 0x000000000000AF12, 2, Engine::recognize_flc      } }, // "\0x12\0xAF
-    { "flx_af44",   { 0x000000000000AF44, 2, Engine::recognize_flc      } }, // "\0x44\0xAF "Dave's Targa Animator (DTA)" software
+    { "fli_af11",   { 0x000000000000AF11, 2, Engine::recognize_flc      } }, // "\x11\xAF
+    { "flc_af12",   { 0x000000000000AF12, 2, Engine::recognize_flc      } }, // "\x12\xAF
+    { "flx_af44",   { 0x000000000000AF44, 2, Engine::recognize_flc      } }, // "\x44\xAF "Dave's Targa Animator (DTA)" software
     { "669_if",     { 0x0000000000006669, 2, Engine::recognize_669      } }, // "if"
     { "669_jn",     { 0x0000000000004E4A, 2, Engine::recognize_669      } }, // "JN"
     { "mod_ch",     { 0x0000000000004843, 2, Engine::recognize_mod      } }, // "CH"
     { "au",         { 0x00000000646E732E, 4, Engine::recognize_au       } }, // ".snd"
     { "qt_mdat",    { 0x000000007461646D, 4, Engine::recognize_mov_qt   } }, // "mdat"
     { "qt_moov",    { 0x00000000766F6F6D, 4, Engine::recognize_mov_qt   } }, // "moov"
+    { "qt_moov",    { 0x00000000766F6F6D, 4, Engine::recognize_mov_qt   } }, // "moov"
+    { "ico_win",    { 0x0000000000010000, 4, Engine::recognize_ico_cur  } }, // "\x00\x00\x01\x00"
+    { "cur_win",    { 0x0000000000020000, 4, Engine::recognize_ico_cur  } }, // "\x00\x00\x02\x00"
 };
 
 u16i be2le(u16i be) {
@@ -219,9 +224,9 @@ aj_asm.bind(aj_prolog_label);
     aj_asm.sub(x86::rdi, imm(256*8)); // возвращаем rdi на начало вектора
 
     // выборочно заполняем вектор адресами предобработчиков
-    if ( selected_formats[fformats["tga_tc"].index] )
+    if ( selected_formats[fformats["tga_tc"].index] or selected_formats[fformats["ico_win"].index] or selected_formats[fformats["cur_win"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[0])); // tag_tc32
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[0])); // tag_tc, ico_win, cur_win
         aj_asm.mov(x86::ptr(x86::rdi, 0x00 * 8), x86::rax);
     }
 
@@ -360,18 +365,36 @@ aj_asm.bind(aj_loop_start_label);
 aj_asm.bind(aj_signat_labels[0]);
 // ; tga : 0x00'00 : 0x02'00
 // ; tga : 0x00'00 : 0x0A'00
+// ; ico : 0x00'00 : 0x01'00
+// ; cur : 0x00'00 : 0x02'00
     aj_asm.cmp(x86::al, 0x00);
     aj_asm.jne(aj_loop_check_label);
     aj_asm.cmp(x86::bx, 0x02'00);
     aj_asm.je(aj_sub_labels[13]);
     aj_asm.cmp(x86::bx, 0x0A'00);
-    aj_asm.jne(aj_loop_check_label);
+    aj_asm.je(aj_sub_labels[13]);
+    aj_asm.cmp(x86::bx, 0x01'00);
+    aj_asm.je(aj_sub_labels[14]);
+    aj_asm.jmp(aj_loop_check_label);
 aj_asm.bind(aj_sub_labels[13]);
-    // вызов recognize_tga
-    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
-    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
-    aj_asm.call(imm((u64i)Engine::recognize_tga));
-    //
+    if ( selected_formats[fformats["tga_tc"].index] )
+    {
+        // вызов recognize_tga
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_tga));
+        //
+    }
+    aj_asm.jmp(aj_loop_check_label);
+aj_asm.bind(aj_sub_labels[14]);
+    if ( selected_formats[fformats["ico_win"].index] or selected_formats[fformats["cur_win"].index] )
+    {
+        // вызов recognize_ico_cur
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_ico_cur));
+        //
+    }
     aj_asm.jmp(aj_loop_check_label);
 
 // ; 0x0A
@@ -2728,15 +2751,15 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     static u32i tga_id {fformats["tga_tc"].index};
     static constexpr u64i min_room_need = sizeof(TGA_Header);
     static const QSet <u8i> VALID_PIX_DEPTH { 16, 24, 32 };
-    if ( !e->selected_formats[tga_id] ) return 0;
-    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    if ( !e->selected_formats[tga_id] ) return recognize_ico_cur(e); // если не tga, так может cur ?
+    if ( !e->enough_room_to_continue(min_room_need) ) return recognize_ico_cur(e);
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
     TGA_Header *info_header = (TGA_Header*)(&buffer[base_index]);
-    if ( info_header->cmap_start != 0 ) return 0;
-    if ( info_header->cmap_len != 0 ) return 0;
-    if ( ( info_header->width < 1) or ( info_header->width > 4096 ) ) return 0;
-    if ( !VALID_PIX_DEPTH.contains(info_header->pix_depth) ) return 0;
+    if ( info_header->cmap_start != 0 ) return recognize_ico_cur(e); // если не tga, так может cur ?
+    if ( info_header->cmap_len != 0 ) return recognize_ico_cur(e); // если не tga, так может cur ?
+    if ( ( info_header->width < 1) or ( info_header->width > 4096 ) ) return recognize_ico_cur(e);
+    if ( !VALID_PIX_DEPTH.contains(info_header->pix_depth) ) return recognize_ico_cur(e); // если не tga, так может cur ?
     u64i last_index = base_index + sizeof(TGA_Header) + info_header->width * info_header->height * (info_header->pix_depth / 8); // вычисление эмпирического размера
     last_index += 4096; // накидываем ещё 4K, если вдруг это TGA v2 и есть области расширения и разработчика
     if ( last_index > e->file_size ) last_index = e->file_size;
@@ -2749,3 +2772,53 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
+RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
+{ // https://docs.fileformat.com/image/ico/
+#pragma pack(push,1)
+    struct ICO_Header // одинаков для ico и cur
+    {
+        u32i signature;
+        u16i count;
+    };
+    struct Directory // одинаков для ico и cur
+    {
+        u8i  width, height, color_count, reserved;
+        u16i cpl_xhotspot, bpp_yhotspot;
+        u32i bitmap_size, bitmap_offset;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! ICO/CUR RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static u32i ico_id {fformats["ico_win"].index};
+    static u32i cur_id {fformats["cur_win"].index};
+    static constexpr u64i min_room_need = sizeof(ICO_Header);
+    if ( !e->selected_formats[ico_id] and !e->selected_formats[cur_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    uchar *buffer = e->mmf_scanbuf;
+    ICO_Header *info_header = (ICO_Header*)(&buffer[base_index]);
+    if ( info_header->count < 1 ) return 0;
+    bool is_cur = (info_header->signature == 0x00020000 );
+    if ( is_cur and !e->selected_formats[cur_id] ) return 0;
+    if ( !is_cur and !e->selected_formats[ico_id] ) return 0;
+    u64i last_index = base_index + sizeof(ICO_Header); // last_index на начало директорий изображений
+    s64i file_size = e->file_size;
+    Directory *directory;
+    QMap<u32i, u32i> db; // бд тел битмапов: ключ - смещение, значение - размер
+    for (u16i idx = 0; idx < info_header->count; ++idx)
+    {
+        if ( last_index + sizeof(Directory) > file_size) return 0; // не хватает места на Directory
+        directory = (Directory*)&buffer[last_index];
+        if ( directory->reserved != 0 ) return 0;
+        if ( ( !is_cur ) and ( directory->cpl_xhotspot > 1 ) ) return 0;
+        db[directory->bitmap_offset] = directory->bitmap_size;
+        last_index += sizeof(Directory);
+    }
+    //qInfo() << "most far offset:" << db.lastKey() << " bitmap size:" << db[db.lastKey()];
+    if ( db.lastKey() < sizeof(ICO_Header) + sizeof(Directory) ) return 0;
+    last_index = base_index + db.lastKey() + db[db.lastKey()];
+    if ( last_index > file_size ) return 0;
+    u64i resource_size = last_index - base_index;
+    Q_EMIT e->txResourceFound((is_cur) ? "cur_win" : "ico_win", e->file.fileName(), base_index, resource_size, "");
+    e->resource_offset = base_index;
+    return resource_size;
+}
