@@ -219,7 +219,7 @@ aj_asm.bind(aj_prolog_label);
     aj_asm.sub(x86::rdi, imm(256*8)); // возвращаем rdi на начало вектора
 
     // выборочно заполняем вектор адресами предобработчиков
-    if ( selected_formats[fformats["tga_tc32"].index] )
+    if ( selected_formats[fformats["tga_tc"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[0])); // tag_tc32
         aj_asm.mov(x86::ptr(x86::rdi, 0x00 * 8), x86::rax);
@@ -2723,9 +2723,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
         u8i  image_descriptor;
     };
 #pragma pack(pop)
-    //qInfo() << " !!! TGA RECOGNIZER CALLED !!!";
-    static u32i tga_id {fformats["tga_tc32"].index};
+    //qInfo() << " !!! TGA RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static u32i tga_id {fformats["tga_tc"].index};
     static constexpr u64i min_room_need = sizeof(TGA_Header);
+    static const QSet <u8i> VALID_PIX_DEPTH { 16, 24, 32 };
     if ( !e->selected_formats[tga_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
@@ -2733,10 +2734,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     TGA_Header *info_header = (TGA_Header*)(&buffer[base_index]);
     if ( info_header->cmap_start != 0 ) return 0;
     if ( info_header->cmap_len != 0 ) return 0;
-    if ( info_header->cmap_depth != 0 ) return 0;
     if ( ( info_header->width < 1) or ( info_header->width > 4096 ) ) return 0;
-    if ( info_header->width > 4096 ) return 0;
-    if ( ( info_header->pix_depth != 24 ) and ( info_header->pix_depth != 32 ) ) return 0;
+    if ( !VALID_PIX_DEPTH.contains(info_header->pix_depth) ) return 0;
     u64i last_index = base_index + sizeof(TGA_Header) + info_header->width * info_header->height * (info_header->pix_depth / 8); // вычисление эмпирического размера
     last_index += 4096; // накидываем ещё 4K, если вдруг это TGA v2 и есть области расширения и разработчика
     if ( last_index > e->file_size ) last_index = e->file_size;
@@ -2744,7 +2743,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     QString info = QString("%1x%2 %3-bpp").arg( QString::number(info_header->width),
                                                 QString::number(info_header->height),
                                                 QString::number(info_header->pix_depth));
-    Q_EMIT e->txResourceFound("tga_tc32", e->file.fileName(), base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("tga_tc", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
