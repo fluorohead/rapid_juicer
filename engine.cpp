@@ -1,4 +1,4 @@
-  //   num|sign|   AX |   BX
+  //   lbl|sign| AHAL | BHBL
   //   ---|----|------|------
   //   0  |tga : 0000 : 0200
   //   1  |pcx : 0A05
@@ -25,9 +25,10 @@
   //   17 |sm2 : 534D : 4B32
   //   17 |sm4 : 534D : 4B34
   //   22 |669 : 6966
+  //   26 |mdat: 6D64 : 6174
+  //   26 |moov: 6D6F : 6F76
   //   20 |png : 8950 : 4E47
   //   21 |jpg : FFD8 : FFE0
-
 
 #include "engine.h"
 #include "walker.h"
@@ -74,6 +75,8 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "669_jn",     { 0x0000000000004E4A, 2, Engine::recognize_669      } }, // "JN"
     { "mod_ch",     { 0x0000000000004843, 2, Engine::recognize_mod      } }, // "CH"
     { "au",         { 0x00000000646E732E, 4, Engine::recognize_au       } }, // ".snd"
+    { "qt_mdat",    { 0x000000007461646D, 4, Engine::recognize_mov_qt   } }, // "mdat"
+    { "qt_moov",    { 0x00000000766F6F6D, 4, Engine::recognize_mov_qt   } }, // "moov"
 };
 
 u16i be2le(u16i be) {
@@ -95,6 +98,22 @@ u32i be2le(u32i be) {
     bytes[1] = be >> 16;
     bytes[2] = be >> 8 ;
     bytes[3] = be;
+    return as_le;
+}
+
+u32i be2le(u64i be) {
+    union {
+        u64i as_le;
+        u8i  bytes[8];
+    };
+    bytes[0] = be >> 56;
+    bytes[1] = be >> 48;
+    bytes[2] = be >> 40 ;
+    bytes[3] = be >> 32;
+    bytes[4] = be >> 24;
+    bytes[5] = be >> 16;
+    bytes[6] = be >> 8;
+    bytes[7] = be;
     return as_le;
 }
 
@@ -286,7 +305,7 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x4D * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["avi"].index] or selected_formats[fformats["wav"].index] or selected_formats[fformats["rmi"].index] or selected_formats[fformats["acon"].index] )
+    if ( selected_formats[fformats["avi"].index] or selected_formats[fformats["wav"].index] or selected_formats[fformats["rmi"].index] or selected_formats[fformats["ani_riff"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[16])); // riff
         aj_asm.mov(x86::ptr(x86::rdi, 0x52 * 8), x86::rax);
@@ -298,13 +317,19 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x53 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["669"].index]  )
+    if ( selected_formats[fformats["669"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[22])); // 669_if
         aj_asm.mov(x86::ptr(x86::rdi, 0x69 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["png"].index]  )
+    if ( selected_formats[fformats["mov_qt"].index] or selected_formats[fformats["mp4_qt"].index])
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[26])); // mdat, moov
+        aj_asm.mov(x86::ptr(x86::rdi, 0x6D * 8), x86::rax);
+    }
+
+    if ( selected_formats[fformats["png"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[20])); // png
         aj_asm.mov(x86::ptr(x86::rdi, 0x89 * 8), x86::rax);
@@ -677,6 +702,28 @@ aj_asm.bind(aj_signat_labels[22]);
     //
     aj_asm.jmp(aj_loop_check_label);
 
+// ; 0x6D
+aj_asm.bind(aj_signat_labels[26]);
+    // ; mdat: 6D'64 : 61'74
+    // ; moov: 6D'6F : 6F'76
+    aj_asm.cmp(x86::al, 0x64);
+    aj_asm.je(aj_sub_labels[11]);
+    aj_asm.cmp(x86::al, 0x6F);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x6F'76);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.jmp(aj_sub_labels[12]);
+aj_asm.bind(aj_sub_labels[11]);
+    aj_asm.cmp(x86::bx, 0x61'74);
+    aj_asm.jne(aj_loop_check_label);
+aj_asm.bind(aj_sub_labels[12]);
+    // вызов recognize_mov_qt
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_mov_qt));
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
 // ; 0x89
 aj_asm.bind(aj_signat_labels[20]);
     // ; png : 0x89'50 : 0x4E'47
@@ -995,7 +1042,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     static u32i avi_id {fformats["avi"].index};
     static u32i wav_id {fformats["wav"].index};
     static u32i rmi_id {fformats["rmi"].index};
-    static u32i ani_id {fformats["acon"].index};
+    static u32i ani_id {fformats["ani_riff"].index};
     static const u64i min_room_need = sizeof(ChunkHeader);
     static const QSet <u64i> VALID_SUBCHUNK_TYPE {  0x5453494C20495641 /*AVI LIST*/,
                                                     0x20746D6645564157 /*WAVEfmt */,
@@ -1054,14 +1101,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     case 0x5453494C4E4F4341: // ani - animated cursor with ACONLIST subchunk
     {
         if ( ( !e->selected_formats[ani_id] ) ) return 0;
-        Q_EMIT e->txResourceFound("acon", e->file.fileName(), base_index, resource_size, "");
+        Q_EMIT e->txResourceFound("ani_riff", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
     case 0x68696E614E4F4341: // ani - animated cursor with ACONanih subchunk
     {
         if ( ( !e->selected_formats[ani_id] ) ) return 0;
-        Q_EMIT e->txResourceFound("acon", e->file.fileName(), base_index, resource_size, "");
+        Q_EMIT e->txResourceFound("ani_riff", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
@@ -2527,11 +2574,142 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
+RECOGNIZE_FUNC_RETURN Engine::recognize_mov_qt RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct AtomHeader
+    {
+        u32i size;
+        u32i type;
+    };
+    struct MP4_FtypHeader // size 28
+    {
+        u64i signature1; // '....ftyp'
+        u32i signature2; // 'mp42'
+        u32i signature2_data;
+        u32i signature3; // 'isom'
+        u32i signature3_data;
+        u32i signature4; // 'mp42'
+    };
+    struct MOV_FtypHeader_32 // size 32
+    {
+        u64i signature1;
+        u64i signature2;
+        u64i signature3;
+        u32i signature4;
+    };
+    struct MOV_FtypHeader_40 // size 40
+    {
+        u64i signature1;
+        u64i signature2;
+        u64i signature3;
+        u64i signature4;
+        u64i signature5;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! QT_MOV RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static u32i mov_qt_id {fformats["mov_qt"].index};
+    static u32i mp4_qt_id {fformats["mp4_qt"].index};
+    static const QSet <u32i> VALID_ATOM_TYPE { 0x7461646d /*mdat*/, 0x766F6F6D /*moov*/, 0x65646977 /*wide*/, 0x65657266 /*free*/, 0x70696B73 /*skip*/, 0x746F6E70 /*pnot*/};
+    if ( !e->selected_formats[mov_qt_id] and !e->selected_formats[mp4_qt_id] ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    if ( base_index < sizeof(AtomHeader::size) ) return 0; // нет места на поле size
+    base_index -= sizeof(AtomHeader::size);
+    u64i last_index = base_index; // ставим на самый первый atom
+    uchar *buffer = e->mmf_scanbuf;
+    bool mp4_flag = false;
+    bool was_mdat = false; // встречался ли атом mdat?
+    bool was_moov = false; // встречался ли атом moov?
+    if ( e->selected_formats[mp4_qt_id] and ( base_index >= sizeof(MP4_FtypHeader) ) ) // может это mp4 с ftyp-заголовком, а не обычный mov ?
+    {
+        MP4_FtypHeader *ftyp_header = (MP4_FtypHeader*)&buffer[base_index - sizeof(MP4_FtypHeader)];
+        if (( ftyp_header->signature1 == 0x707974661C000000 ) and
+            ( ftyp_header->signature2 == 0x3234706D ) and
+            ( ftyp_header->signature3 == 0x6D6F7369 ) and
+            ( ftyp_header->signature4 == 0x3234706D ) )
+        {
+            //qInfo() << " MP4 FTYP HEADER PRESENTS";
+            base_index -= sizeof(MP4_FtypHeader);
+            mp4_flag = true;
+        }
+    }
+    if ( !mp4_flag and ( base_index >= sizeof(MOV_FtypHeader_32) ) ) // а может у mov тоже есть ftyp-заголовок?
+    {
+        MOV_FtypHeader_32 *ftyp_header = (MOV_FtypHeader_32*)&buffer[base_index - sizeof(MOV_FtypHeader_32)];
+        if (( ftyp_header->signature1 == 0x70797466'14'000000 ) and
+            ( ftyp_header->signature2 == 0x00'00'00'00'20207471 ) and
+            ( ftyp_header->signature3 == 0x08'00000020207471 ) and
+            ( ftyp_header->signature4 == 0x65646977 ) )
+        {
+            //qInfo() << " MOV FTYP_32 HEADER PRESENTS";
+            base_index -= sizeof(MOV_FtypHeader_32);
+        }
+    }
+    if ( !mp4_flag and ( base_index >= sizeof(MOV_FtypHeader_40) ) ) // а может у mov тоже есть ftyp-заголовок?
+    {
+        MOV_FtypHeader_40 *ftyp_header = (MOV_FtypHeader_40*)&buffer[base_index - sizeof(MOV_FtypHeader_40)];
+        if (( ftyp_header->signature1 == 0x70797466'20'000000 ) and
+            ( ftyp_header->signature2 == 0x00'03'05'20'20207471 ) and
+            ( ftyp_header->signature3 == 0x00'00000020207471 ) and
+            ( ftyp_header->signature4 == 0x0000000000000000 ) and
+            ( ftyp_header->signature5 == 0x6564697708000000 ))
+        {
+            //qInfo() << " MOV FTYP_40 HEADER PRESENTS";
+            base_index -= sizeof(MOV_FtypHeader_40);
+        }
+    }
+    AtomHeader *atom_header;
+    s64i file_size = e->file_size;
+    while(true)
+    {
+        if ( last_index + sizeof(AtomHeader) >= file_size ) break; // нет местам на заголовок очередного атома -> достигли конца ресурса
+        atom_header = (AtomHeader*)&buffer[last_index];
+        if ( !VALID_ATOM_TYPE.contains(atom_header->type) ) break; // неизвестный атом -> далее не сканируем
+        if ( atom_header->type == 0x7461646d ) was_mdat = true;
+        if ( atom_header->type == 0x766F6F6D ) was_moov = true;
+        if ( ( be2le(atom_header->size) == 1 ) and ( atom_header->type == 0x7461646d /*mdat*/) ) // значит размер в виде 8 байт идёт после поля type, а не перед ним
+        {
+            //qInfo() << "\n :::::::::::;;;;;;;;;;;;; ------> mdat with size==1 !!!!\n";
+            if ( last_index + sizeof(AtomHeader) + sizeof(u64i) <= file_size ) // а место-то есть для extended size?
+            {
+                last_index += be2le(*((u64i*)&buffer[last_index + sizeof(AtomHeader)]));
+            }
+            else
+            {
+                break;
+            }
+        }
+        else
+        {
+            if ( be2le(atom_header->size) < sizeof(AtomHeader) )
+            {
+                break; // вероятно неверное поле size
+            }
+            else
+            {
+                last_index += be2le(atom_header->size);
+            }
+        }
+        // qInfo() << " last atom_type:" << QString::number(atom_header->type, 16);
+        // qInfo() << " last_index:" << last_index;
+        if ( last_index > file_size ) return 0;
+    }
+    // в этом месте last_index уже должен стоять в конце ресурса
+    u64i resource_size = last_index - base_index;
+    if ( resource_size < 48 ) return 0; // 48 - просто импирическая величина; вряд ли ресурс с таким размером является корректным
+    //qInfo() << " was_moov:" << was_moov << " was_mdat:" << was_mdat << " last_index:" << last_index;
+    if ( !was_moov or !was_mdat ) return 0; // ресурс имеет смысл только при наличии обоих атомов
+    Q_EMIT e->txResourceFound(mp4_flag ? "mp4_qt" : "mov_qt", e->file.fileName(), base_index, resource_size, "");
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
 RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
 #pragma pack(pop)
     //qInfo() << " !!! TGA RECOGNIZER CALLED !!!";
+
     return 0;
 }
 

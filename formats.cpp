@@ -104,7 +104,7 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "TIF", { CAT_IMAGE, CAT_MAC, CAT_OUTDATED }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "" } },
     { "tga_tc32", { "Targa Graphics Adapter Image", "only true-color w/o RLE", "TGA", { CAT_IMAGE, CAT_OUTDATED, CAT_NONE }, CAT_RASTER, { "tga_tc32" }, 0, "" } },
     { "jpg",      { "JPEG File Interchange Format", "", "JPG", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "" } },
-    { "acon",     { "Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
+    { "ani_riff", { "Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
     { "aif",      { "Audio Interchange Format", "IFF container", "AIF", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "iff" }, 0, "" } },
     { "mod",      { "Tracker Module", "M.K./xCHN/xxCH", "MOD", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_NONE, { "mod_m.k.", "mod_ch" }, 0, "" } },
     { "xm",       { "FastTracker II Module" , "", "XM", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "xm" }, 0, "" } },
@@ -116,7 +116,9 @@ QMap <QString, FileFormat> fformats {  // АВТОМАТИЧЕСКОЕ УПОР�
     { "flc",      { "FLIC Animation", "FLI/FLC/FLX", "FLC", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_ANIM, { "fli_af11", "flc_af12", "flx_af44" }, 0, "" } },
     { "669",      { "Composer 669 Module", "", "669", { CAT_AUDIO, CAT_MUSIC, CAT_PERFRISK }, CAT_DOS, { "669_if", "669_jn" }, 0, "" } },
     { "au",       { "Sun/NeXT/Java AU Sound", "", "AU", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "au" }, 0, "" } },
-    { "voc",      { "Creative Labs Voice", "", "VOC", { CAT_AUDIO, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "voc" }, 0, "" } }
+    { "voc",      { "Creative Labs Voice", "", "VOC", { CAT_AUDIO, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "voc" }, 0, "" } },
+    { "mov_qt",   { "QuickTime Movie", "", "MOV", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_MAC, { "qt_mdat", "qt_moov" }, 0, "" } },
+    { "mp4_qt",   { "MPEG-4 Video", "", "MP4", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "qt_mdat", "qt_moov" }, 0, "" } }
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 
