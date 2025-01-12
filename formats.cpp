@@ -92,13 +92,13 @@ QMap <QString, FileFormat> fformats {  // QMap -> АВТОМАТИЧЕСКОЕ �
     // V          V
     { "bmp",      { "Microsoft Windows Bitmap", "", "BMP", {CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_RASTER, {"bmp"}, 0, "" } },
     { "pcx",      { "Zsoft PC Paintbrush", "only v3.0", "PCX", { CAT_IMAGE, CAT_DOS, CAT_NONE }, CAT_RASTER, { "pcx_05" }, 0, "" } },
-    { "png",      { "Portable Network Graphics", "", "PNG", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "png" }, 0, "" } },
+    { "png",      { "Portable Network Graphics", "", "PNG", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER | CAT_MOTOROLA, { "png" }, 0, "" } },
     { "avi",      { "Audio-Video Interleaved", "RIFF container", "AVI", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "riff" }, 0, "" } },
     { "wav",      { "Wave Audio Data", "RIFF container", "WAV", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "riff" }, 0, "" } },
-    { "rmi",      { "MIDI music","RIFF container", "RMI", { CAT_MUSIC, CAT_WIN, CAT_NONE }, CAT_MIDI, { "riff" }, 0, "" } },
-    { "mid",      { "Standard MIDI music", "", "MID", { CAT_MUSIC, CAT_NONE, CAT_NONE }, CAT_MIDI, { "mid" }, 0, "" } },
-    { "xmi",      { "eXtended MIDI music (MSS)", "IFF container", "XMI", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_MIDI, { "iff" }, 0, "" } },
-    { "lbm",      { "Interleaved Bitmap", "IFF container", "LBM", { CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED }, CAT_RASTER | CAT_DOS, { "iff" }, 0, "" } },
+    { "rmi",      { "MIDI music","RIFF container", "RMI", { CAT_MUSIC, CAT_WIN, CAT_NONE }, CAT_MIDI | CAT_MOTOROLA, { "riff" }, 0, "" } },
+    { "mid",      { "Standard MIDI music", "", "MID", { CAT_MUSIC, CAT_NONE, CAT_NONE }, CAT_MIDI | CAT_MOTOROLA, { "mid" }, 0, "" } },
+    { "xmi",      { "eXtended MIDI music (MSS)", "IFF container", "XMI", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_MIDI | CAT_MOTOROLA, { "iff" }, 0, "" } },
+    { "lbm",      { "Interleaved Bitmap", "IFF container", "LBM", { CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED }, CAT_RASTER | CAT_DOS | CAT_MOTOROLA, { "iff" }, 0, "" } },
     { "gif",      { "Graphics Interchange Format", "", "GIF", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "gif" }, 0, "" } },
     { "tif_ii",   { "Tag Image File Format", "Intel byte order", "TIF", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER | CAT_INTELX86, { "tiff_ii" }, 0, "" } },
     { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "TIF", { CAT_IMAGE, CAT_MAC, CAT_OUTDATED }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "" } },
@@ -106,7 +106,7 @@ QMap <QString, FileFormat> fformats {  // QMap -> АВТОМАТИЧЕСКОЕ �
     { "jpg",      { "JPEG File Interchange Format", "", "JPG", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "" } },
     { "ani_riff", { "Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
     { "aif",      { "Audio Interchange Format", "IFF container", "AIF", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "iff" }, 0, "" } },
-    { "mod",      { "Tracker Module", "M.K./xCHN/xxCH", "MOD", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_NONE, { "mod_m.k.", "mod_ch" }, 0, "" } },
+    { "mod",      { "Tracker Module", "M.K./xCHN/xxCH", "MOD", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_MOTOROLA, { "mod_m.k.", "mod_ch" }, 0, "" } },
     { "xm",       { "FastTracker II Module" , "", "XM", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "xm" }, 0, "" } },
     { "s3m",      { "ScreamTracker 3 Module", "", "S3M", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "s3m" }, 0, "" } },
     { "it",       { "ImpulseTracker Module", "", "IT", { CAT_AUDIO, CAT_MUSIC, CAT_OUTDATED }, CAT_DOS, { "it" }, 0, "" } },
@@ -115,14 +115,14 @@ QMap <QString, FileFormat> fformats {  // QMap -> АВТОМАТИЧЕСКОЕ �
     { "smk",      { "Smacker Video", "", "SMK", { CAT_VIDEO, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "smk2", "smk4" }, 0, "" } },
     { "flc",      { "FLIC Animation", "FLI/FLC/FLX", "FLC", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_ANIM, { "fli_af11", "flc_af12", "flx_af44" }, 0, "" } },
     { "669",      { "Composer 669 Module", "", "669", { CAT_AUDIO, CAT_MUSIC, CAT_PERFRISK }, CAT_DOS, { "669_if", "669_jn" }, 0, "" } },
-    { "au",       { "Sun/NeXT/Java AU Sound", "", "AU", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "au" }, 0, "" } },
+    { "au",       { "Sun/NeXT/Java AU Sound", "", "AU", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_MOTOROLA, { "au" }, 0, "" } },
     { "voc",      { "Creative Labs Voice", "", "VOC", { CAT_AUDIO, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "voc" }, 0, "" } },
-    { "mov_qt",   { "QuickTime Movie", "", "MOV", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_MAC, { "qt_mdat", "qt_moov" }, 0, "" } },
-    { "mp4_qt",   { "MPEG-4 Video", "ISO/IEC 14496-1/-14", "MP4", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "qt_mdat", "qt_moov" }, 0, "" } },
+    { "mov_qt",   { "QuickTime Movie", "", "MOV", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_MAC | CAT_MOTOROLA, { "qt_mdat", "qt_moov" }, 0, "" } },
+    { "mp4_qt",   { "MPEG-4 Video", "ISO/IEC 14496-1/-14", "MP4", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_MOTOROLA, { "qt_mdat", "qt_moov" }, 0, "" } },
     { "ico_win",  { "Windows Icon", "", "ICO", { CAT_IMAGE, CAT_WIN, CAT_PERFRISK }, CAT_NONE, { "ico_win" }, 0, "" } },
     { "cur_win",  { "Windows Cursor", "", "CUR", { CAT_IMAGE, CAT_WIN, CAT_PERFRISK }, CAT_NONE, { "cur_win" }, 0, "" } },
-    { "mp3",      { "MPEG-1 Layer III Audio", "", "MP3", { CAT_AUDIO, CAT_PERFRISK, CAT_NONE }, CAT_NONE, { "mp3_fffa", "mp3_fffb", "mp3_id3v2" }, 0, "" } }
-    //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
+    { "mp3",      { "MPEG-1 Layer III Audio", "", "MP3", { CAT_AUDIO, CAT_PERFRISK, CAT_NONE }, CAT_LOSSY, { "mp3_fffa", "mp3_fffb", "mp3_id3v2" }, 0, "" } },
+    { "ogg",      { "Ogg Audio/Video", "container", "OGG", {CAT_AUDIO, CAT_VIDEO, CAT_NONE}, CAT_NONE, {"ogg"}, 0, "" } }
 };
 
 void indexFilesFormats() {

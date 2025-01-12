@@ -24,6 +24,7 @@
   //   13 |mk   : 4D2E : 4B2E
   //   13 |tifm : 4D4D : 002A
   //   13 |mid  : 4D54 : 6864
+  //   27 |ogg  : 4F67 : 6753
   //   16 |rif  : 5249 : 4646
   //   17 |s3m  : 5343 : 524D
   //   17 |sm2  : 534D : 4B32
@@ -89,6 +90,7 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "mp3_fffa",   { 0x000000000000FAFF, 2, Engine::recognize_mp3      } }, // "\xFF\xFA"
     { "mp3_fffb",   { 0x000000000000FAFF, 2, Engine::recognize_mp3      } }, // "\xFF\xFB"
     { "mp3_id3v2",  { 0x0000000000334449, 3, Engine::recognize_mp3      } }, // "\x49\x44\x33"
+    { "ogg",        { 0x000000005367674F, 4, Engine::recognize_ogg      } }, // "OggS"
 };
 
 u16i be2le(u16i be) {
@@ -315,6 +317,12 @@ aj_asm.bind(aj_prolog_label);
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[13])); // mod 'M.K.', tif_mm, mid
         aj_asm.mov(x86::ptr(x86::rdi, 0x4D * 8), x86::rax);
+    }
+
+    if ( selected_formats[fformats["ogg"].index] )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[27])); // ogg
+        aj_asm.mov(x86::ptr(x86::rdi, 0x4F * 8), x86::rax);
     }
 
     if ( selected_formats[fformats["avi"].index] or selected_formats[fformats["wav"].index] or selected_formats[fformats["rmi"].index] or selected_formats[fformats["ani_riff"].index] )
@@ -695,6 +703,31 @@ aj_asm.bind(aj_sub_labels[6]); // mid ?
         aj_asm.call(imm((u64i)Engine::recognize_mid));
         //
     }
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x4F
+aj_asm.bind(aj_signat_labels[27]);
+    // ; ogg  : 0x4F'67 : 0x67'53
+    aj_asm.cmp(x86::al, 0x67);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x67'53);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_ogg
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_ogg));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.je(aj_loop_check_label);
+    // для ogg всегда включен scrupulous mode.
+    // в rax лежит размер ресурса,
+    // в e->resource_offset абсолютное смещение ресурса в файле (или mmf-буфере).
+    // надо переставить rsi и r14 на положение после ресурса минус 1 байт :
+    aj_asm.mov(x86::r14, x86::qword_ptr((u64i)&this->resource_offset)); // суём в r14 смещение найденного ресурса относительно начала mmf
+    aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
+    aj_asm.add(x86::r14, x86::rax); // переставляем r14 на положение после ресурса
+    aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выствит указатель ровно после ресурса
+    aj_asm.add(x86::rsi, x86::r14); // корректируем rsi, чтобы абсолютный указатель тоже был после ресурса минус 1 байт
+    //
     aj_asm.jmp(aj_loop_check_label);
 
 // ; 0x52
@@ -3077,14 +3110,8 @@ mp3_id3v1:
             info = "song name: '";
             for (u8i song_name_len = 0; song_name_len < 30; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [29]
             {
-                if ( id3v1->title[song_name_len] == 0 )
-                {
-                    break;
-                }
-                else
-                {
-                    info.append(QChar(id3v1->title[song_name_len]));
-                }
+                if ( id3v1->title[song_name_len] == 0 ) break;
+                info.append(QChar(id3v1->title[song_name_len]));
             }
             info = info + "'";
             last_index += sizeof(ID3v1);
@@ -3092,6 +3119,51 @@ mp3_id3v1:
     }
     resource_size = last_index - base_index; // коррекция resource_size с учётом Lyrics или ID3v1
     Q_EMIT e->txResourceFound("mp3", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
+{ // https://xiph.org/ogg/doc/framing.html
+#pragma pack(push,1)
+    struct PageHeader
+    {
+        u32i signature; // 'OggS'
+        u8i  version;
+        u8i  flag;
+        u64i granule_position;
+        u32i serial_number;
+        u32i page_counter;
+        u32i page_checksum;
+        u8i  segments_num;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! OGG RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static u32i ogg_id {fformats["ogg"].index};
+    static constexpr u64i min_room_need = sizeof(PageHeader);
+    if ( !e->selected_formats[ogg_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    uchar *buffer = e->mmf_scanbuf;
+    PageHeader *page_header;
+    u64i last_index = base_index;
+    s64i file_size = e->file_size;
+    while(true)
+    {
+        if ( file_size - last_index < sizeof(PageHeader) ) break;// есть место для очередного PageHeader?
+        page_header = (PageHeader*)(&buffer[last_index]);
+        if ( page_header->signature != 0x5367674F /*'OggS'*/) break;
+        if ( file_size - (last_index + sizeof(PageHeader)) < page_header->segments_num ) break;// есть ли место на список размеров сегментов? он идёт сразу после PageHeader
+        u32i segments_block = 0;
+        for (u8i segm_idx = 0; segm_idx < page_header->segments_num; ++segm_idx) // высчитываем размер текущего блока тел сегментов
+        {
+            segments_block += buffer[last_index + sizeof(PageHeader) + segm_idx];
+        }
+        if ( file_size - (last_index + sizeof(PageHeader) + page_header->segments_num) < segments_block ) break;// есть ли место под блок тел сегментов?
+        last_index += (sizeof(PageHeader) + page_header->segments_num + segments_block);
+    }
+    u64i resource_size = last_index - base_index;
+    Q_EMIT e->txResourceFound("ogg", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
 }
