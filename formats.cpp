@@ -120,7 +120,8 @@ QMap <QString, FileFormat> fformats {  // QMap -> АВТОМАТИЧЕСКОЕ �
     { "mov_qt",   { "QuickTime Movie", "", "MOV", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_MAC, { "qt_mdat", "qt_moov" }, 0, "" } },
     { "mp4_qt",   { "MPEG-4 Video", "ISO/IEC 14496-1/-14", "MP4", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "qt_mdat", "qt_moov" }, 0, "" } },
     { "ico_win",  { "Windows Icon", "", "ICO", { CAT_IMAGE, CAT_WIN, CAT_PERFRISK }, CAT_NONE, { "ico_win" }, 0, "" } },
-    { "cur_win",  { "Windows Cursor", "", "CUR", { CAT_IMAGE, CAT_WIN, CAT_PERFRISK }, CAT_NONE, { "cur_win" }, 0, "" } }
+    { "cur_win",  { "Windows Cursor", "", "CUR", { CAT_IMAGE, CAT_WIN, CAT_PERFRISK }, CAT_NONE, { "cur_win" }, 0, "" } },
+    { "mp3",      { "MPEG-1 Layer III Audio", "", "MP3", { CAT_AUDIO, CAT_PERFRISK, CAT_NONE }, CAT_NONE, { "mp3_fffa", "mp3_fffb", "mp3_id3v2" }, 0, "" } }
     //{ "mp3",      { "MPEG-1 Layer-3 Audio", "", "mp3", {CAT_AUDIO, CAT_NONE, CAT_NONE}, CAT_LOSSY, {"mp3"}, 0, /*true, */"" } }
 };
 

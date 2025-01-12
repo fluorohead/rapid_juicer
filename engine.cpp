@@ -1,37 +1,40 @@
   //   lbl|sign| AHAL | BHBL
   //   ---|----|------|------
-  //   0  |tga : 0000 : 0200
-  //   0  |tga : 0000 : 0A00
-  //   0  |ico : 0000 : 0100
-  //   0  |cur : 0000 : 0200 <- crossing with tga
-  //   1  |pcx : 0A05
-  //   2  |fli : 11AF
-  //   3  |flc : 12AF
-  //   25 |au  : 2E73 : 6E64
-  //   4  |bik : 4249
-  //   4  |bmp : 424D
-  //   24 |ch  : 4348
-  //   24 |voc : 4372 : 6561
-  //   6  |flx : 44AF
-  //   7  |xm  : 4578 : 7465
-  //   8  |iff : 464F : 524D
-  //   9  |gif : 4749 : 4638
-  //   10 |tfi : 4949 : 2A00
-  //   10 |it  : 494D : 504D
-  //   23 |669 : 4A4E
-  //   12 |bk2 : 4B42
-  //   13 |mk  : 4D2E : 4B2E
-  //   13 |tfm : 4D4D : 002A
-  //   13 |mid : 4D54 : 6864
-  //   16 |rif : 5249 : 4646
-  //   17 |s3m : 5343 : 524D
-  //   17 |sm2 : 534D : 4B32
-  //   17 |sm4 : 534D : 4B34
-  //   22 |669 : 6966
-  //   26 |mdat: 6D64 : 6174
-  //   26 |moov: 6D6F : 6F76
-  //   20 |png : 8950 : 4E47
-  //   21 |jpg : FFD8 : FFE0
+  //   0  |tga  : 0000 : 0200
+  //   0  |tga  : 0000 : 0A00
+  //   0  |ico  : 0000 : 0100
+  //   0  |cur  : 0000 : 0200 <- crossing with tga
+  //   1  |pcx  : 0A05
+  //   2  |fli  : 11AF
+  //   3  |flc  : 12AF
+  //   25 |au   : 2E73 : 6E64
+  //   4  |bik  : 4249
+  //   4  |bmp  : 424D
+  //   24 |ch   : 4348
+  //   24 |voc  : 4372 : 6561
+  //   6  |flx  : 44AF
+  //   7  |xm   : 4578 : 7465
+  //   8  |iff  : 464F : 524D
+  //   9  |gif  : 4749 : 4638
+  //   10 |id3v2: 4944 : 33
+  //   10 |tifi : 4949 : 2A00
+  //   10 |it   : 494D : 504D
+  //   23 |669  : 4A4E
+  //   12 |bk2  : 4B42
+  //   13 |mk   : 4D2E : 4B2E
+  //   13 |tifm : 4D4D : 002A
+  //   13 |mid  : 4D54 : 6864
+  //   16 |rif  : 5249 : 4646
+  //   17 |s3m  : 5343 : 524D
+  //   17 |sm2  : 534D : 4B32
+  //   17 |sm4  : 534D : 4B34
+  //   22 |669  : 6966
+  //   26 |mdat : 6D64 : 6174
+  //   26 |moov : 6D6F : 6F76
+  //   20 |png  : 8950 : 4E47
+  //   21 |jpg  : FFD8 : FFE0
+  //   21 |mp3  : FFFA
+  //   21 |mp3  : FFFB
 
 #include "engine.h"
 #include "walker.h"
@@ -83,6 +86,9 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "qt_moov",    { 0x00000000766F6F6D, 4, Engine::recognize_mov_qt   } }, // "moov"
     { "ico_win",    { 0x0000000000010000, 4, Engine::recognize_ico_cur  } }, // "\x00\x00\x01\x00"
     { "cur_win",    { 0x0000000000020000, 4, Engine::recognize_ico_cur  } }, // "\x00\x00\x02\x00"
+    { "mp3_fffa",   { 0x000000000000FAFF, 2, Engine::recognize_mp3      } }, // "\xFF\xFA"
+    { "mp3_fffb",   { 0x000000000000FAFF, 2, Engine::recognize_mp3      } }, // "\xFF\xFB"
+    { "mp3_id3v2",  { 0x0000000000334449, 3, Engine::recognize_mp3      } }, // "\x49\x44\x33"
 };
 
 u16i be2le(u16i be) {
@@ -287,9 +293,9 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x47 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["tif_ii"].index] or selected_formats[fformats["it"].index] )
+    if ( selected_formats[fformats["tif_ii"].index] or selected_formats[fformats["it"].index] or selected_formats[fformats["mp3"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[10])); // tif_ii, it
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[10])); // tif_ii, it, mp3 id3v2
         aj_asm.mov(x86::ptr(x86::rdi, 0x49 * 8), x86::rax);
     }
 
@@ -341,12 +347,11 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x89 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["jpg"].index]  )
+    if ( selected_formats[fformats["jpg"].index] or selected_formats[fformats["mp3"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[21])); // jpg
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[21])); // jpg, mp3
         aj_asm.mov(x86::ptr(x86::rdi, 0xFF * 8), x86::rax);
     }
-
 
 // ; loop_start
 aj_asm.bind(aj_loop_start_label);
@@ -563,8 +568,34 @@ aj_asm.bind(aj_signat_labels[9]);
 
 // ; 0x49
 aj_asm.bind(aj_signat_labels[10]);
-    // ; tfi : 0x49'49 : 0x2A'00
-    // ; it  : 0x49'4D : 0x50'4D
+    // ; id3v2 : 0x49'44 : 0x33
+    // ;  tfi  : 0x49'49 : 0x2A'00
+    // ;  it   : 0x49'4D : 0x50'4D
+aj_asm.bind(aj_sub_labels[16]); // id3v2 ?
+    if ( selected_formats[fformats["mp3"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x44);
+        aj_asm.jne(aj_sub_labels[2]);
+        aj_asm.cmp(x86::bh, 0x33);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_mp3
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_mp3));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.je(aj_loop_check_label);
+        // для mp3 всегда включен scrupulous mode.
+        // в rax лежит размер ресурса,
+        // в e->resource_offset абсолютное смещение ресурса в файле (или mmf-буфере).
+        // надо переставить rsi и r14 на положение после ресурса минус 1 байт :
+        aj_asm.mov(x86::r14, x86::qword_ptr((u64i)&this->resource_offset)); // суём в r14 смещение найденного ресурса относительно начала mmf
+        aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
+        aj_asm.add(x86::r14, x86::rax); // переставляем r14 на положение после ресурса
+        aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выствит указатель ровно после ресурса
+        aj_asm.add(x86::rsi, x86::r14); // корректируем rsi, чтобы абсолютный указатель тоже был после ресурса минус 1 байт
+        //
+        aj_asm.jmp(aj_loop_check_label);
+    }
 aj_asm.bind(aj_sub_labels[2]); // tif_ii ?
     if ( selected_formats[fformats["tif_ii"].index] )
     {
@@ -769,15 +800,44 @@ aj_asm.bind(aj_signat_labels[20]);
 // ; 0xFF
 aj_asm.bind(aj_signat_labels[21]);
     // ; jpg : 0xFF'D8 : 0xFF'E0
-    aj_asm.cmp(x86::al, 0xD8);
-    aj_asm.jne(aj_loop_check_label);
-    aj_asm.cmp(x86::bx, 0xFF'E0);
-    aj_asm.jne(aj_loop_check_label);
-    // вызов recognize_jpg
-    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
-    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
-    aj_asm.call(imm((u64i)Engine::recognize_jpg));
-    //
+    // ; mp3 : 0xFF'FA
+    // ; mp3 : 0xFF'FB
+    if ( selected_formats[fformats["jpg"].index] )
+    {
+        aj_asm.cmp(x86::al, 0xD8);
+        aj_asm.jne(aj_sub_labels[15]);
+        aj_asm.cmp(x86::bx, 0xFF'E0);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_jpg
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_jpg));
+        //
+        aj_asm.jmp(aj_loop_check_label);
+    }
+aj_asm.bind(aj_sub_labels[15]);
+    if ( selected_formats[fformats["mp3"].index] )
+    {
+        aj_asm.and_(x86::al, 0b11111110);
+        aj_asm.cmp(x86::al, 0xFA);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_mp3
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_mp3));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.je(aj_loop_check_label);
+        // для mp3 всегда включен scrupulous mode.
+        // в rax лежит размер ресурса,
+        // в e->resource_offset абсолютное смещение ресурса в файле (или mmf-буфере).
+        // надо переставить rsi и r14 на положение после ресурса минус 1 байт :
+        aj_asm.mov(x86::r14, x86::qword_ptr((u64i)&this->resource_offset)); // суём в r14 смещение найденного ресурса относительно начала mmf
+        aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
+        aj_asm.add(x86::r14, x86::rax); // переставляем r14 на положение после ресурса
+        aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выствит указатель ровно после ресурса
+        aj_asm.add(x86::rsi, x86::r14); // корректируем rsi, чтобы абсолютный указатель тоже был после ресурса минус 1 байт
+        //
+    }
     aj_asm.jmp(aj_loop_check_label);
 
 // ; loop_check
@@ -2444,9 +2504,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     {
         u16i marker;
         u8i  song_name[108];
-        u8i  smpnum;
-        u8i  patnum;
-        u8i  loop_order;
+        u8i  smpnum, patnum, loop_order;
         u8i  order_list[128];
         u8i  tempo_list[128];
         u8i  break_list[128];
@@ -2454,9 +2512,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     struct SampleHeader
     {
         u8i  sample_name[13];
-        u32i sample_size;
-        u32i loop_begin;
-        u32i loop_end;
+        u32i sample_size, loop_begin, loop_end;
     };
 #pragma pack(pop)
     //qInfo() << " !!! 669 RECOGNIZER CALLED !!!";
@@ -2819,6 +2875,223 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
     Q_EMIT e->txResourceFound((is_cur) ? "cur_win" : "ico_win", e->file.fileName(), base_index, resource_size, "");
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct FrameHeader
+    {
+        u8i AAAAAAAA;
+        u8i AAABBCCD;
+        u8i EEEEFFGH;
+        u8i IIJJKLMM;
+    };
+    // https://id3.org/ID3v1
+    struct ID3v1 // вставляется в конце ресурса
+    {
+        u16i signature1; // 'TA'
+        u8i  signature2; // 'G'
+        u8i  title[30];
+        u8i  artist[30];
+        u8i  album[30];
+        u8i  year[4];
+        u8i  comment[30];
+        u8i  genre[1];
+    };
+    // https://id3.org/d3v2.3.0
+    struct ID3v2 // вставляется в начале ресурса
+    {
+        u16i signature1; // 'ID'
+        u8i  signature2; // '3'
+        u8i  ver_major; // 0x02 - 0x04
+        u8i  ver_minor;
+        u8i  flags;
+        union
+        {
+            u8i  size_as_bytes[4];
+            u32i size_as_dword;
+        };
+    };
+    // https://id3.org/Lyrics3v2
+    struct LyricsField // вставляется после фреймов, но перед ID3v1
+    {
+        union
+        {
+            struct
+            {
+                u8i id[3];
+                u8i size[5];
+            } as_bytes;
+            u64i as_qword;
+        };
+    };
+    struct LyricsEnding
+    {
+        u8i size[6];
+        u64i lyrics200_sign1; // 'LYRICS20'
+        u8i  lyrics200_sign2;  // '0'
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! MP3 RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static u32i mp3_id {fformats["mp3"].index};
+    static const QMap <u8i, u64i> VALID_BIT_RATE {
+                                                    {0b0001, 32000 }, {0b0010, 40000 }, {0b0011, 48000 }, {0b0100, 56000 },
+                                                    {0b0101, 64000 }, {0b0110, 80000 }, {0b0111, 96000 }, {0b1000, 112000},
+                                                    {0b1001, 128000}, {0b1010, 160000}, {0b1011, 192000}, {0b1100, 224000},
+                                                    {0b1101, 256000}, {0b1110, 320000}
+                                                 };
+    static const QMap <u8i, u64i> VALID_SAMPLE_RATE { {0b00, 44100}, {0b01, 48000}, {0b10, 32000} };
+    static const QSet <u64i> VALID_LYRICS_FIELD { 0x444E49 /*IND*/, 0x52594C /*LYR*/, 0x464E49 /*INF*/, 0x545541 /*AUT*/, 0x4C4145 /*EAL*/, 0x524145 /*EAR*/, 0x545445 /*ETT*/, 0x474D49 /*IMG*/ };
+    if ( !e->selected_formats[mp3_id] ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    uchar *buffer = e->mmf_scanbuf;
+    u64i last_index = base_index;
+    s64i file_size = e->file_size;
+    while(true)
+    {
+        if ( (*(u16i*)&buffer[last_index]) == 0x44'49 /*ID*/ ) // зашли сюда, потому что движок нашёл сигнатуру ID3v2 ?
+        {
+            if ( file_size - last_index < sizeof(ID3v2) ) return 0; // нет места для для заголовка ID3v2
+            //qInfo() << "has id3v2!!!";
+            ID3v2 *id3v2 = (ID3v2*)&buffer[last_index];
+            if ( id3v2->ver_major > 4 ) return 0;
+            if ( id3v2->ver_minor == 0xFF ) return 0;
+            if ( (id3v2->flags & 0b00011111) != 0 ) return 0;
+            if ( id3v2->size_as_bytes[0] > 0x80 ) return 0;
+            if ( id3v2->size_as_bytes[1] > 0x80 ) return 0;
+            if ( id3v2->size_as_bytes[2] > 0x80 ) return 0;
+            if ( id3v2->size_as_bytes[3] > 0x80 ) return 0;
+            u64i id3v2_size = id3v2->size_as_bytes[3] | (u64i(id3v2->size_as_bytes[2]) << 7) | (u64i(id3v2->size_as_bytes[1]) << 14) | (u64i(id3v2->size_as_bytes[0]) << 21) + sizeof(ID3v2);
+            //qInfo() << "id3v2_size:" << id3v2_size;
+            if ( file_size - last_index < id3v2_size ) return 0; // нет места для всего ID3v2
+            last_index += id3v2_size; // переставляемся сразу после ID3v2
+        }
+        else
+        {
+            break;
+        }
+        if ( file_size - last_index < 4 ) return 0; // нет места на следующий ID3v2 или заголовок-фрейма
+    }
+    // в этом месте last_index стоит на заголовке первого фрейма
+    FrameHeader *frame_header;
+    u64i bit_rate;
+    u64i sample_rate;
+    u8i  padding;
+    u8i  crc_len;
+    u64i frame_number = 0;
+    while(true)
+    {
+        ++frame_number;
+        if ( last_index + sizeof(FrameHeader) > file_size ) break; // достигли конца сканируемого файла
+        frame_header = (FrameHeader*)(&buffer[last_index]);
+        if ( (frame_header->AAABBCCD & 0b11111110) != 0xFA ) break; // достигли конца потока
+        bit_rate = frame_header->EEEEFFGH >> 4;
+        sample_rate = (frame_header->EEEEFFGH >> 2) & 0b00000011;
+        if ( !VALID_BIT_RATE.contains(bit_rate) ) break; // достигли конца потока
+        if ( !VALID_SAMPLE_RATE.contains(sample_rate) ) break; // достигли конца потока
+        bit_rate = VALID_BIT_RATE[bit_rate]; // переиспользуем переменную bit_rate
+        sample_rate = VALID_SAMPLE_RATE[sample_rate]; // переиспользуем переменную sample_rate
+        padding = (frame_header->EEEEFFGH >> 1) & 0b00000001;
+        crc_len = 2 * (frame_header->AAABBCCD & 0b00000001);
+        //qInfo() << " sample_rate:" << sample_rate << " bit_rate:" << bit_rate << " padding:" << padding << " crc_len:" << crc_len << " last_index:" << last_index << " frame_size:" << ( (1152 * bit_rate / 8) / sample_rate + padding );
+        last_index += ( (1152 * bit_rate / 8) / sample_rate + padding );
+    }
+    if ( last_index > file_size ) last_index = file_size;
+    u64i resource_size = last_index - base_index;
+    if ( resource_size <= 4 ) return 0;
+    if ( frame_number <= 4 ) return 0; // попытка ограничить ложные срабатывания количеством 3 фреймов
+    if ( file_size - last_index >= 11 /*len('LYRICSBEGIN')*/ ) // может после звука и перед ID3v1 вставлен Lyrics?
+    {
+        if ( ( (*((u64i*)&buffer[last_index])) == 0x454253434952594C /*LYRICSBE*/) and ( (*((u16i*)&buffer[last_index+8])) == 0x4947 /*GI*/) and ( buffer[last_index+10] == 0x4E /*N*/))
+        {
+            //qInfo() << " Lyrics tag here:" << last_index;
+            u64i last_index_ = last_index; // запоминаем last_index, чтобы его восстановить, если окажется, что Lyrics некорректный
+            last_index += 11; // переставляемся на первое Lyrics-поле
+            LyricsField *lyrics_field;
+            while (true)
+            {
+                if ( file_size - last_index >= sizeof(LyricsField) )
+                {
+                    lyrics_field = (LyricsField*)&buffer[last_index];
+                    if ( VALID_LYRICS_FIELD.contains(lyrics_field->as_qword & 0xFFFFFF) )
+                    {
+                        //qInfo() << "contains ok at:" << last_index;
+                        u32i lyrics_size = 0;
+                        for (u8i idx = 0; idx < sizeof(LyricsField::as_bytes.size); ++idx) // проверка на допустимость символов
+                        {
+                            if ( ( lyrics_field->as_bytes.size[idx] < 0x30 /*'0'*/) or ( lyrics_field->as_bytes.size[idx] > 0x39 /*'9'*/) ) // возврат из Lyrics, если неверные символы
+                            {
+                                last_index = last_index_;
+                                goto mp3_id3v1;
+                            }
+                            lyrics_size += ( u32i(lyrics_field->as_bytes.size[idx] - 0x30) * qPow(10, sizeof(LyricsField::as_bytes.size) - idx - 1) );
+                        }
+                        //qInfo() << "symbols ok and lyrics_size=" << lyrics_size;
+                        // символы размера допустимые,
+                        // тогда переставим last_index на следующее lyrics-поле
+                        last_index += (sizeof(LyricsField) + lyrics_size);
+                    }
+                    else // сюда, если поле id неверное -> оно либо реально неверное, либо это lyrics-концовка, уточняем :
+                    {
+                        //qInfo() << "contains not ok at:" << last_index;
+                        LyricsEnding *lyrics_ending = (LyricsEnding*)lyrics_field;
+                        // проверка на допустимые символы
+                        for (u8i idx = 0; idx < sizeof(LyricsField::as_bytes.id); ++idx) // проверка на допустимость символов
+                        {
+                            if ( ( lyrics_field->as_bytes.id[idx] < 0x30 /*'0'*/) or ( lyrics_field->as_bytes.id[idx] > 0x39 /*'9'*/) ) // возврат из Lyrics, если неверные символы
+                            {
+                                last_index = last_index_;
+                                goto mp3_id3v1;
+                            }
+                        }
+                        if ( ( lyrics_ending->lyrics200_sign1 == 0x303253434952594C /*'LYRICS20'*/) and ( lyrics_ending->lyrics200_sign2 == '0' ) and ( file_size - last_index >= sizeof(LyricsEnding)))
+                        {
+                            last_index += sizeof(LyricsEnding);
+                            break;
+                        }
+                        else // нет, это не концовка, это просто неверные данные, выходим из поиска Lyrics
+                        {
+                            last_index = last_index_;
+                            break;
+                        }
+                    }
+                }
+                else // не хватает места на заголовок lyrics-поля -> выходим отсюда и возвращаем last_index на позицию сразу после звуковых фреймов
+                {
+                    last_index = last_index_;
+                    break;
+                }
+            }
+        }
+    }
+mp3_id3v1:
+    QString info;
+    if ( file_size - last_index >= sizeof(ID3v1) ) // может осталось место под ID3v1 в конце ресурса?
+    {
+        ID3v1 *id3v1 = (ID3v1*)&buffer[last_index];
+        if ( ( id3v1->signature1 == 0x4154 ) and ( id3v1->signature2 == 0x47 ) )
+        {
+            info = "song name: '";
+            for (u8i song_name_len = 0; song_name_len < 30; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [29]
+            {
+                if ( id3v1->title[song_name_len] == 0 )
+                {
+                    break;
+                }
+                else
+                {
+                    info.append(QChar(id3v1->title[song_name_len]));
+                }
+            }
+            info = info + "'";
+            last_index += sizeof(ID3v1);
+        }
+    }
+    resource_size = last_index - base_index; // коррекция resource_size с учётом Lyrics или ID3v1
+    Q_EMIT e->txResourceFound("mp3", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
