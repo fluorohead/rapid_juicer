@@ -2829,7 +2829,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mov_qt RECOGNIZE_FUNC_HEADER
     s64i file_size = e->file_size;
     while(true)
     {
-        if ( last_index + sizeof(AtomHeader) >= file_size ) break; // нет местам на заголовок очередного атома -> достигли конца ресурса
+        if ( last_index + sizeof(AtomHeader) >= file_size ) break; // нет места на заголовок очередного атома -> достигли конца ресурса
         atom_header = (AtomHeader*)&buffer[last_index];
         if ( !VALID_ATOM_TYPE.contains(atom_header->type) ) break; // неизвестный атом -> далее не сканируем
         if ( atom_header->type == 0x7461646d ) was_mdat = true;
@@ -2848,14 +2848,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mov_qt RECOGNIZE_FUNC_HEADER
         }
         else
         {
-            if ( be2le(atom_header->size) < sizeof(AtomHeader) )
-            {
-                break; // вероятно неверное поле size
-            }
-            else
-            {
-                last_index += be2le(atom_header->size);
-            }
+            if ( be2le(atom_header->size) < sizeof(AtomHeader) ) break;
+            last_index += be2le(atom_header->size);
         }
         // qInfo() << " last atom_type:" << QString::number(atom_header->type, 16);
         // qInfo() << " last_index:" << last_index;
@@ -2924,11 +2918,21 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
         u16i cpl_xhotspot, bpp_yhotspot;
         u32i bitmap_size, bitmap_offset;
     };
+    struct BitmapInfoHeader
+    {
+        u32i bitmapheader_size; // 12, 40, 108
+        s32i width;
+        s32i height;
+        u16i planes;
+        u16i bits_per_pixel; // 1, 4, 8, 16, 24, 32
+    };
 #pragma pack(pop)
     //qInfo() << " !!! ICO/CUR RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     static u32i ico_id {fformats["ico_win"].index};
     static u32i cur_id {fformats["cur_win"].index};
     static constexpr u64i min_room_need = sizeof(ICO_Header);
+    static const QSet <u32i> VALID_BMP_HEADER_SIZE { 12, 40, 108 };
+    static const QSet <u16i> VALID_BITS_PER_PIXEL { 1, 4, 8, 16, 24, 32 };
     if ( !e->selected_formats[ico_id] and !e->selected_formats[cur_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
@@ -2949,6 +2953,18 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
         if ( directory->reserved != 0 ) return 0;
         if ( ( !is_cur ) and ( directory->cpl_xhotspot > 1 ) ) return 0;
         db[directory->bitmap_offset] = directory->bitmap_size;
+        //qInfo() << " bitmap_offset:" << base_index + directory->bitmap_offset;
+        if ( base_index + directory->bitmap_offset + sizeof(BitmapInfoHeader) > file_size ) return 0; // нет места на bitmap-заголовок
+        BitmapInfoHeader *bitmap_ih = (BitmapInfoHeader*)&buffer[base_index + directory->bitmap_offset];
+        if ( !VALID_BMP_HEADER_SIZE.contains(bitmap_ih->bitmapheader_size) ) // тогда может быть есть встроенный PNG?
+        {
+            if ( bitmap_ih->bitmapheader_size != 0x474E5089 ) return 0;
+            //qInfo() << " ----> nested png here!!!!";
+        }
+        else
+        {
+            if ( !VALID_BITS_PER_PIXEL.contains(bitmap_ih->bits_per_pixel) ) return 0;
+        }
         last_index += sizeof(Directory);
     }
     //qInfo() << "most far offset:" << db.lastKey() << " bitmap size:" << db[db.lastKey()];
@@ -3196,16 +3212,16 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     s64i file_size = e->file_size;
     while(true)
     {
-        if ( file_size - last_index < sizeof(PageHeader) ) break;// есть место для очередного PageHeader?
+        if ( last_index + sizeof(PageHeader) > file_size ) break;// есть место для очередного PageHeader?
         page_header = (PageHeader*)(&buffer[last_index]);
         if ( page_header->signature != 0x5367674F /*'OggS'*/) break;
-        if ( file_size - (last_index + sizeof(PageHeader)) < page_header->segments_num ) break;// есть ли место на список размеров сегментов? он идёт сразу после PageHeader
+        if ( last_index + sizeof(PageHeader) + page_header->segments_num > file_size ) break;// есть ли место на список размеров сегментов? он идёт сразу после PageHeader
         u32i segments_block = 0;
         for (u8i segm_idx = 0; segm_idx < page_header->segments_num; ++segm_idx) // высчитываем размер текущего блока тел сегментов
         {
             segments_block += buffer[last_index + sizeof(PageHeader) + segm_idx];
         }
-        if ( file_size - (last_index + sizeof(PageHeader) + page_header->segments_num) < segments_block ) break;// есть ли место под блок тел сегментов?
+        if ( last_index + sizeof(PageHeader) + page_header->segments_num + segments_block > file_size ) break;// есть ли место под блок тел сегментов?
         last_index += (sizeof(PageHeader) + page_header->segments_num + segments_block);
     }
     u64i resource_size = last_index - base_index;
@@ -3265,12 +3281,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
     QString info;
     if ( be2le(info_header->expdata_ptr) != 0 ) // попробуем найти название модуля
     {
-        if ( file_size - (base_index + be2le(info_header->expdata_ptr)) >= sizeof(ExpData) ) // есть ли место для ExpData?
+        if ( base_index + be2le(info_header->expdata_ptr) + sizeof(ExpData) <= file_size ) // есть ли место для ExpData?
         {
             ExpData *exp_data = (ExpData*)&buffer[base_index + be2le(info_header->expdata_ptr)];
             if ( be2le(exp_data->songname_ptr) >= sizeof(MED_Header) )
             {
-                if ( file_size - (base_index + be2le(exp_data->songname_ptr)) >= be2le(exp_data->songname_len) ) // есть ли место для строки?
+                if ( base_index + be2le(exp_data->songname_ptr) + be2le(exp_data->songname_len) <= file_size ) // есть ли место для строки?
                 {
                     u32i songname_len = be2le(exp_data->songname_len);
                     u8i *songname_ptr = &buffer[base_index + be2le(exp_data->songname_ptr)];
@@ -3323,11 +3339,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
     QString info;
     while(true)
     {
-        if ( file_size - last_index < sizeof(Chunk) ) break; // хватает ли места для очередного заголовка Chunk ?
+        if ( last_index + sizeof(Chunk) > file_size ) break; // хватает ли места для очередного заголовка Chunk ?
         chunk = (Chunk*)&buffer[last_index];
         if ( !VALID_CHUNK_ID.contains(chunk->id) ) break;
         //qInfo() << " chunk_id:" << QString::number(chunk->id, 16) << " at:" << last_index;
-        if ( file_size - (last_index + sizeof(Chunk)) < be2le(chunk->data_len) ) return 0; // данные чанка не помещаются
+        if ( last_index + sizeof(Chunk) + be2le(chunk->data_len) > file_size ) return 0; // данные чанка не помещаются
         if ( chunk->id == 0x454D414E /*'NAME'*/ )
         {
             u8i *songname_ptr = &buffer[last_index + sizeof(Chunk)];
