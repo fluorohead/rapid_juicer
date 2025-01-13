@@ -123,7 +123,8 @@ QMap <QString, FileFormat> fformats {  // QMap -> АВТОМАТИЧЕСКОЕ �
     { "cur_win",  { "Windows Cursor", "", "CUR", { CAT_IMAGE, CAT_WIN, CAT_PERFRISK }, CAT_NONE, { "cur_win" }, 0, "" } },
     { "mp3",      { "MPEG-1 Layer III Audio", "", "MP3", { CAT_AUDIO, CAT_PERFRISK, CAT_NONE }, CAT_LOSSY, { "mp3_fffa", "mp3_fffb", "mp3_id3v2" }, 0, "" } },
     { "ogg",      { "Ogg Audio/Video", "", "OGG", {CAT_AUDIO, CAT_VIDEO, CAT_NONE}, CAT_NONE, { "ogg" }, 0, "" } },
-    { "med",      { "OctaMED Module", "MMD0 to MMD03", "MED", {CAT_AUDIO, CAT_MUSIC, CAT_AMIGA}, CAT_MOTOROLA, { "mmd0", "mmd1", "mmd2", "mmd3" }, 0, "" } }
+    { "med",      { "OctaMED Module", "MMD0 - MMD03", "MED", {CAT_AUDIO, CAT_MUSIC, CAT_AMIGA}, CAT_MOTOROLA, { "mmd0", "mmd1", "mmd2", "mmd3" }, 0, "" } },
+    { "dbm0",     { "DigiBooster Pro Module", "", "DBM", {CAT_AUDIO, CAT_MUSIC, CAT_AMIGA}, CAT_MOTOROLA, { "dbm0" }, 0, "" } }
 };
 
 void indexFilesFormats() {
@@ -131,7 +132,7 @@ void indexFilesFormats() {
     for (auto it = fformats.begin(); it != fformats.end(); it++)
     {
         it->index = cnt; // индексируем каждый формат
-        // след. два for'а формируют св-во FileForamat.cat_str для отображения в tooltip'ах
+        // след. два for'а формируют св-во FileForamat.tooltip_str для отображения в tooltip'ах
         for (u32i idx = 0; idx < 3; ++idx) // base-категории
         {
             if (it.value().base_categories[idx] != CAT_NONE)

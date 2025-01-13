@@ -13,6 +13,7 @@
   //   24 |ch   : 4348
   //   24 |voc  : 4372 : 6561
   //   6  |flx  : 44AF
+  //   6  |dbm0 : 4442 : 4D30
   //   7  |xm   : 4578 : 7465
   //   8  |iff  : 464F : 524D
   //   9  |gif  : 4749 : 4638
@@ -99,6 +100,7 @@ QMap <QString, Signature> signatures { // в QMap значения автома�
     { "mmd1",       { 0x0000000031444D4D, 4, Engine::recognize_med      } }, // "MMD1"
     { "mmd2",       { 0x0000000032444D4D, 4, Engine::recognize_med      } }, // "MMD2"
     { "mmd3",       { 0x0000000033444D4D, 4, Engine::recognize_med      } }, // "MMD3"
+    { "dbm0",       { 0x00000000304D4244, 4, Engine::recognize_dbm0     } }, // "DBM0"
 };
 
 u16i be2le(u16i be) {
@@ -279,13 +281,13 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x43 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["flc"].index]  )
+    if ( selected_formats[fformats["flc"].index] or selected_formats[fformats["dbm0"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[6])); // flx
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[6])); // flx, dbm0
         aj_asm.mov(x86::ptr(x86::rdi, 0x44 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["xm"].index]  )
+    if ( selected_formats[fformats["xm"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[7])); // xm
         aj_asm.mov(x86::ptr(x86::rdi, 0x45 * 8), x86::rax);
@@ -297,7 +299,7 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x46 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["gif"].index]  )
+    if ( selected_formats[fformats["gif"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[9])); // gif
         aj_asm.mov(x86::ptr(x86::rdi, 0x47 * 8), x86::rax);
@@ -530,14 +532,33 @@ aj_asm.bind(aj_sub_labels[10]); // voc ?
 
 // ; 0x44
 aj_asm.bind(aj_signat_labels[6]);
-    // ; flx : 0x44'AF
-    aj_asm.cmp(x86::al, 0xAF);
-    aj_asm.jne(aj_loop_check_label);
-    // вызов recognize_flc
-    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
-    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
-    aj_asm.call(imm((u64i)Engine::recognize_flc));
-    //
+    // ; dbm0 : 0x44'42 : 0x4D'30
+    // ;  flx : 0x44'AF
+aj_asm.bind(aj_sub_labels[18]); // dbm0?
+    if ( selected_formats[fformats["dbm0"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x42);
+        aj_asm.jne(aj_sub_labels[19]);
+        aj_asm.cmp(x86::bx, 0x4D'30);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_dbm0
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_dbm0));
+        //
+        aj_asm.jmp(aj_loop_check_label);
+    }
+aj_asm.bind(aj_sub_labels[19]); // flx?
+    if ( selected_formats[fformats["flc"].index] )
+    {
+        aj_asm.cmp(x86::al, 0xAF);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_flc
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_flc));
+        //
+    }
     aj_asm.jmp(aj_loop_check_label);
 
 // ; 0x45
@@ -2945,10 +2966,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
 #pragma pack(push,1)
     struct FrameHeader
     {
-        u8i AAAAAAAA;
-        u8i AAABBCCD;
-        u8i EEEEFFGH;
-        u8i IIJJKLMM;
+        u8i AAAAAAAA, AAABBCCD, EEEEFFGH, IIJJKLMM;
     };
     // https://id3.org/ID3v1
     struct ID3v1 // вставляется в конце ресурса
@@ -3272,3 +3290,59 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
+RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
+{ // http://www.digibooster.de/en/format.php
+#pragma pack(push,1)
+    struct DBM0_Header
+    {
+        u32i identifier; // 'DBM0'
+        u8i  version;
+        u8i  revision;
+        u16i reserved;
+    };
+    struct Chunk
+    {
+        u32i id;
+        u32i data_len;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! DBM0 RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static u32i dbm0_id {fformats["dbm0"].index};
+    static constexpr u64i min_room_need = sizeof(DBM0_Header);
+    static const QSet <u32i> VALID_CHUNK_ID {   0x454D414E /*'NAME'*/, 0x4F464E49 /*'INFO'*/, 0x474E4F53 /*'SONG'*/, 0x54534E49 /*'INST'*/,
+                                                0x54544150 /*'PATT'*/, 0x4C504D53 /*'SMPL'*/, 0x564E4556 /*'VENV'*/, 0x564E4550 /*'PENV'*/,
+                                                0x45505344 /*'DSPE'*/, 0x4D414E50 /*'PNAM'*/};
+    if ( !e->selected_formats[dbm0_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    uchar *buffer = e->mmf_scanbuf;
+    DBM0_Header *info_header = (DBM0_Header*)&buffer[base_index];
+    s64i file_size = e->file_size;
+    u64i last_index = base_index + sizeof(DBM0_Header); // ставимся на первый Chunk
+    Chunk *chunk;
+    QString info;
+    while(true)
+    {
+        if ( file_size - last_index < sizeof(Chunk) ) break; // хватает ли места для очередного заголовка Chunk ?
+        chunk = (Chunk*)&buffer[last_index];
+        if ( !VALID_CHUNK_ID.contains(chunk->id) ) break;
+        //qInfo() << " chunk_id:" << QString::number(chunk->id, 16) << " at:" << last_index;
+        if ( file_size - (last_index + sizeof(Chunk)) < be2le(chunk->data_len) ) return 0; // данные чанка не помещаются
+        if ( chunk->id == 0x454D414E /*'NAME'*/ )
+        {
+            u8i *songname_ptr = &buffer[last_index + sizeof(Chunk)];
+            info = "song name: '";
+            for (u32i s_idx = 0; s_idx < 44; ++s_idx)
+            {
+                if ( songname_ptr[s_idx] == 0 ) break;
+                info.append(QChar(songname_ptr[s_idx]));
+            }
+            info += "'";
+        }
+        last_index += (sizeof(Chunk) + be2le(chunk->data_len));
+    }
+    u64i resource_size = last_index - base_index;
+    Q_EMIT e->txResourceFound("dbm0", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+};
