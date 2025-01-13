@@ -23,6 +23,10 @@
   //   12 |bk2  : 4B42
   //   13 |mk   : 4D2E : 4B2E
   //   13 |tifm : 4D4D : 002A
+  //   13 |mmd0 : 4D4D : 4430
+  //   13 |mmd1 : 4D4D : 4431
+  //   13 |mmd2 : 4D4D : 4432
+  //   13 |mmd3 : 4D4D : 4433
   //   13 |mid  : 4D54 : 6864
   //   27 |ogg  : 4F67 : 6753
   //   16 |rif  : 5249 : 4646
@@ -51,7 +55,7 @@
 
 extern const QMap <u32i, QString> wave_codecs;
 
-QMap <QString, Signature> signatures { // в QMap значения будут автоматически упорядочены по ключам
+QMap <QString, Signature> signatures { // в QMap значения автоматически упорядочены по ключам
     // ключ
     // |
     // V
@@ -75,9 +79,9 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "bink2",      { 0x000000000000424B, 2, Engine::recognize_bink     } }, // "KB"
     { "smk2",       { 0x00000000324B4D53, 4, Engine::recognize_smk      } }, // "SMK2"
     { "smk4",       { 0x00000000344B4D53, 4, Engine::recognize_smk      } }, // "SMK4"
-    { "fli_af11",   { 0x000000000000AF11, 2, Engine::recognize_flc      } }, // "\x11\xAF
-    { "flc_af12",   { 0x000000000000AF12, 2, Engine::recognize_flc      } }, // "\x12\xAF
-    { "flx_af44",   { 0x000000000000AF44, 2, Engine::recognize_flc      } }, // "\x44\xAF "Dave's Targa Animator (DTA)" software
+    { "fli_af11",   { 0x000000000000AF11, 2, Engine::recognize_flc      } }, // "\x11\xAF"
+    { "flc_af12",   { 0x000000000000AF12, 2, Engine::recognize_flc      } }, // "\x12\xAF"
+    { "flx_af44",   { 0x000000000000AF44, 2, Engine::recognize_flc      } }, // "\x44\xAF" "Dave's Targa Animator (DTA)" software
     { "669_if",     { 0x0000000000006669, 2, Engine::recognize_669      } }, // "if"
     { "669_jn",     { 0x0000000000004E4A, 2, Engine::recognize_669      } }, // "JN"
     { "mod_ch",     { 0x0000000000004843, 2, Engine::recognize_mod      } }, // "CH"
@@ -91,6 +95,10 @@ QMap <QString, Signature> signatures { // в QMap значения будут а
     { "mp3_fffb",   { 0x000000000000FAFF, 2, Engine::recognize_mp3      } }, // "\xFF\xFB"
     { "mp3_id3v2",  { 0x0000000000334449, 3, Engine::recognize_mp3      } }, // "\x49\x44\x33"
     { "ogg",        { 0x000000005367674F, 4, Engine::recognize_ogg      } }, // "OggS"
+    { "mmd0",       { 0x0000000030444D4D, 4, Engine::recognize_med      } }, // "MMD0"
+    { "mmd1",       { 0x0000000031444D4D, 4, Engine::recognize_med      } }, // "MMD1"
+    { "mmd2",       { 0x0000000032444D4D, 4, Engine::recognize_med      } }, // "MMD2"
+    { "mmd3",       { 0x0000000033444D4D, 4, Engine::recognize_med      } }, // "MMD3"
 };
 
 u16i be2le(u16i be) {
@@ -313,9 +321,9 @@ aj_asm.bind(aj_prolog_label);
         aj_asm.mov(x86::ptr(x86::rdi, 0x4B * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["mod"].index] or selected_formats[fformats["tif_mm"].index] or selected_formats[fformats["mid"].index] )
+    if ( selected_formats[fformats["mod"].index] or selected_formats[fformats["tif_mm"].index] or selected_formats[fformats["mid"].index] or selected_formats[fformats["med"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[13])); // mod 'M.K.', tif_mm, mid
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[13])); // mod 'M.K.', tif_mm, mid, mmd0, mmd1, mmd2, mmd3
         aj_asm.mov(x86::ptr(x86::rdi, 0x4D * 8), x86::rax);
     }
 
@@ -659,9 +667,13 @@ aj_asm.bind(aj_signat_labels[12]);
 
 // ; 0x4D
 aj_asm.bind(aj_signat_labels[13]);
-    // ; mk  : 0x4D'2E : 0x4B'2E   ('M.K.')
-    // ; tfm : 0x4D'4D : 0x00'2A   ('II\x00\x2A')
-    // ; mid : 0x4D'54 : 0x68'64   ('MThd')
+    // ;   mk : 0x4D'2E : 0x4B'2E   ('M.K.')
+    // ;  tfm : 0x4D'4D : 0x00'2A   ('II\x00\x2A')
+    // ; mmd0 : 0x4D'4D : 0x44'30   ('MMD0')
+    // ; mmd1 : 0x4D'4D : 0x44'31   ('MMD1')
+    // ; mmd2 : 0x4D'4D : 0x44'32   ('MMD2')
+    // ; mmd3 : 0x4D'4D : 0x44'33   ('MMD3')
+    // ;  mid : 0x4D'54 : 0x68'64   ('MThd')
 aj_asm.bind(aj_sub_labels[4]); // mod_m.k. ?
     if ( selected_formats[fformats["mod"].index] )
     {
@@ -682,11 +694,27 @@ aj_asm.bind(aj_sub_labels[5]); // tif_mm ?
         aj_asm.cmp(x86::al, 0x4D);
         aj_asm.jne(aj_sub_labels[6]);
         aj_asm.cmp(x86::bx, 0x00'2A);
-        aj_asm.jne(aj_loop_check_label);
+        aj_asm.jne(aj_sub_labels[17]);
         // вызов recognize_tif_mm
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_tif_mm));
+        //
+        aj_asm.jmp(aj_loop_check_label);
+    }
+aj_asm.bind(aj_sub_labels[17]); // med MMDX ?
+    if ( selected_formats[fformats["med"].index] )
+    {
+        aj_asm.cmp(x86::bh, 0x44);
+        aj_asm.jne(aj_loop_check_label);
+        aj_asm.cmp(x86::bl, 0x30);
+        aj_asm.jb(aj_loop_check_label);
+        aj_asm.cmp(x86::bl, 0x33);
+        aj_asm.ja(aj_loop_check_label);
+        // вызов recognize_med
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_med));
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -2493,7 +2521,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
 }
 
 RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
-{
+{ // https://www.compuphase.com/flic.htm
 #pragma pack(push,1)
     struct FLC_Header
     {
@@ -3167,3 +3195,80 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     e->resource_offset = base_index;
     return resource_size;
 }
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct MED_Header
+    {
+        u32i signature, mod_len, song_ptr, psecnum_and_pseq, blockarr_ptr;
+        u8i  mmdflags;
+        u8i  reserved[3];
+        u32i smplarr_ptr, reserved2, expdata_ptr, reserved3, pstate_and_pblock, pline_and_pseqnum;
+        u16i actplayline;
+        u8i  counter, extra_songs;
+    };
+    struct ExpData
+    {
+        u32i nextmod_ptr, exp_smp_ptr;
+        u16i s_ext_entries, s_ext_entrzs;
+        u32i anno_txt_ptr, anno_len, iinfo_ptr;
+        u16i i_ext_entries, i_ext_entrzs;
+        u32i jump_mask, rgb_table_ptr;
+        u8i  channel_split[4];
+        u32i n_info_ptr, songname_ptr, songname_len;
+        u32i dumps_ptr, mmdinfo_ptr, mmdrexx_ptr, mmdcmd3x_ptr;
+        u32i reserved2[3];
+        u32i tag_end;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! MED RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static u32i med_id {fformats["med"].index};
+    static constexpr u64i min_room_need = sizeof(MED_Header);
+    if ( !e->selected_formats[med_id] ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    uchar *buffer = e->mmf_scanbuf;
+    MED_Header *info_header = (MED_Header*)&buffer[base_index];
+    u64i resource_size = be2le(info_header->mod_len);
+    s64i file_size = e->file_size;
+    if ( file_size - base_index < resource_size ) return 0; // не помещается
+    // далее грубые проверки (без учёта размеров блоков по указателям)
+    if ( (( be2le(info_header->song_ptr) >= resource_size ) or ( be2le(info_header->song_ptr) < sizeof(MED_Header) )) and ( be2le(info_header->song_ptr) != 0 ) ) return 0;
+    if ( (( be2le(info_header->blockarr_ptr) >= resource_size ) or ( be2le(info_header->blockarr_ptr) < sizeof(MED_Header) )) and ( be2le(info_header->blockarr_ptr) != 0 ) ) return 0;
+    if ( (( be2le(info_header->smplarr_ptr) >= resource_size ) or ( be2le(info_header->smplarr_ptr) < sizeof(MED_Header) )) and ( be2le(info_header->smplarr_ptr) != 0 ) ) return 0;
+    if ( (( be2le(info_header->expdata_ptr) >= resource_size ) or ( be2le(info_header->expdata_ptr) < sizeof(MED_Header) )) and ( be2le(info_header->expdata_ptr) != 0 ) ) return 0;
+    //
+    if ( info_header->mmdflags > 1 ) return 0;
+    if ( info_header->psecnum_and_pseq != 0 ) return 0;
+    if ( info_header->pstate_and_pblock != 0 ) return 0;
+    if ( info_header->pline_and_pseqnum != 0 ) return 0;
+    if ( info_header->actplayline != 0xFFFF ) return 0;
+    QString info;
+    if ( be2le(info_header->expdata_ptr) != 0 ) // попробуем найти название модуля
+    {
+        if ( file_size - (base_index + be2le(info_header->expdata_ptr)) >= sizeof(ExpData) ) // есть ли место для ExpData?
+        {
+            ExpData *exp_data = (ExpData*)&buffer[base_index + be2le(info_header->expdata_ptr)];
+            if ( be2le(exp_data->songname_ptr) >= sizeof(MED_Header) )
+            {
+                if ( file_size - (base_index + be2le(exp_data->songname_ptr)) >= be2le(exp_data->songname_len) ) // есть ли место для строки?
+                {
+                    u32i songname_len = be2le(exp_data->songname_len);
+                    u8i *songname_ptr = &buffer[base_index + be2le(exp_data->songname_ptr)];
+                    info = "song name: '";
+                    if (songname_len > 32) songname_len = 32;
+                    for (u32i s_idx = 0; s_idx < (songname_len - 1); ++s_idx)
+                    {
+                        info.append(QChar(songname_ptr[s_idx]));
+                    }
+                    info += "'";
+                }
+            }
+        }
+    }
+    Q_EMIT e->txResourceFound("med", e->file.fileName(), base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
