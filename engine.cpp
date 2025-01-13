@@ -1341,7 +1341,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         u32i chunk_size; // need BE<>LE swap
         u32i format_type; // "ILBM", "AIFF", "XDIR"
     };
-    struct ILBM_InfoHeader
+    struct BMHD_InfoHeader
     {
         u32i local_chunk_id; // "BMHD"
         u32i size; // need BE<>LE swap
@@ -1373,12 +1373,15 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     static u32i aif_id {fformats["aif"].index};
     static u32i xmi_id {fformats["xmi"].index};
     static const u64i min_room_need = sizeof(ChunkHeader);
-    static const QSet <u32i> VALID_FORMAT_TYPE { 0x4D424C49 /*ILBM*/, 0x46464941 /*AIFF*/, 0x52494458 /*XDIR*/ };
+    static const QSet <u32i> VALID_FORMAT_TYPE {0x204D4250 /*PBM */, 0x4D424C49 /*ILBM*/, 0x38424752 /*RGB8*/, 0x4E424752 /*RGBN*/,
+                                                0x4D424341 /*ACBM*/, 0x46464941 /*AIFF*/, 0x50454544 /*DEEP*/, 0x52494458 /*XDIR*/,
+                                                0x43464941 /*AIFC*/, 0x58565338 /*8SVX*/, 0x56533631 /*16SV*/};
     if ( ( !e->selected_formats[lbm_id] ) and ( !e->selected_formats[aif_id] ) and ( !e->selected_formats[xmi_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
+    ChunkHeader *chunk_header = (ChunkHeader*)&buffer[base_index];
     u64i last_index = base_index + sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + be2le((*((ChunkHeader*)(&buffer[base_index]))).chunk_size); // сразу переставляем last_index в конец ресурса (но для XMI это лишь начало структуры CAT
     if ( last_index > file_size ) return 0; // неверное поле chunk_size
     if ( !VALID_FORMAT_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->format_type) ) return 0; // проверка на валидные форматы
@@ -1386,28 +1389,126 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     u64i resource_size = last_index - base_index;
     switch (((ChunkHeader*)(&buffer[base_index]))->format_type)
     {
-    case 0x4D424C49: // "ILBM" picture
+    case 0x204D4250 : // "PBM " picture
     {
         if ( ( !e->selected_formats[lbm_id] ) ) return 0;
-        if ( resource_size < (sizeof(ChunkHeader) + sizeof(ILBM_InfoHeader)) ) return 0;
-        ILBM_InfoHeader *bitmap_info_header = (ILBM_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
-        if ( bitmap_info_header->local_chunk_id != 0x44484D42 /*BMHD*/ ) return 0;
-        QString info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
+        QString info;
+        if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
+        {
+            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
+            {
+                info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
                                                         QString::number(be2le(bitmap_info_header->height)),
                                                         QString::number(bitmap_info_header->bitplanes));
+            }
+        }
         Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x43464941: // "AIFC" sound
+    {
+        if ( ( !e->selected_formats[aif_id] ) ) return 0;
+        Q_EMIT e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
     case 0x46464941: // "AIFF" sound
     {
         if ( ( !e->selected_formats[aif_id] ) ) return 0;
-        if ( resource_size < (sizeof(ChunkHeader) + sizeof(AIFF_CommonInfoHeader)) ) return 0;
-        AIFF_CommonInfoHeader *aiff_info_header = (AIFF_CommonInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
         QString info;
-        if ( aiff_info_header->local_chunk_id == 0x4D4D4F43 ) info = QString("%1-bit %2-ch").arg(   QString::number(be2le(aiff_info_header->sample_size)),
-                                                                                                    QString::number(be2le(aiff_info_header->channels)));
+        if ( resource_size >= (sizeof(ChunkHeader) + sizeof(AIFF_CommonInfoHeader)) )
+        {
+            AIFF_CommonInfoHeader *aiff_info_header = (AIFF_CommonInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            if ( aiff_info_header->local_chunk_id == 0x4D4D4F43 /*'COMM'*/)
+            {
+                info = QString("%1-bit %2-ch").arg( QString::number(be2le(aiff_info_header->sample_size)),
+                                                    QString::number(be2le(aiff_info_header->channels)));
+            }
+        }
         Q_EMIT e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x38424752: // "RGB8" picture
+    {
+        if ( ( !e->selected_formats[lbm_id] ) ) return 0;
+        QString info;
+        if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
+        {
+            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
+            {
+                info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
+                                                        QString::number(be2le(bitmap_info_header->height)),
+                                                        QString::number(bitmap_info_header->bitplanes - 1));
+            }
+        }
+        Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x4D424341: // "ACBM" picture
+    {
+        if ( ( !e->selected_formats[lbm_id] ) ) return 0;
+        QString info;
+        if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
+        {
+            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
+            {
+                info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
+                                                        QString::number(be2le(bitmap_info_header->height)),
+                                                        QString::number(bitmap_info_header->bitplanes));
+            }
+        }
+        Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x4D424C49: // "ILBM" picture
+    {
+        if ( ( !e->selected_formats[lbm_id] ) ) return 0;
+        QString info;
+        if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
+        {
+            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
+            {
+                info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
+                                                        QString::number(be2le(bitmap_info_header->height)),
+                                                        QString::number(bitmap_info_header->bitplanes));
+            }
+        }
+        Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x4E424752: // "RGBN" picture
+    {
+        if ( ( !e->selected_formats[lbm_id] ) ) return 0;
+        if ( resource_size < (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) ) return 0;
+        BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        QString info;
+        if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
+        {
+            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
+            {
+                info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
+                                                        QString::number(be2le(bitmap_info_header->height)),
+                                                        QString::number(bitmap_info_header->bitplanes - 1));
+            }
+        }
+        Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x50454544: // "DEEP" picture
+    {
+        if ( ( !e->selected_formats[lbm_id] ) ) return 0;
+        Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
@@ -1422,6 +1523,20 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         if ( last_index > file_size) return 0;
         u64i resource_size = last_index - base_index;
         Q_EMIT e->txResourceFound("xmi", e->file.fileName(), base_index, resource_size, "");
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x58565338: // "8SVX" sound
+    {
+        if ( ( !e->selected_formats[aif_id] ) ) return 0;
+        Q_EMIT e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, "");
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x56533631: // "16SV" sound
+    {
+        if ( ( !e->selected_formats[aif_id] ) ) return 0;
+        Q_EMIT e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
     }
