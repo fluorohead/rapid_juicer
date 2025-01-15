@@ -71,14 +71,15 @@ extern const u64i CAT_USER;
 
 struct FileFormat
 {
-    QString        description;
-    QString        commentary; // для отображения более мелким шрифтом
-    QString        extension;
+    QString        description; // для отображения в списке форматов
+    QString        commentary; // для отображения более мелким шрифтом в списке форматов
+    QString        extension;  // для отображения в списке форматов
     u64i           base_categories[3];
     u64i           additional_categories; // задаётся через битовое "|"
-    QList<QString> signature_ids;  // список сигнатур для формата (может быть >= 1)
+    QList<QString> signature_ids;  // список сигнатур для формата (должен быть >= 1)
     u32i           index;
     QString        tooltip_str; // для отображения в tooltip'ах
+    QString        icon_path;   // путь к иконке формата для отображения в результатах поиска
 };
 
 extern QMap <QString, FileFormat> fformats;

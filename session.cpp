@@ -5,6 +5,13 @@
 #include <QPushButton>
 #include <QThread>
 #include <QDir>
+#include <QHeaderView>
+#include <QScrollBar>
+
+#define RESULTS_TABLE_WIDTH 785
+#define RESULTS_TABLE_HEIGHT 450
+#define RESULTS_TABLE_COLUMNS 7
+#define RESULTS_TABLE_ROWS 6
 
 extern QString reduce_file_path(const QString&, int);
 
@@ -80,6 +87,51 @@ const QString current_progress_header_txt[int(Langs::MAX)]
     "Current progress",
     "Текущий прогресс"
 };
+
+const QMap <u64i, QString> first_categ_resources
+    {
+        { CAT_IMAGE, ":/gui/session/cat_image_big.png" },
+        { CAT_VIDEO, ":/gui/session/cat_video_big.png" },
+        { CAT_AUDIO, ":/gui/session/cat_audio_big.png" },
+        { CAT_MUSIC, ":/gui/session/cat_music_big.png" },
+        { CAT_3D,    ":/gui/session/cat_3d_big.png"    }
+    };
+
+void FormatTile::update_counter(u64i value)
+{
+    counter->setText(QString::number(value));
+}
+
+FormatTile::FormatTile(const QString &format_name)
+{
+    this->setFixedSize(108, 149);
+    this->setAutoFillBackground(true);
+    this->setStyleSheet("background-color: #794642; border-width: 2px; border-style: solid; margin: 10px; border-radius: 14px; border-color: #b6c7c7;");
+    auto big_icon = new QLabel(this);
+    QPixmap big_icon_pixmap {first_categ_resources[fformats[format_name].base_categories[0]]};
+    big_icon->setFixedSize(big_icon_pixmap.width(), big_icon_pixmap.height());
+    big_icon->setPixmap(big_icon_pixmap);
+    big_icon->setStyleSheet("border-width: 0px; margin: 0px");
+    big_icon->move(34, 24);
+    auto fmt_text = new QLabel(this);
+    fmt_text->setFixedSize(80, 48);
+    fmt_text->setStyleSheet("color: #e3b672; background-color: #794642; border-width: 2px; border-style: solid; border-radius: 8px; border-color: #b6c7c7;");
+    fmt_text->move(14, 60);
+    fmt_text->setAlignment(Qt::AlignCenter);
+    QFont tmpFont {*skin_font()};
+    tmpFont.setPixelSize(15);
+    tmpFont.setBold(true);
+    fmt_text->setFont(tmpFont);
+    fmt_text->setText(fformats[format_name].extension);
+    counter = new QLabel(this);
+    counter->setFixedSize(80, 24);
+    counter->setStyleSheet("color: #c6d7d7; background-color: #794642; border-width: 0px; margin: 0px;");
+    counter->move(14, 104);
+    counter->setAlignment(Qt::AlignCenter);
+    tmpFont.setPixelSize(14);
+    tmpFont.setBold(false);
+    counter->setFont(tmpFont);
+}
 
 SessionWindow::SessionWindow(u32i session_id)
     : my_session_id(session_id)
@@ -296,10 +348,59 @@ SessionWindow::SessionWindow(u32i session_id)
     paths_remaining_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     paths_remaining_label->setParent(central_widget);
     paths_remaining_label->move(400, y_offset + 48);
-    //paths_remaining_label->setText("");
 
     connect(close_button, &OneStateButton::imReleased, this, &SessionWindow::close);
     connect(minimize_button, &OneStateButton::imReleased, this, &SessionWindow::showMinimized);
+    
+    pages = new QStackedWidget;
+    pages->setParent(this);
+    pages->move(72, 244);
+    pages->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
+
+    results_table = new QTableWidget(RESULTS_TABLE_ROWS, RESULTS_TABLE_COLUMNS);
+    results_table->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
+    pages->addWidget(results_table); // page 0
+    results_table->setStyleSheet("gridline-color: #8d6858; background-color: #8d6858");
+    results_table->verticalScrollBar()->setStyle(new QCommonStyle);
+    results_table->verticalScrollBar()->setStyleSheet(  ":vertical {background-color: #8d6858; width: 10px}"
+                                                        "::handle:vertical {background-color: #895652; border-radius: 5px;}"
+                                                        "::sub-line:vertical {height: 0px}"
+                                                        "::add-line:vertical {height: 0px}");
+    results_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    results_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    results_table->setSelectionMode(QAbstractItemView::NoSelection);
+    results_table->verticalHeader()->hide();
+    results_table->horizontalHeader()->hide();
+    results_table->setFrameShape(QFrame::NoFrame);
+    results_table->setSortingEnabled(false);
+    results_table->horizontalHeader()->setHighlightSections(false);
+
+    for (int column = 0; column < RESULTS_TABLE_COLUMNS; ++column)
+    {
+        results_table->setColumnWidth(column, 770 / RESULTS_TABLE_COLUMNS);
+    }
+    for (int row = 0; row < RESULTS_TABLE_ROWS; ++row)
+    {
+        results_table->setRowHeight(row, 450 / 3);
+    }
+
+    // каждому формату заранее создаём свою страницу (начиная со страницы 1)
+    for (auto it = fformats.cbegin(); it != fformats.cend(); it++)
+    {
+        auto fformat_widget = new QWidget;
+        fformat_widget->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
+        fformat_widget->setAutoFillBackground(true);
+        pages->addWidget(fformat_widget);
+    };
+    //qInfo() << pages->count();
+
+    // завершающей страницей будет информационный виджет (с анимацией и текстом)
+    auto info_widget = new QWidget;
+    info_widget->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
+    info_widget->setAutoFillBackground(true);
+    pages->addWidget(info_widget);
+
+    pages->setCurrentIndex(0);
 
     ///////////////////////// здесь готовим поток walker'а : создаём его, соединяем сигналы/слоты, затем запускаем поток
     create_and_start_walker();
@@ -315,7 +416,7 @@ void SessionWindow::create_and_start_walker()
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\title2.gif)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\1671625086303.jpg)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\CURE1.MOD)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\ico\example.ico)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\different formats)", "*.*", false});
 
     if ( !task.task_paths.empty() and !settings.selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
     {
@@ -418,10 +519,30 @@ void SessionWindow::rxFileProgress(QString file_name, s64i percentage_value)
 
 void SessionWindow::rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info)
 {
-    qInfo() << "---\n| Thread:" << QThread::currentThreadId();
-    qInfo() << "|    resource" << format_name.toUpper() << "found at pos:" << file_offset << "; size:"<< size << "bytes";
-    qInfo() << "|    in file:" << file_name;
-    qInfo() << "|    additional info:" << info << "\n---";
+    ++total_resources_found;
+    // qInfo() << "---\n| Thread:" << QThread::currentThreadId();
+    // qInfo() << "|    #" << total_resources_found;
+    // qInfo() << "|    resource" << format_name.toUpper() << "found at pos:" << file_offset << "; size:"<< size << "bytes";
+    // qInfo() << "|    in file:" << file_name;
+    // qInfo() << "|    additional info:" << info << "\n---";
+
+    // занесение в БД
+    if ( !resources_db.contains(format_name) )
+    {
+        ++unique_formats_found;
+        // здесь создаём новый тайл и помещаем его в ячейку
+        int row = (unique_formats_found - 1) / 7;
+        int column = (unique_formats_found - 1) % 7;
+        // qInfo() << "|    creating new tile for" << format_name << " unique format number:" << unique_formats_found;
+        // qInfo() << "|    new tile row: " << row << " column:" << column;
+        auto tile = new FormatTile(format_name);
+        results_table->setCellWidget(row, column, tile);
+        tiles_db[format_name] = tile;
+        //
+    }
+    resources_db[format_name].append({total_resources_found, format_name, file_name, file_offset, size, info, fformats[format_name].extension});
+    tiles_db[format_name]->update_counter(resources_db[format_name].count());
+    //tiles_db[format_name]->update_counter(4294967295);
 }
 
 void SessionWindow::mouseMoveEvent(QMouseEvent *event)

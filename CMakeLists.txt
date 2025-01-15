@@ -13,9 +13,8 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
 set(PROJECT_SOURCES
-        main.cpp
-        mw.cpp
-        mw.h
+    main.cpp mw.h mw.cpp
+    session.h session.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -24,9 +23,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ${PROJECT_SOURCES}
         dlw.cpp dlw.h
         elements.cpp elements.h
+        formats.h formats.cpp
         engine.cpp engine.h
-        formats.cpp formats.h
-        session.cpp session.h
         settings.cpp settings.h
         task.cpp task.h
         walker.cpp walker.h

@@ -3,10 +3,7 @@
 #include "task.h"
 #include "formats.h"
 #include "session.h"
-
 #include <QApplication>
-#include <QRawFont>
-#include <QThread>
 #include <QDir>
 
 Settings settings;           // объект должен существовать до создания любых окон.
@@ -26,8 +23,8 @@ int main(int argc, char *argv[])
 
     indexFilesFormats();
 
-    //qInfo() << "Main process id (uint64):" << QApplication::applicationPid();
-    //qInfo() << "Main thread id:" << QThread::currentThreadId();
+    // qInfo() << "Main process id (uint64):" << QApplication::applicationPid();
+    // qInfo() << "Main thread id:" << QThread::currentThreadId();
 
     mw = new MainWindow;
     mw->show();

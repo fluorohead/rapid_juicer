@@ -66,7 +66,7 @@ const u64i filters[MAX_FILTERS] { CAT_IMAGE,
                                   CAT_OTHER,
                                   CAT_IMAGE | CAT_VIDEO | CAT_AUDIO | CAT_3D | CAT_MUSIC | CAT_OTHER | CAT_PERFRISK | CAT_OUTDATED };
 
-const QMap <u64i, QString> FormatsTable::categories_resources {
+const QMap <u64i, QString> categories_resources {
     { CAT_IMAGE, ":/gui/main/cat_image.png"}, {CAT_VIDEO,    ":/gui/main/cat_video.png"},    {CAT_AUDIO,    ":/gui/main/cat_audio.png"},
     { CAT_MUSIC, ":/gui/main/cat_music.png"}, {CAT_3D,       ":/gui/main/cat_3d.png"},       {CAT_WIN,      ":/gui/main/cat_win.png"},
     { CAT_DOS,   ":/gui/main/cat_dos.png"},   {CAT_MAC,      ":/gui/main/cat_mac.png"},      {CAT_AMIGA,    ":/gui/main/cat_amiga.png"},

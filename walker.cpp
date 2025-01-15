@@ -55,7 +55,7 @@ void WalkerThread::run()
     prepare_structures_before_engine();
 
     engine = new Engine(this);
-    connect(engine, &Engine::txResourceFound, my_receiver, &SessionWindow::rxResourceFound, Qt::DirectConnection); // исполнение слота не в основном, а в текущем потоке!
+    connect(engine, &Engine::txResourceFound, my_receiver, &SessionWindow::rxResourceFound, Qt::QueuedConnection); // исполнение слота не в основном, а в текущем потоке!
     connect(this, &WalkerThread::txGeneralProgress, my_receiver, &SessionWindow::rxGeneralProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
     connect(engine, &Engine::txFileProgress, my_receiver, &SessionWindow::rxFileProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
 
