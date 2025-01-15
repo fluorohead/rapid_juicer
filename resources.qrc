@@ -65,11 +65,11 @@
         <file>gui/session/min_h.png</file>
         <file>gui/session/ssnw.png</file>
         <file>gui/settings/sw.png</file>
-        <file>gui/logo.png</file>
         <file>gui/session/cat_3d_big.png</file>
         <file>gui/session/cat_audio_big.png</file>
         <file>gui/session/cat_image_big.png</file>
         <file>gui/session/cat_music_big.png</file>
         <file>gui/session/cat_video_big.png</file>
+        <file>gui/logo.png</file>
     </qresource>
 </RCC>
