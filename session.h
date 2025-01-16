@@ -8,6 +8,7 @@
 #include <QProgressBar>
 #include <QMutex>
 #include <QStackedWidget>
+#include <QMovie>
 
 #define MAX_FILENAME_LEN 66
 
@@ -55,7 +56,11 @@ class SessionWindow: public QWidget
     QProgressBar *file_progress_bar;
     QProgressBar *general_progress_bar;
     QLabel *current_file_label;
-    QLabel *paths_remaining_label;
+    QLabel *paths_remaining;
+    QLabel *current_status;
+    QLabel *total_resources;
+    QLabel *movie_zone;
+    QMovie *scan_movie;
     QMutex *walker_mutex;
     WalkerThread *walker;
     void create_and_start_walker(); // создание walker-потока и запуск его в работу
@@ -71,7 +76,8 @@ public:
     ~SessionWindow();
 public Q_SLOTS:
     void rxGeneralProgress(QString remaining, u64i percentage_value);
-    void rxFileProgress(QString file_name, s64i percentage_value);
+    void rxFileChange(QString file_name);
+    void rxFileProgress(s64i percentage_value);
     void rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
 };
 

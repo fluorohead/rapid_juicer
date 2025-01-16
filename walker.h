@@ -34,6 +34,7 @@ Q_SIGNALS:
     void txGeneralProgress(QString remaining, u64i percents);
     void txImPaused();
     void txImResumed();
+    void txFileWasSkipped();
 
     friend SessionWindow;
     friend Engine;

@@ -152,15 +152,15 @@ Engine::Engine(WalkerThread *walker_parent)
 
 Engine::~Engine()
 {
-    qInfo() << "Engine destructor called in thread id" << QThread::currentThreadId();
+    //qInfo() << "Engine destructor called in thread id" << QThread::currentThreadId();
 }
 
-void Engine::scan_file(const QString &file_name)
+void Engine::scan_file_win64(const QString &file_name)
 {
     file.setFileName(file_name);
     file_size = file.size();
-    qInfo() << "file_size:" << file_size;
-    if ( ( !file.open(QIODeviceBase::ReadOnly) ) or ( ( file.size() < MIN_RESOURCE_SIZE ) ) )
+    //qInfo() << "file_size:" << file_size;
+    if ( !file.open(QIODeviceBase::ReadOnly) or ( file.size() < MIN_RESOURCE_SIZE ) )
     {
         return;
     }
@@ -168,6 +168,7 @@ void Engine::scan_file(const QString &file_name)
     if ( mmf_scanbuf == nullptr )
     {
         qInfo() << "unsuccesful file to memory mapping";
+        file.close();
         return;
     }
     //////////////////////////////////////////////////////////////
@@ -952,6 +953,9 @@ aj_asm.bind(aj_epilog_label);
     // qInfo() << aj_logger.data();
     //////////////////////////////////////////////////////////////
 
+    previous_msecs = QDateTime::currentMSecsSinceEpoch();
+    done_cause_skip = false;
+    Q_EMIT txFileChange(file_name); // путь очередного файла всегда оправляем в SessionWindow для отображения
     for (iteration = 1; iteration <= max_iterations; ++iteration)
     {
         start_offset = last_offset;
@@ -962,11 +966,11 @@ aj_asm.bind(aj_epilog_label);
         switch (*command) // проверка на поступление команды управления
         {
         case WalkerCommand::Stop:
-            qInfo() << "-> Engine: i'm stopped due to Stop command";
+            //qInfo() << "-> Engine: i'm stopped due to Stop command";
             iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
             break;
         case WalkerCommand::Pause:
-            qInfo() << "-> Engine: i'm paused due to Pause command";
+            //qInfo() << "-> Engine: i'm paused due to Pause command";
             Q_EMIT my_walker_parent->txImPaused();
             control_mutex->lock(); // повисаем на этой строке (mutex должен быть предварительно заблокирован в вызывающем коде)
             // тут вдруг в главном потоке разблокировали mutex, поэтому пошли выполнять код ниже (пришла неявная команда Resume(Run))
@@ -977,20 +981,21 @@ aj_asm.bind(aj_epilog_label);
                 break;
             }
             Q_EMIT my_walker_parent->txImResumed();
-            qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
+            //qInfo() << " >>>> Engine : received Resume(Run) command, when Engine was running!";
             break;
         case WalkerCommand::Skip:
-            qInfo() << " >>>> Engine : current file skipped :" << file_name;
+            //qInfo() << " >>>> Engine : current file skipped :" << file_name;
             *command = WalkerCommand::Run;
             iteration = max_iterations;  // условие выхода из внешнего цикла do-while итерационных чтений файла
+            done_cause_skip = true; // это нужно в WalkerThread, чтобы понять почему сканирование завершилось
             break;
         default:; // сюда в случае WalkerCommand::Run
         }
         update_file_progress(file_name, file_size, scanbuf_offset); // посылаем сигнал обновить progress bar для файла
     }
-
-    qInfo() << "closing file";
-    qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
+    Q_EMIT txFileProgress(100);
+    // qInfo() << "closing file";
+    // qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
     file.unmap(mmf_scanbuf);
     file.close();
     aj_runtime.release(comparation_func);
@@ -1008,10 +1013,9 @@ inline void Engine::update_file_progress(const QString &file_name, u64i file_siz
     {
         previous_msecs = current_msecs;
         previous_file_progress = current_file_progress;
-        Q_EMIT txFileProgress(file_name, current_file_progress);
-        //return; // нужен только в случае, если далее идёт qInfo(), иначе return можно удалить
+        //Q_EMIT txFileProgress(file_name, current_file_progress);
+        Q_EMIT txFileProgress(current_file_progress);
     }
-//    qInfo() << "    !!! Engine :: NO! I WILL NOT SEND SIGNALS CAUSE IT'S TOO OFTEN!";
 }
 
 bool Engine::enough_room_to_continue(u64i min_size)
@@ -1022,19 +1026,6 @@ bool Engine::enough_room_to_continue(u64i min_size)
     }
     return false;
 }
-
-// функция-заглушка для обработки технической сигнатуры
-RECOGNIZE_FUNC_RETURN Engine::recognize_special RECOGNIZE_FUNC_HEADER
-{
-    if ( e->enough_room_to_continue(10) )
-    {
-        ++(e->hits);
-    }
-    //qInfo() << "recognize_special:" << e->scanbuf_offset;
-
-    return 0;
-}
-
 
 RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
 {
@@ -1070,7 +1061,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
     if ( !VALID_BITS_PER_PIXEL.contains(info_header->bits_per_pixel) ) return 0;
     s64i file_size = e->file_size;
     u64i last_index = base_index + info_header->file_size;
-    qInfo() << "here";
     if ( last_index > file_size ) return 0; // неверное поле file_size
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
@@ -1326,7 +1316,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
     u64i resource_size = last_index - base_index;
     QString info = QString(R"(%1 tracks)").arg(be2le(info_header->ntrks));
     Q_EMIT e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
-    //qInfo() << " hererererererre | size from header:" << be2le((*((MidiChunk*)(&buffer[base_index]))).size);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -2072,7 +2061,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
         u32i signature; // "SCRS"
     };
 #pragma pack(pop)
-    // предполагается, что порядок организации ресурса всегда такой же, как указано в файле s3m-form.txt
+    // предполагается, что порядок организации ресурса всегда такой же, как указано в документе s3m-form.txt
     // - header
     // - instruments in order
     // - patterns in order
