@@ -674,7 +674,7 @@ void SessionWindow::rxStartSaveAllProcess()
         data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
         //data_buffer.append(QByteArray(&str_end), 1);
         data_buffer.append(qba_format_name);
-        qInfo() << "written 'FmtChange' for '" << format_name_key << "' current size of buffer:" << data_buffer.size();
+        //qInfo() << "written 'FmtChange' for" << format_name_key << "; current size of buffer:" << data_buffer.size();
         ///
         QMap<QString, QList<ResourceRecord>> &source_files = resources_db[format_name_key];
         while(!source_files.isEmpty()) // обход ключей имён файлов
@@ -686,7 +686,7 @@ void SessionWindow::rxStartSaveAllProcess()
             tlv_header.length = qba_file_name.length();
             data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
             data_buffer.append(qba_file_name);
-            qInfo() << "written 'SrcChange' for file:" << source_files.firstKey() << "' current size of buffer:" << data_buffer.size();;
+            //qInfo() << "written 'SrcChange' for file" << source_files.firstKey() << "; current size of buffer:" << data_buffer.size();;
             ///
             QList <ResourceRecord> &resource_records = resources_db[format_name_key][file_name_key];
             while(!resource_records.isEmpty())
@@ -700,7 +700,7 @@ void SessionWindow::rxStartSaveAllProcess()
                 pod_rr.size = one_resource.size;
                 data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
                 data_buffer.append(QByteArray((char*)&pod_rr, sizeof(pod_rr)));
-                qInfo() << "written 'POD': pod_rr.order_num:" << pod_rr.order_number << " pod_rr.offset:" << pod_rr.offset << "pod_rr.size:" << pod_rr.size << " current size of buffer:" << data_buffer.size();;
+                //qInfo() << "written 'POD' for pod_rr.order_num:" << pod_rr.order_number << " pod_rr.offset:" << pod_rr.offset << "pod_rr.size:" << pod_rr.size << "; current size of buffer:" << data_buffer.size();;
                 ///
                 /// запись TLV "DstExtension":
                 tlv_header.type = TLV_Type::DstExtension;
@@ -708,7 +708,7 @@ void SessionWindow::rxStartSaveAllProcess()
                 tlv_header.length = qba_dst_extension.length();
                 data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
                 data_buffer.append(qba_dst_extension);
-                qInfo() << "written 'DstExtension':" << one_resource.dest_extension << " current size of buffer:" << data_buffer.size();
+                //qInfo() << "written 'DstExtension' for" << one_resource.dest_extension << "; current size of buffer:" << data_buffer.size();
                 ///
                 /// запись TLV "Info":
                 tlv_header.type = TLV_Type::Info;
@@ -716,7 +716,7 @@ void SessionWindow::rxStartSaveAllProcess()
                 tlv_header.length = qba_info.length();
                 data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
                 data_buffer.append(qba_info);
-                qInfo() << "written 'Info':" << one_resource.info << " current size of buffer:" << data_buffer.size();
+                //qInfo() << "written 'Info' for" << one_resource.info << "; current size of buffer:" << data_buffer.size();
                 ///
                 resource_records.removeFirst();
                 resource_records.squeeze();
@@ -729,7 +729,7 @@ void SessionWindow::rxStartSaveAllProcess()
     tlv_header.type = TLV_Type::Terminator;
     tlv_header.length = 0;
     data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
-    qInfo() << "written 'Terminator' : current size of buffer:" << data_buffer.size();
+    //qInfo() << "written 'Terminator'; current size of buffer:" << data_buffer.size();
     ///
     resources_db.clear();  // на всякий случай ещё раз обнуляем (хотя после обхода, бд уже должна быть пустой).
 
