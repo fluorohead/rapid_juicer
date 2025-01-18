@@ -82,7 +82,7 @@ struct FileFormat
     QString        icon_path;   // путь к иконке формата для отображения в результатах поиска
 };
 
-extern QMap <QString, FileFormat> fformats;
+//extern QMap <QString, FileFormat> fformats;
 
 void indexFilesFormats();
 

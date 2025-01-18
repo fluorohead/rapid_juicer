@@ -3,6 +3,8 @@
 #include <QDebug>
 #include <QDir>
 
+extern QMap <QString, FileFormat> fformats;
+
 WalkerThread::WalkerThread(SessionWindow *receiver, QMutex *control_mtx, const Task &task, const Config &config, const QSet<QString> &formats_to_scan)
     : my_receiver(receiver)
     , walker_control_mutex(control_mtx)

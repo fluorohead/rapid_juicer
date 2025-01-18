@@ -17,6 +17,7 @@
 extern QHash <u32i, QString> categories;
 extern QMap <QString, FileFormat> fformats;
 
+extern Settings *settings;
 extern Task task;
 extern SessionsPool sessions_pool;
 
@@ -122,18 +123,19 @@ FormatLabel::FormatLabel(const QString &format_key, const QString &text, QPixmap
 {
     corner_label.setFixedSize(50, 50);
     corner_label.setMask(corner_pixmap->mask());
-    if ( settings.selected_formats.contains(my_format_key) ) corner_label.setPixmap(*corner_pixmap);
+    if ( settings->selected_formats.contains(my_format_key) ) corner_label.setPixmap(*corner_pixmap);
 }
 
 void FormatLabel::rxToggle()
 {
-    if ( settings.selected_formats.contains(my_format_key) ) {
-        settings.selected_formats.remove(my_format_key);
+    if ( settings->selected_formats.contains(my_format_key) )
+    {
+        settings->selected_formats.remove(my_format_key);
         corner_label.clear();
     }
     else
     {
-        settings.selected_formats.insert(my_format_key);
+        settings->selected_formats.insert(my_format_key);
         corner_label.setPixmap(*corner_pixmap);
     }
 }
@@ -315,13 +317,13 @@ void FormatsTable::rxCommand(FilterAction action, u64i categories)
                 switch (action)
                 {
                 case FilterAction::Include:
-                    if ( !settings.selected_formats.contains(it.key()) )
+                    if ( !settings->selected_formats.contains(it.key()) )
                     {
                         ((FormatLabel*)this->cellWidget(it.value().index + 1, 0))->rxToggle();
                     }
                     break;
                 case FilterAction::Exclude:
-                    if ( settings.selected_formats.contains(it.key()) )
+                    if ( settings->selected_formats.contains(it.key()) )
                     {
                         ((FormatLabel*)this->cellWidget(it.value().index + 1, 0))->rxToggle();
                     }
@@ -335,7 +337,7 @@ void FormatsTable::rxCommand(FilterAction action, u64i categories)
 }
 
 MainWindow::MainWindow()
-    : QWidget(nullptr, Qt::FramelessWindowHint)  // окно это QWidget без родителя
+    : QWidget(nullptr, Qt::FramelessWindowHint)  // окно - это QWidget без родителя
 {
     this->setAttribute(Qt::WA_TranslucentBackground);
     this->setAttribute(Qt::WA_NoSystemBackground);
@@ -354,7 +356,7 @@ MainWindow::MainWindow()
     auto settings_button = new OneStateButton(this, ":/gui/main/setts.png", ":/gui/main/setts_h.png");
     auto minimize_button = new OneStateButton(this, ":/gui/main/min.png", ":gui/main//min_h.png");
     auto close_button = new OneStateButton(this, ":/gui/main/close.png", ":/gui/main/close_h.png");
-    auto scrup_button = new TwoStatesButton(this, &settings.config.scrupulous, ":/gui/main/scrpm_off.png", ":/gui/main/scrpm_on.png", ":/gui/main/scrpm_off_h.png", ":/gui/main/scrpm_on_h.png");
+    auto scrup_button = new TwoStatesButton(this, &settings->config.scrupulous, ":/gui/main/scrpm_off.png", ":/gui/main/scrpm_on.png", ":/gui/main/scrpm_off_h.png", ":/gui/main/scrpm_on_h.png");
 
     play_button->move(232, 96);
     add_file_button->move(23, 32);

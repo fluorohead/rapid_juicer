@@ -7,6 +7,11 @@
 #include <QDir>
 #include <QHeaderView>
 #include <QScrollBar>
+#include <QProcess>
+#include <QApplication>
+#include <QSharedMemory>
+#include <QBuffer>
+#include <QSystemSemaphore>
 
 #define RESULTS_TABLE_WIDTH 785
 #define RESULTS_TABLE_HEIGHT 450
@@ -16,8 +21,9 @@
 extern QString reduce_file_path(const QString&, int);
 
 extern SessionsPool      sessions_pool;
-extern Settings          settings;
+extern Settings          *settings;
 extern Task              task;
+extern QMap <QString, FileFormat> fformats;
 extern const QList<u64i> permitted_buffers;
 extern const QString     yes_no_txt[int(Langs::MAX)][2];
 extern const QString     mebibytes_txt[int(Langs::MAX)];
@@ -225,9 +231,9 @@ SessionWindow::SessionWindow(u32i session_id)
     }
 
     QString session_label_texts [4] {   QString("#%1").arg(QString::number(my_session_id), 2, u'0'),
-                                        yes_no_txt[curr_lang()][int(settings.config.scrupulous)],
-                                        settings.config.file_mask,
-                                        QString::number(permitted_buffers[settings.config.bfr_size_idx]) + mebibytes_txt[curr_lang()]
+                                        yes_no_txt[curr_lang()][int(settings->config.scrupulous)],
+                                        settings->config.file_mask,
+                                        QString::number(permitted_buffers[settings->config.bfr_size_idx]) + mebibytes_txt[curr_lang()]
                                     };
 
     tmpFont.setBold(true);
@@ -417,6 +423,7 @@ SessionWindow::SessionWindow(u32i session_id)
     tmp_label->setText(total_txt[curr_lang()]);
 
     tmpFont.setPixelSize(15);
+    tmpFont.setBold(true);
     total_resources = new QLabel; // счётчик ресурсов
     total_resources->setFixedSize(196, 16);
     total_resources->setStyleSheet("color: #d4e9e9");
@@ -492,22 +499,20 @@ SessionWindow::SessionWindow(u32i session_id)
 
 void SessionWindow::create_and_start_walker()
 {
-    //task.delAllTaskPaths();
+    task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\title2.gif)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\1671625086303.jpg)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\CURE1.MOD)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\different formats)", "*.*", false});
+    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mp3\00001.mp3)", "", false});
 
-    if ( !task.task_paths.empty() and !settings.selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
+    if ( !task.task_paths.empty() and !settings->selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
     {
         is_walker_dead = false;
         walker_mutex = new QMutex;  // задача по освободжению указателя возложена на WalkerThread, т.к. SessionWindow может быть удалено раньше,
                                     // поэтому walker_mutex должен оставаться в памяти до окончания работы WalkerThread.
 
-        walker = new WalkerThread(this, walker_mutex, task, settings.config, settings.selected_formats);
+        walker = new WalkerThread(this, walker_mutex, task, settings->config, settings->selected_formats);
 
         connect(walker, &WalkerThread::finished, this, [this](){ // блокируем кнопки управления, когда walker отчитался, что закончил работу полностью
             //qInfo() << " :::: finished() :::: signal received from WalkerThread and slot executed in thread id" << QThread::currentThreadId();
@@ -520,6 +525,7 @@ void SessionWindow::create_and_start_walker()
             save_all_button->setEnabled(true);
             report_button->setEnabled(true);
             scan_movie->stop();
+            movie_zone->setPixmap(QPixmap(":/gui/session/done.png"));
             }, Qt::QueuedConnection);
 
         connect(walker, &WalkerThread::finished, walker, &QObject::deleteLater); // WalkerThread будет уничтожен в главном потоке после завершения работы метода .run()
@@ -589,6 +595,8 @@ void SessionWindow::create_and_start_walker()
         pause_resume_button->setEnabled(true);
         skip_button->setEnabled(true);
 
+        connect(save_all_button, &QPushButton::clicked, this, &SessionWindow::rxStartSaveAllProcess);
+
         walker->start(QThread::InheritPriority);
     }
     else
@@ -623,29 +631,150 @@ void SessionWindow::rxFileProgress(s64i percentage_value)
 void SessionWindow::rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info)
 {
     ++total_resources_found;
-    // qInfo() << "---\n| Thread:" << QThread::currentThreadId();
-    // qInfo() << "|    #" << total_resources_found;
-    // qInfo() << "|    resource" << format_name.toUpper() << "found at pos:" << file_offset << "; size:"<< size << "bytes";
-    // qInfo() << "|    in file:" << file_name;
-    // qInfo() << "|    additional info:" << info << "\n---";
-
     if ( !resources_db.contains(format_name) ) // формат встретился первый раз?
     {
         ++unique_formats_found;
-        // здесь создаём новый тайл и помещаем его в ячейку
         int row = (unique_formats_found - 1) / 7;
         int column = (unique_formats_found - 1) % 7;
-        // qInfo() << "|    creating new tile for" << format_name << " unique format number:" << unique_formats_found;
-        // qInfo() << "|    new tile row: " << row << " column:" << column;
         auto tile = new FormatTile(format_name);
         results_table->setCellWidget(row, column, tile);
         tiles_db[format_name] = tile;
-        //
+        formats_counters[format_name] = 0;
     }
+    ++formats_counters[format_name];
     // занесение в БД
-    resources_db[format_name].append({total_resources_found, format_name, file_name, file_offset, size, info, fformats[format_name].extension});
-    tiles_db[format_name]->update_counter(resources_db[format_name].count());
+    resources_db[format_name][file_name].append( { total_resources_found, file_offset, size, info, fformats[format_name].extension } );
+    tiles_db[format_name]->update_counter(formats_counters[format_name]);
     total_resources->setText(QString::number(total_resources_found));
+}
+
+void SessionWindow::rxStartSaveAllProcess()
+{
+    save_all_button->setDisabled(true);
+    QByteArray data_buffer;
+    char str_end = 0;
+    // временные переменные, используемые ниже при обходе бд
+    TLV_Header tlv_header;
+    QByteArray qba_format_name;
+    QByteArray qba_file_name;
+    QByteArray qba_dst_extension;
+    QByteArray qba_info;
+    QString format_name_key;
+    QString file_name_key;
+    POD_ResourceRecord pod_rr;
+    //
+    // перенос данных из resources_db в QByteArray (с одновременным обнулением resources_db)
+    while(!resources_db.isEmpty()) // обход ключей форматов
+    {
+        /// запись TLV "FmtChange" 'смена формата':
+        format_name_key = resources_db.firstKey();
+        tlv_header.type = TLV_Type::FmtChange;
+        qba_format_name = format_name_key.toLatin1();
+        tlv_header.length = qba_format_name.length();// + 1; // +1 на нулевой символ в конце
+        data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+        //data_buffer.append(QByteArray(&str_end), 1);
+        data_buffer.append(qba_format_name);
+        qInfo() << "written 'FmtChange' for '" << format_name_key << "' current size of buffer:" << data_buffer.size();
+        ///
+        QMap<QString, QList<ResourceRecord>> &source_files = resources_db[format_name_key];
+        while(!source_files.isEmpty()) // обход ключей имён файлов
+        {
+            /// запись TLV "SrcChange" 'смена файла':
+            file_name_key = source_files.firstKey();
+            tlv_header.type = TLV_Type::SrcChange;
+            qba_file_name = file_name_key.toUtf8();
+            tlv_header.length = qba_file_name.length();
+            data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+            data_buffer.append(qba_file_name);
+            qInfo() << "written 'SrcChange' for file:" << source_files.firstKey() << "' current size of buffer:" << data_buffer.size();;
+            ///
+            QList <ResourceRecord> &resource_records = resources_db[format_name_key][file_name_key];
+            while(!resource_records.isEmpty())
+            {
+                ResourceRecord &one_resource = resource_records.first();
+                /// запись TLV "POD":
+                tlv_header.type = TLV_Type::POD;
+                tlv_header.length = sizeof(POD_ResourceRecord);
+                pod_rr.order_number = one_resource.order_number;
+                pod_rr.offset = one_resource.offset;
+                pod_rr.size = one_resource.size;
+                data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+                data_buffer.append(QByteArray((char*)&pod_rr, sizeof(pod_rr)));
+                qInfo() << "written 'POD': pod_rr.order_num:" << pod_rr.order_number << " pod_rr.offset:" << pod_rr.offset << "pod_rr.size:" << pod_rr.size << " current size of buffer:" << data_buffer.size();;
+                ///
+                /// запись TLV "DstExtension":
+                tlv_header.type = TLV_Type::DstExtension;
+                qba_dst_extension = one_resource.dest_extension.toLatin1();
+                tlv_header.length = qba_dst_extension.length();
+                data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+                data_buffer.append(qba_dst_extension);
+                qInfo() << "written 'DstExtension':" << one_resource.dest_extension << " current size of buffer:" << data_buffer.size();
+                ///
+                /// запись TLV "Info":
+                tlv_header.type = TLV_Type::Info;
+                qba_info = one_resource.info.toUtf8();
+                tlv_header.length = qba_info.length();
+                data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+                data_buffer.append(qba_info);
+                qInfo() << "written 'Info':" << one_resource.info << " current size of buffer:" << data_buffer.size();
+                ///
+                resource_records.removeFirst();
+                resource_records.squeeze();
+            }
+            source_files.remove(source_files.firstKey()); // удаление ключа имени файла
+        }
+        resources_db.remove(resources_db.firstKey()); // удаление ключа формата
+    }
+    /// запись TLV "Terminator" 'Завершитель'
+    tlv_header.type = TLV_Type::Terminator;
+    tlv_header.length = 0;
+    data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+    qInfo() << "written 'Terminator' : current size of buffer:" << data_buffer.size();
+    ///
+    resources_db.clear();  // на всякий случай ещё раз обнуляем (хотя после обхода, бд уже должна быть пустой).
+
+    QSharedMemory shared_memory {QString("/shm/rj/%1/%2/%3").arg(  //создаём максимально уникальный key для shared memory
+                                                                    QString::number(QApplication::applicationPid()),
+                                                                    QString::number(u64i(QThread::currentThreadId())),
+                                                                    QString::number(QDateTime::currentMSecsSinceEpoch())
+                                                                ) };
+    if ( !shared_memory.create(data_buffer.size(), QSharedMemory::ReadWrite) )
+    {
+        qInfo() << "shm error:" << shared_memory.error();
+        return;
+    }
+
+    QSystemSemaphore sys_semaphore {QString("/ssem/rj/%1/%2/%3").arg(  //создаём максимально уникальный key для system semaphore
+                                                                        QString::number(QApplication::applicationPid()),
+                                                                        QString::number(u64i(QThread::currentThreadId())),
+                                                                        QString::number(QDateTime::currentMSecsSinceEpoch())),
+                                    1,
+                                    QSystemSemaphore::Create
+                                    };
+    if ( sys_semaphore.error() != QSystemSemaphore::NoError )
+    {
+        qInfo() << "ssem error:" << sys_semaphore.error();
+        shared_memory.detach();
+        return;
+    }
+
+    // копирование из буфера в shared_memory
+    char *from_buffer = (char*)data_buffer.data();
+    char *to_shm = (char*)shared_memory.data();
+    memcpy(to_shm, from_buffer, data_buffer.size());
+    qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
+
+    QProcess saving_process;
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key() }, "");
+
+    data_buffer.clear();   // обнуляем и буфер, т.к. теперь все данные в shared_memory
+    data_buffer.squeeze(); //
+
+    sys_semaphore.acquire();
+    sys_semaphore.acquire(); // <- здесь ждём, когда saving_process отдаст семафор
+    sys_semaphore.release(); // и тогда уже можно будет оторваться (detach) от shared memory
+
+    shared_memory.detach();
 }
 
 void SessionWindow::mouseMoveEvent(QMouseEvent *event)

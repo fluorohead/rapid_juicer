@@ -72,5 +72,6 @@
         <file>gui/session/cat_video_big.png</file>
         <file>gui/logo.png</file>
         <file>gui/session/scanning.gif</file>
+        <file>gui/session/done.png</file>
     </qresource>
 </RCC>

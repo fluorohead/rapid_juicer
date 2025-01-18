@@ -23,14 +23,16 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ${PROJECT_SOURCES}
         dlw.cpp dlw.h
         elements.cpp elements.h
-        formats.h formats.cpp
         engine.cpp engine.h
+        formats.h formats.cpp
         settings.cpp settings.h
         task.cpp task.h
         walker.cpp walker.h
         resources.qrc
         icons.rc
         wave_codecs.cpp
+        saving.h
+        saving.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET rapid_juicer APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

@@ -9,8 +9,8 @@
 
 enum class Langs: int {Eng = 0, Rus = 1, MAX};
 
-#define curr_lang() settings.config.lang_idx
-#define skin_font() settings.skin.main_font
+#define curr_lang() settings->config.lang_idx
+#define skin_font() settings->skin.main_font
 
 #define MAX_SESSIONS 3
 
@@ -41,10 +41,11 @@ class Settings
     int     threads_num; // 2 by default
     QFile   file;
     QString file_path;
-
 public:
     Settings();
     ~Settings();
+
+    void dump_to_file();
 
     Config config;
     Config cand_config;

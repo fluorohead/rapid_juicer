@@ -12,16 +12,33 @@
 
 #define MAX_FILENAME_LEN 66
 
+enum class TLV_Type: u8i { FmtChange = 0, SrcChange = 1, POD = 2, DstExtension = 3, Info = 4, Terminator = 5 };
+
 struct ResourceRecord
 {
-    u64i    number; // назначенный порядковый номер
-    QString format; // наименование формата
-    QString source; // путь исходного файла
+    u64i    order_number; // назначенный порядковый номер
     s64i    offset; // смещение в файле
     u64i    size;   // размер ресурса
     QString info;   // доп. информация о ресурсе
     QString dest_extension; // расширение файла для сохранения
 };
+
+using RR_Map = QMap <QString, QMap<QString, QList<ResourceRecord>>>;
+
+#pragma pack(push,1)
+struct POD_ResourceRecord
+{
+    u64i order_number;
+    s64i offset;
+    u64i size;
+};
+
+struct TLV_Header
+{
+    TLV_Type type;
+    u64i     length;
+};
+#pragma pack(pop)
 
 struct TileCoordinates
 {
@@ -65,10 +82,11 @@ class SessionWindow: public QWidget
     WalkerThread *walker;
     void create_and_start_walker(); // создание walker-потока и запуск его в работу
     u64i total_resources_found {0}; // счётчик найдённых ресурсов
-    u32i unique_formats_found {0}; // счётчик уникальных форматов среди найдённых ресурсов; из него высчитываются координаты (строка/столбец) следующего тайла
+    u32i unique_formats_found {0}; // счётчик уникальных форматов среди найдённых ресурсов; по нему высчитываются строка/столбец следующего тайла
     QStackedWidget *pages;
     QTableWidget *results_table;
-    QMap <QString, QList<ResourceRecord>> resources_db; // сюда будет накапливаться информация по найдённым ресурсам : ключ - формат, значение - список ресурсов
+    RR_Map resources_db; // основная БД найденных ресурсов
+    QMap <QString, u64i> formats_counters;
     QMap <QString, FormatTile*> tiles_db; // ссылки на виджеты тайлов : ключ - формат
     QMap <QString, TileCoordinates> tile_coords; // координаты тайлов (строка, столбец) : ключ - формат
 public:
@@ -79,6 +97,7 @@ public Q_SLOTS:
     void rxFileChange(QString file_name);
     void rxFileProgress(s64i percentage_value);
     void rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
+    void rxStartSaveAllProcess();
 };
 
 

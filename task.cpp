@@ -25,7 +25,7 @@ bool Task::isTaskPathPresent(const QString &path)
 {
     for (auto &&one: task_paths) {
         if (one.path == path) {
-            qInfo() << "path is already present";
+            //qInfo() << "path is already present";
             return true;
         }
     }

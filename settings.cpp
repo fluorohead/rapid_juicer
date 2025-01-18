@@ -13,8 +13,10 @@
 #include <QMouseEvent>
 #include <QApplication>
 #include <QScrollBar>
+#include <QMap>
 
-extern Settings settings;
+extern Settings *settings;
+extern QMap <QString, FileFormat> fformats;
 
 const QString settings_txt[int(Langs::MAX)][5]
 {
@@ -109,12 +111,10 @@ Settings::Settings()
 {
     threads_num = QThread::idealThreadCount();
     if (threads_num < 2) threads_num = 2;
-
     for (auto it = fformats.cbegin(); it != fformats.cend(); ++it) // сразу наполняем список выбранных форматов всеми форматами
     {
-        settings.selected_formats.insert(it.key());
+        selected_formats.insert(it.key());
     }
-
     config = default_config; // эти значения могут быть переопределены при чтении файла настроек,
     skin   = default_skin;   // если таковой существует
 
@@ -197,7 +197,7 @@ Settings::Settings()
                     {
                         QJsonArray jsa = js_doc[QS_SELECTED].toArray();
                         QString tmp_str;
-                        settings.selected_formats.clear();
+                        selected_formats.clear();
                         for (auto it = jsa.cbegin(); it < jsa.cend(); ++it)
                         {
                             if ( it->type() == QJsonValue::String )
@@ -205,7 +205,7 @@ Settings::Settings()
                                 tmp_str = it->toString();
                                 if ( fformats.contains(tmp_str) )
                                 {
-                                    settings.selected_formats.insert(tmp_str);
+                                    selected_formats.insert(tmp_str);
                                 }
                             }
                         }
@@ -226,29 +226,34 @@ Settings::Settings()
 
 Settings::~Settings()
 {
+
+}
+
+void Settings::dump_to_file()
+{
     delete skin.main_font;
     if (file.isOpen())
     {
         file.resize(0);
         QStringList selected_formats_list;
-        for (auto &&one_format: settings.selected_formats)
+        for (auto &&one_format: selected_formats)
         {
             selected_formats_list.append(one_format);
         }
         QString write_str = QString(    "{\r\n"
-                                        "\"%1\": %2,\r\n"
-                                        "\"%3\": %4,\r\n"
-                                        "\"%5\": %6,\r\n"
-                                        "\"%7\": \"%8\",\r\n"
-                                        "\"%9\": [%10],\r\n"
-                                        "\"%11\": [%12]\r\n}"
+                                    "\"%1\": %2,\r\n"
+                                    "\"%3\": %4,\r\n"
+                                    "\"%5\": %6,\r\n"
+                                    "\"%7\": \"%8\",\r\n"
+                                    "\"%9\": [%10],\r\n"
+                                    "\"%11\": [%12]\r\n}"
                                     ).arg(
                                     QS_LANGUAGE,  QString::number(config.lang_idx),
                                     QS_BUFF_IDX,  QString::number(config.bfr_size_idx),
                                     QS_RECURSION, QString::number(config.recursion),
                                     QS_FILE_MASK, config.file_mask,
                                     QS_EXCLUDING, config.excluding.isEmpty() ? "" : "\"" + config.excluding.join(R"(", ")") + "\"",
-                                    QS_SELECTED,  settings.selected_formats.isEmpty() ? "" : "\"" + selected_formats_list.join(R"(",")") + "\""
+                                    QS_SELECTED,  selected_formats.isEmpty() ? "" : "\"" + selected_formats_list.join(R"(",")") + "\""
                                     );
         file.write(write_str.toUtf8());
         file.flush();
@@ -339,11 +344,11 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     : QWidget(parent, Qt::Dialog | Qt::FramelessWindowHint)
 {
     const int y_offset {10};
-    previous_lang_idx = settings.config.lang_idx; // запоминаем текущий язык, чтобы потом сравнить изменился ли он
+    previous_lang_idx = settings->config.lang_idx; // запоминаем текущий язык, чтобы потом сравнить изменился ли он
 
     // копирование текущего конфига в конфиг-кандидат
     // дальнейшие изменения будут производиться только в кандидате
-    settings.cand_config = settings.config;
+    settings->cand_config = settings->config;
     //
 
     this->setAttribute(Qt::WA_TranslucentBackground);
@@ -413,9 +418,9 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     bufsz_combo->move(252, y_offset + 110);
     auto maxBSVars = permitted_buffers.count();
     for (int idx = 0; idx < maxBSVars; ++idx) {
-        bufsz_combo->addItem(QString::number(settings.getBufferSizeByIndex(idx)) + mebibytes_txt[curr_lang()]);
+        bufsz_combo->addItem(QString::number(settings->getBufferSizeByIndex(idx)) + mebibytes_txt[curr_lang()]);
     }
-    bufsz_combo->setCurrentIndex(settings.cand_config.bfr_size_idx);
+    bufsz_combo->setCurrentIndex(settings->cand_config.bfr_size_idx);
 
     auto recurs_combo = new QComboBox(&background);
     recurs_combo->setAttribute(Qt::WA_NoMousePropagation); // иначе при выборе и одновременном движении мышью начинает перемещаться всё окно
@@ -435,7 +440,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     recurs_combo->move(252, y_offset + 146);
     recurs_combo->addItem(yes_no_txt[curr_lang()][false]); // "No"
     recurs_combo->addItem(yes_no_txt[curr_lang()][true]);  // "Yes"
-    recurs_combo->setCurrentIndex(settings.cand_config.recursion);
+    recurs_combo->setCurrentIndex(settings->cand_config.recursion);
 
     auto mask_le = new QLineEdit(&background); // file search mask
     mask_le->setFixedSize(178, 28);
@@ -452,7 +457,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     mask_le->setFont(tmpFont);
     mask_le->move(252, y_offset + 182);
     mask_le->setClearButtonEnabled(true);
-    mask_le->setText(settings.cand_config.file_mask);
+    mask_le->setText(settings->cand_config.file_mask);
     mask_le->setMaxLength(32);
     mask_le->setValidator(&fmv);
 
@@ -483,7 +488,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
                                    "padding-right: 6px;"
                                    "padding-left: 8px;}"
                                    );
-    excluding_table->addItems(settings.cand_config.excluding);
+    excluding_table->addItems(settings->cand_config.excluding);
     excluding_table->move(200, y_offset + 236);
 
     auto excluding_le = new QLineEdit(&background);
@@ -568,33 +573,33 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     cancel_button->move(356, y_offset + 392);
 
     connect(lang_combo, &QComboBox::activated, [](int index){
-        settings.cand_config.lang_idx = index;
+        settings->cand_config.lang_idx = index;
     });
     connect(bufsz_combo, &QComboBox::activated, [](int index){
-        settings.cand_config.bfr_size_idx = index;
+        settings->cand_config.bfr_size_idx = index;
     });
     connect(recurs_combo, &QComboBox::activated, [](int index){
-        settings.cand_config.recursion = bool(index);
+        settings->cand_config.recursion = bool(index);
     });
     connect(mask_le, &QLineEdit::editingFinished, [=](){
-        settings.cand_config.file_mask = mask_le->text();
+        settings->cand_config.file_mask = mask_le->text();
     });
     connect(add_button, &QPushButton::clicked, [=](){
-        if ( (excluding_le->text().length() > 0) and (settings.cand_config.excluding.count() < 64) ) // ограничение на размер списка исключений
+        if ( (excluding_le->text().length() > 0) and (settings->cand_config.excluding.count() < 64) ) // ограничение на размер списка исключений
         {
-            settings.cand_config.excluding.append(excluding_le->text());
+            settings->cand_config.excluding.append(excluding_le->text());
             excluding_le->clear();
-            excluding_table->addItem(settings.cand_config.excluding.last());
+            excluding_table->addItem(settings->cand_config.excluding.last());
         }
     });
     connect(del_button, &QPushButton::clicked, [=](){
         int row_to_remove = excluding_table->currentRow();
         if ( row_to_remove >= 0 )
         {
-            settings.cand_config.excluding.removeAt(row_to_remove);
-            settings.cand_config.excluding.squeeze();
+            settings->cand_config.excluding.removeAt(row_to_remove);
+            settings->cand_config.excluding.squeeze();
             excluding_table->clear();
-            excluding_table->addItems(settings.cand_config.excluding);
+            excluding_table->addItems(settings->cand_config.excluding);
             if ( row_to_remove < excluding_table->count() )
             {
                 excluding_table->setCurrentRow(row_to_remove);
@@ -609,44 +614,44 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         }
     });
     connect(clear_button, &QPushButton::clicked, [=](){
-        settings.cand_config.excluding.clear();
-        settings.cand_config.excluding.squeeze();
+        settings->cand_config.excluding.clear();
+        settings->cand_config.excluding.squeeze();
         excluding_table->clear();
     });
     connect(defaults_button, &QPushButton::clicked, [=](){
-        settings.cand_config = default_config;
+        settings->cand_config = default_config;
         lang_combo->clear();
         for (int idx = 0; idx < int(Langs::MAX); ++idx) {
             lang_combo->addItem(languages_txt[curr_lang()][idx]);
         }
-        lang_combo->setCurrentIndex(settings.cand_config.lang_idx);
+        lang_combo->setCurrentIndex(settings->cand_config.lang_idx);
         bufsz_combo->clear();
         auto maxBSVars = permitted_buffers.count();
         for (int idx = 0; idx < maxBSVars; ++idx) {
-            bufsz_combo->addItem(QString::number(settings.getBufferSizeByIndex(idx)) + mebibytes_txt[curr_lang()]);
+            bufsz_combo->addItem(QString::number(settings->getBufferSizeByIndex(idx)) + mebibytes_txt[curr_lang()]);
         }
-        bufsz_combo->setCurrentIndex(settings.cand_config.bfr_size_idx);
-        recurs_combo->setCurrentIndex(settings.cand_config.recursion);
-        mask_le->setText(settings.cand_config.file_mask);
+        bufsz_combo->setCurrentIndex(settings->cand_config.bfr_size_idx);
+        recurs_combo->setCurrentIndex(settings->cand_config.recursion);
+        mask_le->setText(settings->cand_config.file_mask);
         excluding_table->clear();
-        excluding_table->addItems(settings.cand_config.excluding);
+        excluding_table->addItems(settings->cand_config.excluding);
     });
     connect(ok_button, &QPushButton::clicked, [this](){
-        settings.config = settings.cand_config;
-        settings.cand_config.excluding.clear();
-        settings.cand_config.excluding.squeeze();
+        settings->config = settings->cand_config;
+        settings->cand_config.excluding.clear();
+        settings->cand_config.excluding.squeeze();
         this->close();
     });
     connect(cancel_button, &QPushButton::clicked, [this](){
-        settings.cand_config.excluding.clear();
-        settings.cand_config.excluding.squeeze();
+        settings->cand_config.excluding.clear();
+        settings->cand_config.excluding.squeeze();
         this->close(); // после вызова close() модальное окно уничтожается автоматически
     });
 }
 
 SettingsWindow::~SettingsWindow()
 {
-    if ( settings.config.lang_idx != previous_lang_idx ) // изменился язык => разошлём всем gui-элементам событие
+    if ( settings->config.lang_idx != previous_lang_idx ) // изменился язык => разошлём всем gui-элементам событие
     {
         QApplication::postEvent(this->parent(), new QEvent(QEvent::LanguageChange)); // отсылаем родителю, т.е. CentralWidget
     }

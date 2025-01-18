@@ -2,7 +2,7 @@
 #include "settings.h"
 #include <QMouseEvent>
 
-extern Settings settings;
+extern Settings *settings;
 
 OneStateButton::OneStateButton(QWidget *parent, const QString &main_resource, const QString &hover_resource)
     : QLabel(parent)
@@ -66,7 +66,7 @@ DynamicInfoButton::DynamicInfoButton(QWidget *parent,   const QString &main_reso
 
     text_label.move(0, 0);
     text_label.setFixedSize(this->size());
-    text_label.setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    text_label.setAlignment(Qt::AlignCenter);
     text_label.setStyleSheet("color: #fffef9");
     text_label.setFont(*main_font);
     updateText(true);

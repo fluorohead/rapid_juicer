@@ -55,6 +55,7 @@
 // #define ASMJIT_NO_FOREIGN
 
 extern const QMap <u32i, QString> wave_codecs;
+extern QMap <QString, FileFormat> fformats;
 
 QMap <QString, Signature> signatures { // в QMap значения автоматически упорядочены по ключам
     // ключ
@@ -82,7 +83,7 @@ QMap <QString, Signature> signatures { // в QMap значения автома�
     { "smk4",       { 0x00000000344B4D53, 4, Engine::recognize_smk      } }, // "SMK4"
     { "fli_af11",   { 0x000000000000AF11, 2, Engine::recognize_flc      } }, // "\x11\xAF"
     { "flc_af12",   { 0x000000000000AF12, 2, Engine::recognize_flc      } }, // "\x12\xAF"
-    { "flx_af44",   { 0x000000000000AF44, 2, Engine::recognize_flc      } }, // "\x44\xAF" "Dave's Targa Animator (DTA)" software
+    { "flx_af44",   { 0x000000000000AF44, 2, Engine::recognize_flc      } }, // "\x44\xAF" Dave's Targa Animator (DTA) software
     { "669_if",     { 0x0000000000006669, 2, Engine::recognize_669      } }, // "if"
     { "669_jn",     { 0x0000000000004E4A, 2, Engine::recognize_669      } }, // "JN"
     { "mod_ch",     { 0x0000000000004843, 2, Engine::recognize_mod      } }, // "CH"
@@ -96,11 +97,11 @@ QMap <QString, Signature> signatures { // в QMap значения автома�
     { "mp3_fffb",   { 0x000000000000FAFF, 2, Engine::recognize_mp3      } }, // "\xFF\xFB"
     { "mp3_id3v2",  { 0x0000000000334449, 3, Engine::recognize_mp3      } }, // "\x49\x44\x33"
     { "ogg",        { 0x000000005367674F, 4, Engine::recognize_ogg      } }, // "OggS"
-    { "mmd0",       { 0x0000000030444D4D, 4, Engine::recognize_med      } }, // "MMD0"
-    { "mmd1",       { 0x0000000031444D4D, 4, Engine::recognize_med      } }, // "MMD1"
-    { "mmd2",       { 0x0000000032444D4D, 4, Engine::recognize_med      } }, // "MMD2"
-    { "mmd3",       { 0x0000000033444D4D, 4, Engine::recognize_med      } }, // "MMD3"
-    { "dbm0",       { 0x00000000304D4244, 4, Engine::recognize_dbm0     } }, // "DBM0"
+    { "mmd0",       { 0x0000000030444D4D, 4, Engine::recognize_med      } }, // "MMD0" OctaMED
+    { "mmd1",       { 0x0000000031444D4D, 4, Engine::recognize_med      } }, // "MMD1" OctaMED
+    { "mmd2",       { 0x0000000032444D4D, 4, Engine::recognize_med      } }, // "MMD2" OctaMED
+    { "mmd3",       { 0x0000000033444D4D, 4, Engine::recognize_med      } }, // "MMD3" OctaMED
+    { "dbm0",       { 0x00000000304D4244, 4, Engine::recognize_dbm0     } }, // "DBM0" DigiBooster Pro
 };
 
 u16i be2le(u16i be) {
@@ -192,13 +193,15 @@ void Engine::scan_file_win64(const QString &file_name)
 
     Label aj_prolog_label = aj_asm.newLabel();
     Label aj_loop_start_label = aj_asm.newLabel();
+    Label aj_signat_labels[30]; // 30 - с запасом
+    Label aj_sub_labels[30]; // 30 - с запасом
+    Label aj_scrup_mode_check_label = aj_asm.newLabel();
+    Label aj_scrup_mode_label = aj_asm.newLabel();
     Label aj_loop_check_label = aj_asm.newLabel();
     Label aj_epilog_label = aj_asm.newLabel();
 
-    Label aj_signat_labels[30]; // 30 - с запасом
-    Label aj_sub_labels[30]; // 30 - с запасом
     int s_idx;
-    for (s_idx = 0; s_idx < 30; ++s_idx) // готовим w-лейблы под каждую сигнатуру
+    for (s_idx = 0; s_idx < 30; ++s_idx) // готовим лейблы
     {
         aj_signat_labels[s_idx] = aj_asm.newLabel();
         aj_sub_labels[s_idx] = aj_asm.newLabel();
@@ -208,8 +211,20 @@ void Engine::scan_file_win64(const QString &file_name)
     x86::Mem rdi_edx_mul8 = x86::ptr(x86::rdi, x86::edx, 3); // shift = 3, равноценно *8 : [rdi + r15*8]
 
     //  входные параметры
-    //  rdx - last_offset
     //  rcx - start_offset
+    //  rdx - last_offset
+
+    // используемые регистры :
+    // rax(eax) - временно используется для первой половины analyzed_dword'а
+    // rbx(ebx) - временно используется для второй половины analyzed_dword'а
+    // rcx - временно используется для передачи первого параметра в recognizer-функцию
+    // rdx(edx) - временно используется для индексации вектора переходов
+    // rdi - постоянно исп-ся : абсолютный указатель на начало вектора переходов
+    // rsi - постоянно исп-ся : абсолютный указатель на текущий analyzed_dword
+    // r12 - постоянно исп-ся : обсолютный указатель (не включаемый) на конечный analyzed_dword (конечный в рамках текущего окна гранулярности)
+    // r13 - постоянно исп-ся : абсолютный указатель на переменную this->scanbuf_offset
+    // r14 - постоянно исп-ся : относительный счётчик внутри буфера сканирования (смещение от начала буфера)
+    // r15 - постоянно исп-ся : флаг scrupulous-режима
 
 // ; prolog
 aj_asm.bind(aj_prolog_label);
@@ -230,8 +245,9 @@ aj_asm.bind(aj_prolog_label);
     aj_asm.mov(x86::r12, x86::rsi); // и тот же адрес в r12
     aj_asm.add(x86::rsi, x86::rcx); // теперь в rsi абсолюный начальный адрес с учётом start_offset;
     aj_asm.add(x86::r12, x86::rdx); // теперь в r12 абсолютный конечный адрес, не включаемый; rdx далее не нужен (возможно будем использовать в будущем)
-    aj_asm.mov(x86::r14, x86::rcx); // теперь в r14 относительный счётчик; далее rcx будем использовать только для передачи параметров в callee
+    aj_asm.mov(x86::r14, x86::rcx); // теперь в r14 относительный счётчик (смещение в mmf); далее rcx будем использовать только для передачи параметров в callee
     aj_asm.mov(x86::r13, imm(&this->scanbuf_offset)); // теперь в [r13] адрес переменной this->scanbuf_offset
+    aj_asm.mov(x86::r15, scrupulous ? 1 : 0); // в r15 постоянно храним флаг scrupulous-режима
 
     // заполняем вектор адресом по-умолчанию (aj_loop_check_label);
     // rdi стоит на начале вектора;
@@ -407,6 +423,8 @@ aj_asm.bind(aj_sub_labels[13]);
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_tga));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
     aj_asm.jmp(aj_loop_check_label);
@@ -417,6 +435,8 @@ aj_asm.bind(aj_sub_labels[14]);
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_ico_cur));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
     aj_asm.jmp(aj_loop_check_label);
@@ -430,6 +450,8 @@ aj_asm.bind(aj_signat_labels[1]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_pcx));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -442,6 +464,8 @@ aj_asm.bind(aj_signat_labels[2]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_flc));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -454,6 +478,8 @@ aj_asm.bind(aj_signat_labels[3]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_flc));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -468,6 +494,8 @@ aj_asm.bind(aj_signat_labels[25]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_au));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -484,6 +512,8 @@ aj_asm.bind(aj_sub_labels[0]); // bik ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_bink));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -496,6 +526,8 @@ aj_asm.bind(aj_sub_labels[1]); // bmp ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_bmp));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
     aj_asm.jmp(aj_loop_check_label);
@@ -513,6 +545,8 @@ aj_asm.bind(aj_sub_labels[9]); // mod_ch ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_mod));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -527,6 +561,8 @@ aj_asm.bind(aj_sub_labels[10]); // voc ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_voc));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
     aj_asm.jmp(aj_loop_check_label);
@@ -546,6 +582,8 @@ aj_asm.bind(aj_sub_labels[18]); // dbm0?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_dbm0));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -558,6 +596,8 @@ aj_asm.bind(aj_sub_labels[19]); // flx?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_flc));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
     aj_asm.jmp(aj_loop_check_label);
@@ -573,6 +613,8 @@ aj_asm.bind(aj_signat_labels[7]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_xm));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -587,6 +629,8 @@ aj_asm.bind(aj_signat_labels[8]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_iff));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -601,6 +645,8 @@ aj_asm.bind(aj_signat_labels[9]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_gif));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -623,14 +669,8 @@ aj_asm.bind(aj_sub_labels[16]); // id3v2 ?
         aj_asm.cmp(x86::rax, 0);
         aj_asm.je(aj_loop_check_label);
         // для mp3 всегда включен scrupulous mode.
-        // в rax лежит размер ресурса,
-        // в e->resource_offset абсолютное смещение ресурса в файле (или mmf-буфере).
-        // надо переставить rsi и r14 на положение после ресурса минус 1 байт :
-        aj_asm.mov(x86::r14, x86::qword_ptr((u64i)&this->resource_offset)); // суём в r14 смещение найденного ресурса относительно начала mmf
-        aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
-        aj_asm.add(x86::r14, x86::rax); // переставляем r14 на положение после ресурса
-        aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выствит указатель ровно после ресурса
-        aj_asm.add(x86::rsi, x86::r14); // корректируем rsi, чтобы абсолютный указатель тоже был после ресурса минус 1 байт
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -645,6 +685,8 @@ aj_asm.bind(aj_sub_labels[2]); // tif_ii ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_tif_ii));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -659,6 +701,8 @@ aj_asm.bind(aj_sub_labels[3]); // it ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_it));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
     aj_asm.jmp(aj_loop_check_label);
@@ -672,6 +716,8 @@ aj_asm.bind(aj_signat_labels[23]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_669));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -684,6 +730,8 @@ aj_asm.bind(aj_signat_labels[12]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_bink));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -707,6 +755,8 @@ aj_asm.bind(aj_sub_labels[4]); // mod_m.k. ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_mod));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -721,6 +771,8 @@ aj_asm.bind(aj_sub_labels[5]); // tif_mm ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_tif_mm));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -737,6 +789,8 @@ aj_asm.bind(aj_sub_labels[17]); // med MMDX ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_med));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -751,6 +805,8 @@ aj_asm.bind(aj_sub_labels[6]); // mid ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_mid));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
     aj_asm.jmp(aj_loop_check_label);
@@ -769,14 +825,8 @@ aj_asm.bind(aj_signat_labels[27]);
     aj_asm.cmp(x86::rax, 0);
     aj_asm.je(aj_loop_check_label);
     // для ogg всегда включен scrupulous mode.
-    // в rax лежит размер ресурса,
-    // в e->resource_offset абсолютное смещение ресурса в файле (или mmf-буфере).
-    // надо переставить rsi и r14 на положение после ресурса минус 1 байт :
-    aj_asm.mov(x86::r14, x86::qword_ptr((u64i)&this->resource_offset)); // суём в r14 смещение найденного ресурса относительно начала mmf
-    aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
-    aj_asm.add(x86::r14, x86::rax); // переставляем r14 на положение после ресурса
-    aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выствит указатель ровно после ресурса
-    aj_asm.add(x86::rsi, x86::r14); // корректируем rsi, чтобы абсолютный указатель тоже был после ресурса минус 1 байт
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -791,6 +841,8 @@ aj_asm.bind(aj_signat_labels[16]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_riff));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -810,6 +862,8 @@ aj_asm.bind(aj_sub_labels[7]); // s3m ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_s3m));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -828,6 +882,8 @@ aj_asm.bind(aj_sub_labels[8]); // smk ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_smk));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
     aj_asm.jmp(aj_loop_check_label);
@@ -841,6 +897,8 @@ aj_asm.bind(aj_signat_labels[22]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_669));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -863,6 +921,8 @@ aj_asm.bind(aj_sub_labels[12]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_mov_qt));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -877,6 +937,8 @@ aj_asm.bind(aj_signat_labels[20]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_png));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -895,6 +957,8 @@ aj_asm.bind(aj_signat_labels[21]);
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_jpg));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -909,19 +973,26 @@ aj_asm.bind(aj_sub_labels[15]);
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_mp3));
         aj_asm.cmp(x86::rax, 0);
-        aj_asm.je(aj_loop_check_label);
-        // для mp3 всегда включен scrupulous mode.
-        // в rax лежит размер ресурса,
-        // в e->resource_offset абсолютное смещение ресурса в файле (или mmf-буфере).
-        // надо переставить rsi и r14 на положение после ресурса минус 1 байт :
-        aj_asm.mov(x86::r14, x86::qword_ptr((u64i)&this->resource_offset)); // суём в r14 смещение найденного ресурса относительно начала mmf
-        aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
-        aj_asm.add(x86::r14, x86::rax); // переставляем r14 на положение после ресурса
-        aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выствит указатель ровно после ресурса
-        aj_asm.add(x86::rsi, x86::r14); // корректируем rsi, чтобы абсолютный указатель тоже был после ресурса минус 1 байт
+        aj_asm.jne(aj_scrup_mode_label); // для mp3 всегда включен scrupulous mode:
         //
     }
     aj_asm.jmp(aj_loop_check_label);
+
+// ; scrup_mode_check
+aj_asm.bind(aj_scrup_mode_check_label);
+    aj_asm.cmp(x86::r15, 1); // включен scrup_mode ?
+    aj_asm.je(aj_loop_check_label); // если включен, то перескока в буфере на размер найденного ресурса не делаем
+
+// ; scrup_mode
+aj_asm.bind(aj_scrup_mode_label);
+    // в rax лежит размер ресурса,
+    // в e->resource_offset смещение ресурса в файле (или mmf-буфере).
+    // надо переставить rsi и r14 на положение после ресурса минус 1 байт :
+    aj_asm.mov(x86::r14, x86::qword_ptr((u64i)&this->resource_offset)); // суём в r14 смещение найденного ресурса относительно начала mmf (смещение ресурса не всегда равно первоначальному значению r14!)
+    aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
+    aj_asm.add(x86::r14, x86::rax); // переставляем r14 на положение после ресурса
+    aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выствит указатель ровно после ресурса
+    aj_asm.add(x86::rsi, x86::r14); // корректируем rsi, чтобы абсолютный указатель тоже был после ресурса минус 1 байт
 
 // ; loop_check
 aj_asm.bind(aj_loop_check_label);

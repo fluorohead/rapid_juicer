@@ -3,7 +3,6 @@
 #define MW_H
 
 #include "formats.h"
-#include "settings.h"
 #include "elements.h"
 #include "dlw.h"
 #include <QWidget>
@@ -11,7 +10,6 @@
 #include <QLabel>
 #include <QTableWidget>
 #include <QCommonStyle>
-#include <QWindow>
 #include <QDialog>
 
 #define FORMATS_TABLE_W 412
@@ -24,12 +22,11 @@
 
 #define VERSION_TEXT "Rapid Juicer :: 0.0.1"
 
-extern Settings settings;
-
 enum class FilterAction { Include = 0, Exclude = 1, MAX };
 
 
-class FilterButton: public QLabel {
+class FilterButton: public QLabel
+{
     Q_OBJECT
     FilterAction my_action;
     u64i my_categories;
@@ -47,7 +44,8 @@ Q_SIGNALS:
 };
 
 
-class FormatLabel: public QLabel {
+class FormatLabel: public QLabel
+{
     Q_OBJECT
     void mousePressEvent(QMouseEvent *event);
     QLabel corner_label {this};
@@ -60,7 +58,8 @@ public Q_SLOTS:
 };
 
 
-class DescriptionLabel: public QLabel {
+class DescriptionLabel: public QLabel
+{
     Q_OBJECT
     void mousePressEvent(QMouseEvent *event);
 public:
@@ -71,7 +70,8 @@ Q_SIGNALS:
 };
 
 
-class CategoryLabel: public QLabel {
+class CategoryLabel: public QLabel
+{
     Q_OBJECT
     void mousePressEvent(QMouseEvent *event);
 public:
@@ -81,7 +81,8 @@ Q_SIGNALS:
 };
 
 
-class FormatsTable: public QTableWidget {
+class FormatsTable: public QTableWidget
+{
     Q_OBJECT
     QPixmap *corner_fmt_pixmap;
     //static const QMap <u64i, QString> categories_resources; // проинициализированно в mw.cpp
@@ -96,7 +97,8 @@ public Q_SLOTS:
 };
 
 
-class MainWindow: public QWidget {
+class MainWindow: public QWidget
+{
     Q_OBJECT
     DirlistWindow dirlist {nullptr};
     QPixmap filter_main_pixmaps  [2];

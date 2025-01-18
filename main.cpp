@@ -3,38 +3,58 @@
 #include "task.h"
 #include "formats.h"
 #include "session.h"
+#include "saving.h"
 #include <QApplication>
 #include <QDir>
+#include <QTextEdit>
 
-Settings settings;           // объект должен существовать до создания любых окон.
-Task     task;               // объект должен существовать до создания любых окон.
+Settings *settings;           // объект должен существовать до создания любых окон.
+Task     task;                // объект должен существовать до создания любых окон.
 
 MainWindow *mw;
 
 SessionsPool sessions_pool {MAX_SESSIONS};
 
-int main(int argc, char *argv[])
+QWidget *saving_window = nullptr;
+
+int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
     QApplication::setApplicationName(":: Rapid Juicer :: resource extractor ::");
     QApplication::setWindowIcon(QIcon(":/gui/logo.png"));
 
-    settings.initSkin();
+    qInfo() << "Main process id (uint64):" << QApplication::applicationPid();
+    qInfo() << "Main thread id:" << QThread::currentThreadId();
 
     indexFilesFormats();
 
-    // qInfo() << "Main process id (uint64):" << QApplication::applicationPid();
-    // qInfo() << "Main thread id:" << QThread::currentThreadId();
+    auto args = QCoreApplication::arguments();
+    if ( args.count() >= 5 )
+    {
+       if ( args[1] == "-save" )
+        {
+            saving_window = new SavingWindow(args[2], args[3], args[4]);
+            saving_window->show();
+            app.exec();
+            return 0;
+        }
+    }
+
+    settings = new Settings;
+    settings->initSkin();
 
     mw = new MainWindow;
     mw->show();
-
     app.exec();
-
     delete mw;
+
+    settings->dump_to_file();
+    delete settings;
 
     return 0;
 }
+
+
 
 QString reduce_file_path(const QString &path, int max_len)
 {

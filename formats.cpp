@@ -132,7 +132,7 @@ QMap <QString, FileFormat> fformats {  // QMap -> АВТОМАТИЧЕСКОЕ �
 
 void indexFilesFormats() {
     u32i cnt = 0;
-    for (auto it = fformats.begin(); it != fformats.end(); it++)
+    for (auto it = fformats.begin(); it != fformats.end(); ++it)
     {
         it->index = cnt; // индексируем каждый формат
         // след. два for'а формируют св-во FileForamat.tooltip_str для отображения в tooltip'ах

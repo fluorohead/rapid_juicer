@@ -7,7 +7,7 @@
 #include <QMouseEvent>
 #include <QFileDialog>
 
-extern Settings settings;
+extern Settings *settings;
 extern Task     task;
 
 const QString dirlist_info_txt[int(Langs::MAX)]
@@ -461,7 +461,7 @@ void DirlistWindow::rxAddDirname(QString dirname)
         {
             dirname.removeLast();
         }
-        task.addTaskPath(TaskPath {dirname, settings.config.file_mask, settings.config.recursion});
+        task.addTaskPath(TaskPath {dirname, settings->config.file_mask, settings->config.recursion});
         auto delete_button = new DeleteMicroButton(nullptr, *paths_count, &delete_pixmap, &delete_hover_pixmap);
         delete_button->setFixedSize(delete_pixmap.size());
         dirtable.setCellWidget(*paths_count, 0, delete_button);
@@ -471,7 +471,7 @@ void DirlistWindow::rxAddDirname(QString dirname)
         yesno_button->setFixedSize(no_pixmap.size());
         dirtable.setCellWidget(*paths_count, 1, yesno_button);
         connect(&dirtable, &DirlistTable::txUpdateYourRowIndexes, yesno_button, &YesNoMicroButton::txUpdateMyRowIndex);
-        auto path_item = new QTableWidgetItem(QDir::toNativeSeparators(dirname) + QDir::separator() + settings.config.file_mask);
+        auto path_item = new QTableWidgetItem(QDir::toNativeSeparators(dirname) + QDir::separator() + settings->config.file_mask);
         path_item->setFlags(Qt::NoItemFlags);
         dirtable.setItem(*paths_count, 2, path_item);
     }
