@@ -499,12 +499,13 @@ SessionWindow::SessionWindow(u32i session_id)
 
 void SessionWindow::create_and_start_walker()
 {
-    task.delAllTaskPaths();
+    //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mp3\00001.mp3)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\~разобраться\Demo.icl)", "", false});
 
     if ( !task.task_paths.empty() and !settings->selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
     {
@@ -522,8 +523,11 @@ void SessionWindow::create_and_start_walker()
             current_status->setText(scan_is_done_txt[curr_lang()]);
             is_walker_dead = true;
             // разблокируем кнопки "Save All" и "Report"
-            save_all_button->setEnabled(true);
-            report_button->setEnabled(true);
+            if ( total_resources_found > 0 )
+            {
+                save_all_button->setEnabled(true);
+                report_button->setEnabled(true);
+            }
             scan_movie->stop();
             movie_zone->setPixmap(QPixmap(":/gui/session/done.png"));
             }, Qt::QueuedConnection);
@@ -762,7 +766,7 @@ void SessionWindow::rxStartSaveAllProcess()
     char *from_buffer = (char*)data_buffer.data();
     char *to_shm = (char*)shared_memory.data();
     memcpy(to_shm, from_buffer, data_buffer.size());
-    qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
+    //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
     saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key() }, "");

@@ -8,34 +8,35 @@
 #include <QDir>
 #include <QTextEdit>
 
-Settings *settings;           // объект должен существовать до создания любых окон.
-Task     task;                // объект должен существовать до создания любых окон.
-
-MainWindow *mw;
-
+Settings     *settings;           // объект должен существовать до создания любых окон.
+Task         task;                // объект должен существовать до создания любых окон.
 SessionsPool sessions_pool {MAX_SESSIONS};
-
-QWidget *saving_window = nullptr;
 
 int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
-    QApplication::setApplicationName(":: Rapid Juicer :: resource extractor ::");
-    QApplication::setWindowIcon(QIcon(":/gui/logo.png"));
+    app.setApplicationName(":: Rapid Juicer :: resource extractor ::");
+    app.setWindowIcon(QIcon(":/gui/logo.png"));
 
-    qInfo() << "Main process id (uint64):" << QApplication::applicationPid();
-    qInfo() << "Main thread id:" << QThread::currentThreadId();
+    //qInfo() << "Main process id (uint64):" << app.applicationPid();
+    // qInfo() << "Main thread id:" << QThread::currentThreadId();
 
-    indexFilesFormats();
+    indexFileFormats();
 
     auto args = QCoreApplication::arguments();
     if ( args.count() >= 5 )
     {
        if ( args[1] == "-save" )
         {
-            saving_window = new SavingWindow(args[2], args[3], args[4]);
+            settings = new Settings;
+            settings->initSkin();
+
+            auto saving_window = new SavingWindow(args[2], args[3], args[4]);
             saving_window->show();
             app.exec();
+            delete saving_window;
+
+            delete settings;
             return 0;
         }
     }
@@ -43,7 +44,7 @@ int main(int argc, char **argv)
     settings = new Settings;
     settings->initSkin();
 
-    mw = new MainWindow;
+    auto mw = new MainWindow;
     mw->show();
     app.exec();
     delete mw;

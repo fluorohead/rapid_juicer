@@ -48,7 +48,6 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QByteArray>
-#include <asmjit/asmjit.h>
 
 // #define ASMJIT_STATIC
 // #define ASMJIT_NO_AARCH64
@@ -149,42 +148,19 @@ Engine::Engine(WalkerThread *walker_parent)
     control_mutex = my_walker_parent->walker_control_mutex;
     scrupulous = my_walker_parent->walker_config.scrupulous;
     selected_formats = my_walker_parent->selected_formats_fast;
+
+    qInfo() << mmf_scanbuf;
+    generate_comparation_func();
 }
 
 Engine::~Engine()
 {
     //qInfo() << "Engine destructor called in thread id" << QThread::currentThreadId();
+    aj_runtime.release(comparation_func);
 }
 
-void Engine::scan_file_win64(const QString &file_name)
+void Engine::generate_comparation_func()
 {
-    file.setFileName(file_name);
-    file_size = file.size();
-    //qInfo() << "file_size:" << file_size;
-    if ( !file.open(QIODeviceBase::ReadOnly) or ( file.size() < MIN_RESOURCE_SIZE ) )
-    {
-        return;
-    }
-    mmf_scanbuf = file.map(0, file_size);
-    if ( mmf_scanbuf == nullptr )
-    {
-        qInfo() << "unsuccesful file to memory mapping";
-        file.close();
-        return;
-    }
-    //////////////////////////////////////////////////////////////
-    u64i start_offset;
-    u64i last_offset = 0; // =0 - важно!
-    u64i iteration;
-    u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
-    u64i tale_size = file_size % granularity;
-    u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
-    u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
-    u64i resource_size = 0;
-    //////////////////////////////////////////////////////////////
-
-    using namespace asmjit;
-    JitRuntime aj_runtime;
     CodeHolder aj_code;
     StringLogger aj_logger;
     aj_code.init(aj_runtime.environment(), aj_runtime.cpuFeatures());
@@ -207,7 +183,7 @@ void Engine::scan_file_win64(const QString &file_name)
         aj_sub_labels[s_idx] = aj_asm.newLabel();
     }
 
-    x86::Mem rbp_plus_16 = x86::ptr(x86::rbp, 16); // указатель на наш "home rcx"
+    //x86::Mem rbp_plus_16 = x86::ptr(x86::rbp, 16); // указатель на наш "home rcx"
     x86::Mem rdi_edx_mul8 = x86::ptr(x86::rdi, x86::edx, 3); // shift = 3, равноценно *8 : [rdi + r15*8]
 
     //  входные параметры
@@ -227,7 +203,7 @@ void Engine::scan_file_win64(const QString &file_name)
     // r15 - постоянно исп-ся : флаг scrupulous-режима
 
 // ; prolog
-aj_asm.bind(aj_prolog_label);
+    aj_asm.bind(aj_prolog_label);
     aj_asm.push(x86::rbp);
     aj_asm.mov(x86::rbp, x86::rsp);
     aj_asm.push(x86::rdi);
@@ -241,7 +217,8 @@ aj_asm.bind(aj_prolog_label);
     aj_asm.mov(x86::rdi, x86::rsp); // фиксируем rdi на начале вектора
     aj_asm.sub(x86::rsp, 40); // сразу формируем home-регион для callee-функций : 40 вместо 32, чтобы выровнять по 16-байт (там уже лежит 8 байт возврата, поэтому 32+8 будет плохо, а 40+8 в самый раз)
 
-    aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // теперь адрес буфера сканирования в rsi
+    aj_asm.mov(x86::rsi, imm(&this->mmf_scanbuf));
+    aj_asm.mov(x86::rsi, x86::qword_ptr(x86::rsi)); // теперь адрес буфера сканирования в rsi
     aj_asm.mov(x86::r12, x86::rsi); // и тот же адрес в r12
     aj_asm.add(x86::rsi, x86::rcx); // теперь в rsi абсолюный начальный адрес с учётом start_offset;
     aj_asm.add(x86::r12, x86::rdx); // теперь в r12 абсолютный конечный адрес, не включаемый; rdx далее не нужен (возможно будем использовать в будущем)
@@ -389,7 +366,7 @@ aj_asm.bind(aj_prolog_label);
     }
 
 // ; loop_start
-aj_asm.bind(aj_loop_start_label);
+    aj_asm.bind(aj_loop_start_label);
     aj_asm.mov(x86::eax, x86::dword_ptr(x86::rsi)); // в eax лежит анализируемый dword
     aj_asm.bswap(x86::eax);
     aj_asm.mov(x86::bx, x86::ax);
@@ -403,10 +380,10 @@ aj_asm.bind(aj_loop_start_label);
 
 // ; 0x00
 aj_asm.bind(aj_signat_labels[0]);
-// ; tga : 0x00'00 : 0x02'00
-// ; tga : 0x00'00 : 0x0A'00
-// ; ico : 0x00'00 : 0x01'00
-// ; cur : 0x00'00 : 0x02'00
+    // ; tga : 0x00'00 : 0x02'00
+    // ; tga : 0x00'00 : 0x0A'00
+    // ; ico : 0x00'00 : 0x01'00
+    // ; cur : 0x00'00 : 0x02'00
     aj_asm.cmp(x86::al, 0x00);
     aj_asm.jne(aj_loop_check_label);
     aj_asm.cmp(x86::bx, 0x02'00);
@@ -416,7 +393,7 @@ aj_asm.bind(aj_signat_labels[0]);
     aj_asm.cmp(x86::bx, 0x01'00);
     aj_asm.je(aj_sub_labels[14]);
     aj_asm.jmp(aj_loop_check_label);
-aj_asm.bind(aj_sub_labels[13]);
+    aj_asm.bind(aj_sub_labels[13]);
     if ( selected_formats[fformats["tga_tc"].index] )
     {
         // вызов recognize_tga
@@ -439,11 +416,11 @@ aj_asm.bind(aj_sub_labels[14]);
         aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
-    aj_asm.jmp(aj_loop_check_label);
+aj_asm.jmp(aj_loop_check_label);
 
 // ; 0x0A
 aj_asm.bind(aj_signat_labels[1]);
-// ; pcx : 0x0A'05
+    // ; pcx : 0x0A'05
     aj_asm.cmp(x86::al, 0x05);
     aj_asm.jne(aj_loop_check_label);
     // вызов recognize_pcx
@@ -457,7 +434,7 @@ aj_asm.bind(aj_signat_labels[1]);
 
 // ; 0x11
 aj_asm.bind(aj_signat_labels[2]);
-// ; fli : 0x11'AF
+    // ; fli : 0x11'AF
     aj_asm.cmp(x86::al, 0xAF);
     aj_asm.jne(aj_loop_check_label);
     // вызов recognize_flc
@@ -536,7 +513,7 @@ aj_asm.bind(aj_sub_labels[1]); // bmp ?
 aj_asm.bind(aj_signat_labels[24]);
     // ;  ch : 0x43'48
     // ; voc : 0x43'72 : 0x65'61
-aj_asm.bind(aj_sub_labels[9]); // mod_ch ?
+    aj_asm.bind(aj_sub_labels[9]); // mod_ch ?
     if ( selected_formats[fformats["mod"].index] )
     {
         aj_asm.cmp(x86::al, 0x48);
@@ -600,9 +577,9 @@ aj_asm.bind(aj_sub_labels[19]); // flx?
         aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
-    aj_asm.jmp(aj_loop_check_label);
+aj_asm.jmp(aj_loop_check_label);
 
-// ; 0x45
+    // ; 0x45
 aj_asm.bind(aj_signat_labels[7]);
     // ; xm : 0x45'78 : 0x74'65
     aj_asm.cmp(x86::al, 0x78);
@@ -721,7 +698,7 @@ aj_asm.bind(aj_signat_labels[23]);
     //
     aj_asm.jmp(aj_loop_check_label);
 
- // ; 0x4B
+// ; 0x4B
 aj_asm.bind(aj_signat_labels[12]);
     // ; bk2 : 0x4B'42
     aj_asm.cmp(x86::al, 0x42);
@@ -913,10 +890,10 @@ aj_asm.bind(aj_signat_labels[26]);
     aj_asm.cmp(x86::bx, 0x6F'76);
     aj_asm.jne(aj_loop_check_label);
     aj_asm.jmp(aj_sub_labels[12]);
-aj_asm.bind(aj_sub_labels[11]);
+    aj_asm.bind(aj_sub_labels[11]);
     aj_asm.cmp(x86::bx, 0x61'74);
     aj_asm.jne(aj_loop_check_label);
-aj_asm.bind(aj_sub_labels[12]);
+    aj_asm.bind(aj_sub_labels[12]);
     // вызов recognize_mov_qt
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
@@ -989,7 +966,8 @@ aj_asm.bind(aj_scrup_mode_label);
     // в e->resource_offset смещение ресурса в файле (или mmf-буфере).
     // надо переставить rsi и r14 на положение после ресурса минус 1 байт :
     aj_asm.mov(x86::r14, x86::qword_ptr((u64i)&this->resource_offset)); // суём в r14 смещение найденного ресурса относительно начала mmf (смещение ресурса не всегда равно первоначальному значению r14!)
-    aj_asm.mov(x86::rsi, imm(mmf_scanbuf)); // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
+    aj_asm.mov(x86::rsi, imm(&mmf_scanbuf));        // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
+    aj_asm.mov(x86::rsi, x86::dword_ptr(x86::rsi)); //
     aj_asm.add(x86::r14, x86::rax); // переставляем r14 на положение после ресурса
     aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выствит указатель ровно после ресурса
     aj_asm.add(x86::rsi, x86::r14); // корректируем rsi, чтобы абсолютный указатель тоже был после ресурса минус 1 байт
@@ -1016,12 +994,38 @@ aj_asm.bind(aj_epilog_label);
     aj_asm.pop(x86::rbp);
     aj_asm.ret();
 
-    typedef int (*ComparationFunc)(u64i start_offset, u64i last_offset); // от start_offset до last_offset, не включая last_offset
-    ComparationFunc comparation_func;
     Error err = aj_runtime.add(&comparation_func, &aj_code);
     // qInfo() << "runtime_add_error:" << err;
-    // qInfo() << "---- ASMJIT Code ----";
-    // qInfo() << aj_logger.data();
+    //qInfo() << "---- ASMJIT Code ----";
+    //qInfo() << aj_logger.data();
+    //////////////////////////////////////////////////////////////
+}
+
+void Engine::scan_file_win64(const QString &file_name)
+{
+    file.setFileName(file_name);
+    file_size = file.size();
+    //qInfo() << "file_size:" << file_size;
+    if ( !file.open(QIODeviceBase::ReadOnly) or ( file.size() < MIN_RESOURCE_SIZE ) )
+    {
+        return;
+    }
+    mmf_scanbuf = file.map(0, file_size);
+    if ( mmf_scanbuf == nullptr )
+    {
+        qInfo() << "unsuccesful file to memory mapping";
+        file.close();
+        return;
+    }
+    //////////////////////////////////////////////////////////////
+    u64i start_offset;
+    u64i last_offset = 0; // =0 - важно!
+    u64i iteration;
+    u64i granularity = Settings::getBufferSizeByIndex(my_walker_parent->walker_config.bfr_size_idx) * 1024 * 1024;
+    u64i tale_size = file_size % granularity;
+    u64i max_iterations = file_size / granularity + ((tale_size >= 4) ? 1 : 0);
+    u64i absolute_last_offset = file_size - 3; // -3, а не -4, потому что last_offset не включительно в цикле for : [start_offset, last_offset)
+    u64i resource_size = 0;
     //////////////////////////////////////////////////////////////
 
     previous_msecs = QDateTime::currentMSecsSinceEpoch();
@@ -1069,7 +1073,6 @@ aj_asm.bind(aj_epilog_label);
     // qInfo() << "-> Engine: returning from scan_file() to caller WalkerThread";
     file.unmap(mmf_scanbuf);
     file.close();
-    aj_runtime.release(comparation_func);
 }
 
 inline void Engine::update_file_progress(const QString &file_name, u64i file_size, s64i total_readed_bytes)
@@ -3121,14 +3124,16 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
     s64i file_size = e->file_size;
     Directory *directory;
     QMap<u32i, u32i> db; // бд тел битмапов: ключ - смещение, значение - размер
+    //qInfo() << "count:" << info_header->count;
     for (u16i idx = 0; idx < info_header->count; ++idx)
     {
         if ( last_index + sizeof(Directory) > file_size) return 0; // не хватает места на Directory
+        //qInfo() << "idx:" << idx;
         directory = (Directory*)&buffer[last_index];
         if ( directory->reserved != 0 ) return 0;
         if ( ( !is_cur ) and ( directory->cpl_xhotspot > 1 ) ) return 0;
         db[directory->bitmap_offset] = directory->bitmap_size;
-        //qInfo() << " bitmap_offset:" << base_index + directory->bitmap_offset;
+        //qInfo() << "bitmap_offset:" << base_index + directory->bitmap_offset;
         if ( base_index + directory->bitmap_offset + sizeof(BitmapInfoHeader) > file_size ) return 0; // нет места на bitmap-заголовок
         BitmapInfoHeader *bitmap_ih = (BitmapInfoHeader*)&buffer[base_index + directory->bitmap_offset];
         if ( !VALID_BMP_HEADER_SIZE.contains(bitmap_ih->bitmapheader_size) ) // тогда может быть есть встроенный PNG?

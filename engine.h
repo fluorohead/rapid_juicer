@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QMutex>
 #include <QFile>
+#include <asmjit/asmjit.h>
 
 #define MIN_SIGNAL_INTERVAL_MSECS 20
 
@@ -38,6 +39,9 @@ struct TreeNode {
     TreeNode  *right;
 };
 
+using namespace asmjit;
+typedef int (*ComparationFunc)(u64i start_offset, u64i last_offset); // от start_offset до last_offset, не включая last_offset
+
 class Engine: public QObject
 {
     Q_OBJECT
@@ -56,6 +60,11 @@ class Engine: public QObject
     bool enough_room_to_continue(u64i min_size); // достаточно ли места min_size до конца файла, чтобы проверить заголовок сигнатуры
     uchar *mmf_scanbuf; // memory mapped file scanning buffer
     bool done_cause_skip; // выставляем в true, если завершились по сигналу Skip
+
+    JitRuntime aj_runtime;
+    ComparationFunc comparation_func;
+    void generate_comparation_func();
+
 public:
     Engine(WalkerThread *walker_parent);
     ~Engine();
