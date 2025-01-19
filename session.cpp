@@ -20,13 +20,15 @@
 
 extern QString reduce_file_path(const QString&, int);
 
-extern SessionsPool      sessions_pool;
-extern Settings          *settings;
-extern Task              task;
 extern QMap <QString, FileFormat> fformats;
+extern SessionsPool sessions_pool;
+extern Settings *settings;
+extern Task task;
 extern const QList<u64i> permitted_buffers;
-extern const QString     yes_no_txt[int(Langs::MAX)][2];
-extern const QString     mebibytes_txt[int(Langs::MAX)];
+
+extern const QString yes_no_txt[int(Langs::MAX)][2];
+
+extern const QString mebibytes_txt[int(Langs::MAX)];
 
 const QString properties_header_txt[int(Langs::MAX)]
 {
@@ -403,7 +405,7 @@ SessionWindow::SessionWindow(u32i session_id)
     tmpFont.setPixelSize(15);
     tmpFont.setItalic(false);
     current_status = new QLabel; // текущий статус
-    current_status->setFixedSize(196, 16);
+    current_status->setFixedSize(224, 16);
     current_status->setStyleSheet("color: #f9d875");
     current_status->setFont(tmpFont);
     current_status->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
@@ -499,23 +501,13 @@ SessionWindow::SessionWindow(u32i session_id)
 
 void SessionWindow::create_and_start_walker()
 {
-    //task.delAllTaskPaths();
-    //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
+    is_walker_dead = false;
+    walker_mutex = new QMutex;  // задача по освободжению указателя возложена на WalkerThread, т.к. SessionWindow может быть удалено раньше,
+                                // поэтому walker_mutex должен оставаться в памяти до окончания работы WalkerThread.
 
-    //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mp3\00001.mp3)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\~разобраться\Demo.icl)", "", false});
+    walker = new WalkerThread(this, walker_mutex, task, settings->config, settings->selected_formats);
 
-    if ( !task.task_paths.empty() and !settings->selected_formats.empty() ) // запускаем только в случае наличия путей и хотя бы одного выбранного формата
-    {
-        is_walker_dead = false;
-        walker_mutex = new QMutex;  // задача по освободжению указателя возложена на WalkerThread, т.к. SessionWindow может быть удалено раньше,
-                                    // поэтому walker_mutex должен оставаться в памяти до окончания работы WalkerThread.
-
-        walker = new WalkerThread(this, walker_mutex, task, settings->config, settings->selected_formats);
-
-        connect(walker, &WalkerThread::finished, this, [this](){ // блокируем кнопки управления, когда walker отчитался, что закончил работу полностью
+    connect(walker, &WalkerThread::finished, this, [this](){ // блокируем кнопки управления, когда walker отчитался, что закончил работу полностью
             //qInfo() << " :::: finished() :::: signal received from WalkerThread and slot executed in thread id" << QThread::currentThreadId();
             stop_button->setDisabled(true);
             pause_resume_button->setDisabled(true);
@@ -530,16 +522,16 @@ void SessionWindow::create_and_start_walker()
             }
             scan_movie->stop();
             movie_zone->setPixmap(QPixmap(":/gui/session/done.png"));
-            }, Qt::QueuedConnection);
+        }, Qt::QueuedConnection);
 
-        connect(walker, &WalkerThread::finished, walker, &QObject::deleteLater); // WalkerThread будет уничтожен в главном потоке после завершения работы метода .run()
+    connect(walker, &WalkerThread::finished, walker, &QObject::deleteLater); // WalkerThread будет уничтожен в главном потоке после завершения работы метода .run()
 
-        connect(walker, &WalkerThread::txFileWasSkipped, this, [this](){ // Engine завершил работы по причине получения сигнала Skip -> нам надо обновить статус
-            //qInfo() << " :::: txFileWasSkipped() :::: signal received from WalkerThread and slot executed in thread id" << QThread::currentThreadId();
-            current_status->setText(scan_in_progress_txt[curr_lang()]);
-        });
+    connect(walker, &WalkerThread::txFileWasSkipped, this, [this](){ // Engine завершил работы по причине получения сигнала Skip -> нам надо обновить статус
+        //qInfo() << " :::: txFileWasSkipped() :::: signal received from WalkerThread and slot executed in thread id" << QThread::currentThreadId();
+        current_status->setText(scan_in_progress_txt[curr_lang()]);
+    });
 
-        connect(walker, &WalkerThread::txImPaused, this, [this]() { // walker отчитывается сюда, что он встал на паузу
+    connect(walker, &WalkerThread::txImPaused, this, [this]() { // walker отчитывается сюда, что он встал на паузу
             stop_button->setEnabled(true);
             pause_resume_button->setEnabled(true);
             skip_button->setDisabled(true);
@@ -547,7 +539,7 @@ void SessionWindow::create_and_start_walker()
             scan_movie->setPaused(true);
         }, Qt::QueuedConnection);
 
-        connect(walker, &WalkerThread::txImResumed, this, [this]() { // walker отчитывается сюда, что он снялся с паузы и продолжил работу
+    connect(walker, &WalkerThread::txImResumed, this, [this]() { // walker отчитывается сюда, что он снялся с паузы и продолжил работу
             stop_button->setEnabled(true);
             skip_button->setEnabled(true);
             pause_resume_button->setEnabled(true);
@@ -555,7 +547,7 @@ void SessionWindow::create_and_start_walker()
             scan_movie->setPaused(false);
         }, Qt::QueuedConnection);
 
-        connect(stop_button, &QPushButton::clicked, this, [this]() {
+    connect(stop_button, &QPushButton::clicked, this, [this]() {
             stop_button->setDisabled(true);
             pause_resume_button->setDisabled(true);
             skip_button->setDisabled(true);
@@ -564,49 +556,44 @@ void SessionWindow::create_and_start_walker()
             current_status->setText(scan_stop_request_txt[curr_lang()]);
         }, Qt::QueuedConnection);
 
-        connect(pause_resume_button, &QPushButton::clicked, [=](){
-            stop_button->setDisabled(true);
-            pause_resume_button->setDisabled(true);
-            skip_button->setDisabled(true);
-            // начальное значение is_walker_paused = false и выставляется при создании объекта SessionWindow
-            if ( !is_walker_paused ) // нажали pause
-            {
-                current_status->setText(scan_pause_request_txt[curr_lang()]);
-                walker_mutex->lock();
-                walker->command = WalkerCommand::Pause;
-                pause_resume_button->setText(resume_button_txt[curr_lang()]);
-                is_walker_paused = true;
-                // и дальше ждём, когда new_walker отчитается, что он встал на паузу (через его сигнал txImPaused);
-                // только после этого можно активировать кнопки через setEnable(true) в слоте основного потока
-            }
-            else // нажали resume
-            {
-                walker->command = WalkerCommand::Run;
-                walker_mutex->unlock();
-                pause_resume_button->setText(pause_button_txt[curr_lang()]);
-                is_walker_paused = false;
-                // и дальше ждём, когда new_walker отчитается, что он снялся с паузы (через его сигнал txImResumed);
-                // только после этого можно активировать кнопки через setEnable(true) в слоте основного потока
-            }
-        });
+    connect(pause_resume_button, &QPushButton::clicked, [=](){
+        stop_button->setDisabled(true);
+        pause_resume_button->setDisabled(true);
+        skip_button->setDisabled(true);
+        // начальное значение is_walker_paused = false и выставляется при создании объекта SessionWindow
+        if ( !is_walker_paused ) // нажали pause
+        {
+            current_status->setText(scan_pause_request_txt[curr_lang()]);
+            walker_mutex->lock();
+            walker->command = WalkerCommand::Pause;
+            pause_resume_button->setText(resume_button_txt[curr_lang()]);
+            is_walker_paused = true;
+            // и дальше ждём, когда new_walker отчитается, что он встал на паузу (через его сигнал txImPaused);
+            // только после этого можно активировать кнопки через setEnable(true) в слоте основного потока
+        }
+        else // нажали resume
+        {
+            walker->command = WalkerCommand::Run;
+            walker_mutex->unlock();
+            pause_resume_button->setText(pause_button_txt[curr_lang()]);
+            is_walker_paused = false;
+            // и дальше ждём, когда new_walker отчитается, что он снялся с паузы (через его сигнал txImResumed);
+            // только после этого можно активировать кнопки через setEnable(true) в слоте основного потока
+        }
+    });
 
-        connect(skip_button, &QPushButton::clicked, [=](){
-            walker->command = WalkerCommand::Skip;
-            current_status->setText(scan_skip_request_txt[curr_lang()]);
-        });
+    connect(skip_button, &QPushButton::clicked, [=](){
+        walker->command = WalkerCommand::Skip;
+        current_status->setText(scan_skip_request_txt[curr_lang()]);
+    });
 
-        stop_button->setEnabled(true);
-        pause_resume_button->setEnabled(true);
-        skip_button->setEnabled(true);
+    stop_button->setEnabled(true);
+    pause_resume_button->setEnabled(true);
+    skip_button->setEnabled(true);
 
-        connect(save_all_button, &QPushButton::clicked, this, &SessionWindow::rxStartSaveAllProcess);
+    connect(save_all_button, &QPushButton::clicked, this, &SessionWindow::rxStartSaveAllProcess);
 
-        walker->start(QThread::InheritPriority);
-    }
-    else
-    {
-        qInfo() << " --- Nothing to do : no paths added or no formats selected";
-    }
+    walker->start(QThread::InheritPriority);
 }
 
 SessionWindow::~SessionWindow()
@@ -655,6 +642,7 @@ void SessionWindow::rxResourceFound(const QString &format_name, const QString &f
 void SessionWindow::rxStartSaveAllProcess()
 {
     save_all_button->setDisabled(true);
+    report_button->setDisabled(true);
     QByteArray data_buffer;
     char str_end = 0;
     // временные переменные, используемые ниже при обходе бд
@@ -779,6 +767,8 @@ void SessionWindow::rxStartSaveAllProcess()
     sys_semaphore.release(); // и тогда уже можно будет оторваться (detach) от shared memory
 
     shared_memory.detach();
+
+    this->close(); // закрываем окно и оно автоматически уничтожается
 }
 
 void SessionWindow::mouseMoveEvent(QMouseEvent *event)

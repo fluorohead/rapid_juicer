@@ -129,6 +129,7 @@ class DirlistWindow: public QWidget {
     void paintEvent(QPaintEvent *event);
     void changeEvent(QEvent *event);
     DirlistTable dirtable {this};
+    void remove_all();
 public:
     DirlistWindow(QWidget *parent);
 public Q_SLOTS:

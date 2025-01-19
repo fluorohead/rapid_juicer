@@ -8,8 +8,8 @@
 #include <QDir>
 #include <QTextEdit>
 
-Settings     *settings;           // объект должен существовать до создания любых окон.
-Task         task;                // объект должен существовать до создания любых окон.
+Settings *settings; // объект должен существовать до создания любых окон.
+Task task; // объект должен существовать до создания любых окон.
 SessionsPool sessions_pool {MAX_SESSIONS};
 
 int main(int argc, char **argv)
@@ -41,6 +41,14 @@ int main(int argc, char **argv)
         }
     }
 
+    //task.delAllTaskPaths();
+    //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
+
+    //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mp3\00001.mp3)", "", false});
+    //task.addTaskPath(TaskPath {R"(D:\MODULES\AUTHORS.A-F\4MAT\ANOTHER_SUMMER.MOD)", "", false});
+
     settings = new Settings;
     settings->initSkin();
 
@@ -54,8 +62,6 @@ int main(int argc, char **argv)
 
     return 0;
 }
-
-
 
 QString reduce_file_path(const QString &path, int max_len)
 {

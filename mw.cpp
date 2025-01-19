@@ -51,6 +51,24 @@ const QString header_txt[int(Langs::MAX)][3]
     { "Форм.", "Описание",    "Категория" }
 };
 
+const QString warning_title_txt[int(Langs::MAX)]
+{
+    "!!! WARNING !!!",
+    "!!! ВНИМАНИЕ !!!"
+};
+
+const QString select_one_file_txt[int(Langs::MAX)]
+{
+    "Select at least one file\nor directory to continue.",
+    "Необходимо выбрать как\nминимум один файл или\nкаталог для продолжения."
+};
+
+const QString select_one_fmt_txt[int(Langs::MAX)]
+{
+    "Select at least one\nfile format to continue.",
+    "Необходимо выбрать как\nминимум один формат\nдля продолжения."
+};
+
 const u64i filters[MAX_FILTERS] { CAT_IMAGE,
                                   CAT_VIDEO,
                                   CAT_AUDIO | CAT_MUSIC,
@@ -516,6 +534,20 @@ void MainWindow::showSettings()
 
 void MainWindow::showNewSessionWindow()
 {
+    if ( task.task_paths.isEmpty() )
+    {
+        auto mdliw = new ModalInfoWindow(this, warning_title_txt[curr_lang()], select_one_file_txt[curr_lang()], ModalInfoWindow::Type::Warning);
+        mdliw->show(); // модальное окно уничтожается автоматически после вызова close()
+        return;
+    }
+
+    if ( settings->selected_formats.isEmpty() )
+    {
+        auto mdliw = new ModalInfoWindow(this, warning_title_txt[curr_lang()], select_one_fmt_txt[curr_lang()], ModalInfoWindow::Type::Warning);
+        mdliw->show(); // модальное окно уничтожается автоматически после вызова close()
+        return;
+    }
+
     u32i new_session_id = sessions_pool.get_new_session_id();
     if ( new_session_id != 0 )
     {
@@ -529,5 +561,6 @@ void MainWindow::showNewSessionWindow()
         {
             new_session_window->show();
         }
+        dirlist.remove_all(); // очищаем список путей в task и в DirlistWindow
     }
 }

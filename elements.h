@@ -64,4 +64,16 @@ public:
                                                         const QString &true_state_hover_resource);
 };
 
+// Модальное информационное окно
+class ModalInfoWindow: public QWidget {
+    Q_OBJECT
+    QPointF prev_cursor_pos;
+    void mouseMoveEvent(QMouseEvent *event);  // событие будет возникать и спускаться из Qlabel background
+    void mousePressEvent(QMouseEvent *event); // событие будет возникать и спускаться из Qlabel background
+public:
+    enum class Type {JustInfo, Warning, Error};
+    ModalInfoWindow(QWidget *parent, const QString &title_text, const QString &info_text, Type type);
+    ~ModalInfoWindow();
+};
+
 #endif // ELEMENTS_H

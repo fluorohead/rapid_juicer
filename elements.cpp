@@ -1,8 +1,11 @@
 #include "elements.h"
 #include "settings.h"
 #include <QMouseEvent>
+#include <QPushButton>
 
 extern Settings *settings;
+
+extern const QString ok_txt[int(Langs::MAX)];
 
 OneStateButton::OneStateButton(QWidget *parent, const QString &main_resource, const QString &hover_resource)
     : QLabel(parent)
@@ -161,3 +164,100 @@ void TwoStatesButton::leaveEvent(QEvent *event) {
     event->accept();
 }
 
+ModalInfoWindow::ModalInfoWindow(QWidget *parent, const QString &title_text, const QString &info_text, Type type)
+    : QWidget(parent, Qt::Dialog | Qt::FramelessWindowHint)
+{
+    this->setAttribute(Qt::WA_TranslucentBackground);
+    this->setAttribute(Qt::WA_NoSystemBackground);
+    this->setAttribute(Qt::WA_DeleteOnClose);
+    this->setWindowModality(Qt::WindowModal);
+
+    QPixmap bg_pixmap {":/gui/modal/mdliw.png"}; // background pixmap
+    this->setFixedSize(bg_pixmap.size());
+
+    auto background = new QLabel;
+    background->setFixedSize(bg_pixmap.size());
+    background->setPixmap(bg_pixmap);
+    background->setParent(this);
+    background->move(0, 0);
+
+    QPixmap *icon_pixmap;
+    switch(type)
+    {
+    case Type::JustInfo:
+        icon_pixmap = new QPixmap();
+        break;
+    case Type::Warning:
+        icon_pixmap = new QPixmap(":/gui/modal/warning.png");
+        break;
+    case Type::Error:
+        icon_pixmap = new QPixmap();
+        break;
+    }
+
+    auto icon = new QLabel;
+    icon->setFixedSize(icon_pixmap->width(), icon_pixmap->height());
+    icon->setPixmap(*icon_pixmap);
+    icon->setParent(this);
+    icon->move(16, 40);
+
+    delete icon_pixmap;
+
+    QFont tmpFont {*skin_font()};
+    tmpFont.setBold(true);
+    tmpFont.setPixelSize(14);
+    auto title = new QLabel;
+    title->setFixedSize(background->width(), 32);
+    title->setStyleSheet("color: #e7551a");
+    title->setFont(tmpFont);
+    title->setAlignment(Qt::AlignCenter);
+    title->setText(title_text);
+    title->setParent(this);
+    title->move(0, 4);
+
+    auto info = new QLabel;
+    info->setFixedSize(216, 64);
+    info->setStyleSheet("color: #fffef9");
+    info->setFont(tmpFont);
+    info->setAlignment(Qt::AlignCenter);
+    info->setText(info_text);
+    info->setParent(this);
+    info->move(96, 44);
+
+    static const QString buttons_style {    "QPushButton:enabled {color: #fffef9; background-color: #b38642; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                            "QPushButton:hover   {color: #fffef9; background-color: #e3b672; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                            "QPushButton:pressed {color: #fffef9; background-color: #e3b672; border-width: 0px;}"
+    };
+
+    tmpFont.setPixelSize(12);
+    auto ok_button = new QPushButton(this);
+    ok_button->setAttribute(Qt::WA_NoMousePropagation);
+    ok_button->setFixedSize(72, 28);
+    ok_button->setStyleSheet(buttons_style);
+    ok_button->setFont(tmpFont);
+    ok_button->setText(ok_txt[curr_lang()]);
+    ok_button->move(background->width() - 84, background->height() - 38);
+
+    connect(ok_button, &QPushButton::clicked, [this](){
+        this->close(); // после вызова close() модальное окно уничтожается автоматически
+    });
+
+}
+
+ModalInfoWindow::~ModalInfoWindow()
+{
+
+}
+
+void ModalInfoWindow::mouseMoveEvent(QMouseEvent *event) {
+    if (event->buttons() == Qt::LeftButton) {
+        this->move(this->pos() + (event->globalPosition() - prev_cursor_pos).toPoint());
+        prev_cursor_pos = event->globalPosition();
+    }
+}
+
+void ModalInfoWindow::mousePressEvent(QMouseEvent *event) {
+    if (event->buttons() == Qt::LeftButton) {
+        prev_cursor_pos = event->globalPosition();
+    }
+}

@@ -66,7 +66,7 @@ const QString defaults_txt[int(Langs::MAX)]
     "Load\nDefaults",  "Настройки\nпо-умолч."
 };
 
-const QString ok_txt[int(Langs::MAX)]
+extern const QString ok_txt[int(Langs::MAX)]
 {
     "OK",  "OK"
 };
@@ -640,7 +640,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         settings->config = settings->cand_config;
         settings->cand_config.excluding.clear();
         settings->cand_config.excluding.squeeze();
-        this->close();
+        this->close(); // после вызова close() модальное окно уничтожается автоматически
     });
     connect(cancel_button, &QPushButton::clicked, [this](){
         settings->cand_config.excluding.clear();

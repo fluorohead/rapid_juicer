@@ -489,3 +489,8 @@ void DirlistWindow::rxDiffXY(int x_diff, int y_diff)
         this->resize(new_width, new_height);
     }
 }
+
+void DirlistWindow::remove_all()
+{
+    dirtable.rxRemoveAll();
+}

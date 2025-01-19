@@ -149,7 +149,6 @@ Engine::Engine(WalkerThread *walker_parent)
     scrupulous = my_walker_parent->walker_config.scrupulous;
     selected_formats = my_walker_parent->selected_formats_fast;
 
-    qInfo() << mmf_scanbuf;
     generate_comparation_func();
 }
 
@@ -1284,6 +1283,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
                                                     0x5453494C4E4F4341 /*ACONLIST*/,
                                                     0x68696E614E4F4341 /*ACONanih*/
                                                     };
+    static const QSet <u16i> VALID_WAV_BPS { 4, 8, 11, 12, 16, 18, 20, 24, 32, 48, 64 }; // https://en.wikipedia.org/wiki/Audio_bit_depth
     if ( ( !e->selected_formats[avi_id] ) and ( !e->selected_formats[wav_id] ) and ( e->selected_formats[rmi_id] ) and ( e->selected_formats[ani_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
@@ -1313,6 +1313,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         if ( ( !e->selected_formats[wav_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(WavInfoHeader)) ) return 0;
         WavInfoHeader *wav_info_header = (WavInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        if ( ( wav_info_header->chans == 0 ) or ( wav_info_header->chans > 6 ) ) return 0;
+        if ( !VALID_WAV_BPS.contains(wav_info_header->bits_per_sample) ) return 0;
         QString codec_name = ( wave_codecs.contains(wav_info_header->fmt_code) ) ? wave_codecs[wav_info_header->fmt_code] : "unknown";
         QString info = QString(R"(%1 codec : %2-bit %3Hz %4-ch)").arg(  codec_name,
                                                                         QString::number(wav_info_header->bits_per_sample),
@@ -1933,6 +1935,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     u64i samples_block_size = 0;
     for (int sample_id = 0; sample_id < 31; ++sample_id) // калькуляция размера блока сэмплов
     {
+
+        // qInfo() << " sample id:" << sample_id << " size:" << u32i(be2le(info_header->sample_descriptors[sample_id].len)) * 2 << " repeat_offset:" << u32i(be2le(info_header->sample_descriptors[sample_id].repeat_offset)) * 2
+        //         << " repeat_len:" << u32i(be2le(info_header->sample_descriptors[sample_id].repeat_len)) * 2;
+        if ( be2le(info_header->sample_descriptors[sample_id].len) > 0 ) // проверка на корректность заголовка сэмпла
+        {
+            if ( u32i(be2le(info_header->sample_descriptors[sample_id].repeat_offset)) * 2 + u32i(be2le(info_header->sample_descriptors[sample_id].repeat_len)) * 2 > u32i(be2le(info_header->sample_descriptors[sample_id].len)) * 2 ) return 0;
+        }
         samples_block_size += be2le(info_header->sample_descriptors[sample_id].len);
     }
     samples_block_size *= 2; // т.к. размер указывается в словах word (u16i)
@@ -2744,7 +2753,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
     uchar *buffer = e->mmf_scanbuf;
     FLC_Header *info_header = (FLC_Header*)(&buffer[base_index]);
     if ( ( info_header->pix_depth != 8 ) and ( info_header->pix_depth != 16 )) return 0; // формат FLX может использовать 16bit pix depth
-    if ( ( info_header->width > 2000 ) or ( info_header->height > 2000 ) ) return 0; // вряд ли в этом формате хранятся большие изображения
+    if ( ( info_header->width > 2000 ) or ( info_header->height > 2000 ) ) return 0; // вряд ли хранятся большие изображения, т.к. это старый формат
+    if ( ( info_header->width == 0 ) or ( info_header->height == 0 ) ) return 0;
+    if ( (info_header->width % 2) != 0 ) return 0;   // и вряд ли нечётный размер картинки является корректным
+    if ( (info_header->height % 2) != 0 ) return 0;  //
+    if ( ( info_header->flags != 0x03 ) and ( info_header->flags != 0x00 )) return 0;
     if ( info_header->file_size <= sizeof(FLC_Header) ) return 0; // сверхкороткие файлы нам не нужны
     u64i last_index = base_index + info_header->file_size;
     if ( last_index > e->file_size ) return 0;
@@ -3069,9 +3082,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     if ( info_header->cmap_start != 0 ) return recognize_ico_cur(e); // если не tga, так может cur ?
     if ( info_header->cmap_len != 0 ) return recognize_ico_cur(e); // если не tga, так может cur ?
     if ( ( info_header->width < 1) or ( info_header->width > 4096 ) ) return recognize_ico_cur(e);
+    if ( info_header->height < 1 ) return recognize_ico_cur(e);
     if ( !VALID_PIX_DEPTH.contains(info_header->pix_depth) ) return recognize_ico_cur(e); // если не tga, так может cur ?
+    if ( info_header->cmap_start != 0 ) return 0;
+    if ( info_header->cmap_len != 0 ) return 0;
+    if ( info_header->cmap_depth != 0 ) return 0;
     u64i last_index = base_index + sizeof(TGA_Header) + info_header->width * info_header->height * (info_header->pix_depth / 8); // вычисление эмпирического размера
-    last_index += 4096; // накидываем ещё 4K, если вдруг это TGA v2 и есть области расширения и разработчика
+    last_index += 4096; // накидываем ещё 4K : вдруг это TGA v2? у которого есть области расширения и разработчика.
     if ( last_index > e->file_size ) last_index = e->file_size;
     u64i resource_size = last_index - base_index;
     QString info = QString("%1x%2 %3-bpp").arg( QString::number(info_header->width),
@@ -3513,6 +3530,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
     DBM0_Header *info_header = (DBM0_Header*)&buffer[base_index];
+    if ( info_header->reserved != 0 ) return 0;
     s64i file_size = e->file_size;
     u64i last_index = base_index + sizeof(DBM0_Header); // ставимся на первый Chunk
     Chunk *chunk;
