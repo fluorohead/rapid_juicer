@@ -102,7 +102,7 @@ QMap <QString, FileFormat> fformats {  // QMap -> АВТОМАТИЧЕСКОЕ �
     { "gif",      { "Graphics Interchange Format", "", "GIF", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "gif" }, 0, "", "" } },
     { "tif_ii",   { "Tag Image File Format", "Intel byte order", "TIF", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER | CAT_INTELX86, { "tiff_ii" }, 0, "", "" } },
     { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "TIF", { CAT_IMAGE, CAT_MAC, CAT_OUTDATED }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "", "" } },
-    { "tga_tc",   { "Targa Graphics Adapter Image", "only true-color w/o RLE", "TGA", { CAT_IMAGE, CAT_OUTDATED, CAT_PERFRISK }, CAT_RASTER, { "tga_tp2", "tga_tp10" }, 0, "", "" } },
+    { "tga_tc",   { "Targa Graphics Adapter Image", "only true-color", "TGA", { CAT_IMAGE, CAT_OUTDATED, CAT_PERFRISK }, CAT_RASTER, { "tga_tp2", "tga_tp10" }, 0, "", "" } },
     { "jpg",      { "JPEG File Interchange Format", "", "JPG", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "", "" } },
     { "ani_riff", { "MS Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "", "" } },
     { "aif",      { "Audio Interchange Format", "AIFF/AIFC/8SVX/16SV", "AIF", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "iff" }, 0, "", "" } },

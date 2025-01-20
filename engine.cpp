@@ -171,7 +171,7 @@ void Engine::generate_comparation_func()
     Label aj_signat_labels[30]; // 30 - с запасом
     Label aj_sub_labels[30]; // 30 - с запасом
     Label aj_scrup_mode_check_label = aj_asm.newLabel();
-    Label aj_scrup_mode_label = aj_asm.newLabel();
+    Label aj_scrup_mode_off_label = aj_asm.newLabel();
     Label aj_loop_check_label = aj_asm.newLabel();
     Label aj_epilog_label = aj_asm.newLabel();
 
@@ -370,12 +370,9 @@ void Engine::generate_comparation_func()
     aj_asm.bswap(x86::eax);
     aj_asm.mov(x86::bx, x86::ax);
     aj_asm.shr(x86::eax, 16);
-    // теперь в :ah - 1 байт, al - 2 байт, bh - 3 байт, bl - 4 байт.
-    aj_asm.movzx(x86::edx, x86::ah);
+    // теперь в :ah - 1-й байт, al - 2-й байт, bh - 3-й байт, bl - 4-й байт.
+    aj_asm.movzx(x86::edx, x86::ah); // теперь в edx помещён индекс для вектора переходов
     aj_asm.jmp(rdi_edx_mul8);
-    // aj_asm.nop(); // пока неясно есть какая-то польза от выравнивания или нет
-    // aj_asm.nop();
-    // aj_asm.nop();
 
 // ; 0x00
 aj_asm.bind(aj_signat_labels[0]);
@@ -642,11 +639,9 @@ aj_asm.bind(aj_sub_labels[16]); // id3v2 ?
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_mp3));
+        // для mp3 всегда выключен scrupulous mode.
         aj_asm.cmp(x86::rax, 0);
-        aj_asm.je(aj_loop_check_label);
-        // для mp3 всегда включен scrupulous mode.
-        aj_asm.cmp(x86::rax, 0);
-        aj_asm.jne(aj_scrup_mode_label);
+        aj_asm.jne(aj_scrup_mode_off_label);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
@@ -798,11 +793,9 @@ aj_asm.bind(aj_signat_labels[27]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_ogg));
+    // для ogg всегда выключен scrupulous mode.
     aj_asm.cmp(x86::rax, 0);
-    aj_asm.je(aj_loop_check_label);
-    // для ogg всегда включен scrupulous mode.
-    aj_asm.cmp(x86::rax, 0);
-    aj_asm.jne(aj_scrup_mode_label);
+    aj_asm.jne(aj_scrup_mode_off_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -949,26 +942,26 @@ aj_asm.bind(aj_sub_labels[15]);
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_mp3));
         aj_asm.cmp(x86::rax, 0);
-        aj_asm.jne(aj_scrup_mode_label); // для mp3 всегда включен scrupulous mode:
+        aj_asm.jne(aj_scrup_mode_off_label); // для mp3 всегда выключен scrupulous mode:
         //
     }
     aj_asm.jmp(aj_loop_check_label);
 
-// ; scrup_mode_check
+// ; "scrup mode on?" check
 aj_asm.bind(aj_scrup_mode_check_label);
     aj_asm.cmp(x86::r15, 1); // включен scrup_mode ?
     aj_asm.je(aj_loop_check_label); // если включен, то перескока в буфере на размер найденного ресурса не делаем
-
-// ; scrup_mode
-aj_asm.bind(aj_scrup_mode_label);
+// иначе
+// ; scrup mode off -> значит делаем перескок на размер ресурса
+aj_asm.bind(aj_scrup_mode_off_label);
     // в rax лежит размер ресурса,
-    // в e->resource_offset смещение ресурса в файле (или mmf-буфере).
+    // в e->resource_offset смещение ресурса в файле (mmf-буфере).
     // надо переставить rsi и r14 на положение после ресурса минус 1 байт :
     aj_asm.mov(x86::r14, x86::qword_ptr((u64i)&this->resource_offset)); // суём в r14 смещение найденного ресурса относительно начала mmf (смещение ресурса не всегда равно первоначальному значению r14!)
     aj_asm.mov(x86::rsi, imm(&mmf_scanbuf));        // сбрасываем rsi на начало mmf-буфера (это абсолютный указатель)
     aj_asm.mov(x86::rsi, x86::dword_ptr(x86::rsi)); //
     aj_asm.add(x86::r14, x86::rax); // переставляем r14 на положение после ресурса
-    aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выствит указатель ровно после ресурса
+    aj_asm.dec(x86::r14);  // делаем -1, т.к. код под loop_check сделает +1 и выставит указатель ровно после ресурса
     aj_asm.add(x86::rsi, x86::r14); // корректируем rsi, чтобы абсолютный указатель тоже был после ресурса минус 1 байт
 
 // ; loop_check
@@ -1659,6 +1652,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_pcx RECOGNIZE_FUNC_HEADER
     }
     u16i width  = pcx_info_header->x_end - pcx_info_header->x_start + 1;
     u16i height = pcx_info_header->y_end - pcx_info_header->y_start + 1;
+    if ( ( width >= 4096 ) or ( height >= 4096 ) ) return 0; // старый формат, вряд ли будут большие изображения
     u8i  bpp    = pcx_info_header->bits_per_plane * pcx_info_header->bitplanes;
     u64i empiric_size;
     if ( bpp < 24 )
@@ -3079,14 +3073,18 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
     TGA_Header *info_header = (TGA_Header*)(&buffer[base_index]);
-    if ( info_header->cmap_start != 0 ) return recognize_ico_cur(e); // если не tga, так может cur ?
-    if ( info_header->cmap_len != 0 ) return recognize_ico_cur(e); // если не tga, так может cur ?
-    if ( ( info_header->width < 1) or ( info_header->width > 4096 ) ) return recognize_ico_cur(e);
+    if ( info_header->cmap_start != 0 ) return recognize_ico_cur(e);
+    if ( info_header->cmap_len != 0 ) return recognize_ico_cur(e);
+    if ( ( info_header->width < 1) or ( info_header->width >= 4096 ) ) return recognize_ico_cur(e);
+    if ( info_header->height < 1) return recognize_ico_cur(e);
+    if ( info_header->height / info_header->width > 5 ) return recognize_ico_cur(e); // предположение, что такие файлы маловероятны
+    if ( info_header->width / info_header->height > 5 ) return recognize_ico_cur(e); //
     if ( info_header->height < 1 ) return recognize_ico_cur(e);
-    if ( !VALID_PIX_DEPTH.contains(info_header->pix_depth) ) return recognize_ico_cur(e); // если не tga, так может cur ?
-    if ( info_header->cmap_start != 0 ) return 0;
-    if ( info_header->cmap_len != 0 ) return 0;
-    if ( info_header->cmap_depth != 0 ) return 0;
+    if ( !VALID_PIX_DEPTH.contains(info_header->pix_depth) ) return recognize_ico_cur(e);
+    if ( info_header->cmap_start != 0 ) return recognize_ico_cur(e);
+    if ( info_header->cmap_len != 0 ) return recognize_ico_cur(e);
+    if ( info_header->cmap_depth != 0 ) return recognize_ico_cur(e);
+    if ( (info_header->image_descriptor >> 6) != 0 ) return recognize_ico_cur(e);
     u64i last_index = base_index + sizeof(TGA_Header) + info_header->width * info_header->height * (info_header->pix_depth / 8); // вычисление эмпирического размера
     last_index += 4096; // накидываем ещё 4K : вдруг это TGA v2? у которого есть области расширения и разработчика.
     if ( last_index > e->file_size ) last_index = e->file_size;
@@ -3246,7 +3244,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
     {
         if ( (*(u16i*)&buffer[last_index]) == 0x44'49 /*ID*/ ) // зашли сюда, потому что движок нашёл сигнатуру ID3v2 ?
         {
-            if ( file_size - last_index < sizeof(ID3v2) ) return 0; // нет места для для заголовка ID3v2
+            if ( file_size - last_index < sizeof(ID3v2) ) return 0; // нет места для заголовка ID3v2
             //qInfo() << "has id3v2!!!";
             ID3v2 *id3v2 = (ID3v2*)&buffer[last_index];
             if ( id3v2->ver_major > 4 ) return 0;
@@ -3407,6 +3405,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     PageHeader *page_header;
     u64i last_index = base_index;
     s64i file_size = e->file_size;
+    u64i pages = 0;
     while(true)
     {
         if ( last_index + sizeof(PageHeader) > file_size ) break;// есть место для очередного PageHeader?
@@ -3420,7 +3419,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
         }
         if ( last_index + sizeof(PageHeader) + page_header->segments_num + segments_block > file_size ) break;// есть ли место под блок тел сегментов?
         last_index += (sizeof(PageHeader) + page_header->segments_num + segments_block);
+        ++pages;
     }
+    if ( pages < 2 ) return 0;
     u64i resource_size = last_index - base_index;
     Q_EMIT e->txResourceFound("ogg", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
@@ -3535,11 +3536,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index + sizeof(DBM0_Header); // ставимся на первый Chunk
     Chunk *chunk;
     QString info;
+    bool at_least_one_chunk = false;
     while(true)
     {
         if ( last_index + sizeof(Chunk) > file_size ) break; // хватает ли места для очередного заголовка Chunk ?
         chunk = (Chunk*)&buffer[last_index];
         if ( !VALID_CHUNK_ID.contains(chunk->id) ) break;
+        at_least_one_chunk = true;
         //qInfo() << " chunk_id:" << QString::number(chunk->id, 16) << " at:" << last_index;
         if ( last_index + sizeof(Chunk) + be2le(chunk->data_len) > file_size ) return 0; // данные чанка не помещаются
         if ( chunk->id == 0x454D414E /*'NAME'*/ )
@@ -3555,6 +3558,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
         }
         last_index += (sizeof(Chunk) + be2le(chunk->data_len));
     }
+    if ( !at_least_one_chunk ) return 0; // модуль без единого чанка не имеет смысла
     u64i resource_size = last_index - base_index;
     Q_EMIT e->txResourceFound("dbm0", e->file.fileName(), base_index, resource_size, info);
     e->resource_offset = base_index;

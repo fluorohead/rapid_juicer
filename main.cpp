@@ -47,7 +47,7 @@ int main(int argc, char **argv)
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mp3\00001.mp3)", "", false});
-    //task.addTaskPath(TaskPath {R"(D:\MODULES\AUTHORS.A-F\4MAT\ANOTHER_SUMMER.MOD)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Games\Horizon Forbidden West Complete Edition\LocalCacheWinGame\package\package.00.11.core)", "", false});
 
     settings = new Settings;
     settings->initSkin();
