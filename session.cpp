@@ -183,6 +183,69 @@ FormatTile::FormatTile(const QString &format_name)
     counter->setFont(tmpFont);
 }
 
+ResultsByFormat::ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr)
+    : QWidget(nullptr)
+    , my_fmt(your_fmt)
+    , resources_db(db_ptr)
+{
+    this->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
+    this->setAutoFillBackground(true);
+
+    format_table = new QTableWidget(0, 4);
+    format_table->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
+    format_table->setStyleSheet("color: #d6e7e7; gridline-color: #949494; background-color: #8d6858");
+    format_table->setParent(this);
+    format_table->move(0, 0);
+    format_table->setColumnWidth(0, 32);
+    format_table->setColumnWidth(1, 128);
+    format_table->setColumnWidth(2, 164);
+    for (int idx = 0; idx < 100; ++idx)
+    {
+        format_table->setRowCount(idx + 1);
+        format_table->setRowHeight(idx, 32);
+
+        format_table->setItem(idx, 1, new QTableWidgetItem("4296000000.MP3"));
+        format_table->item(idx, 1)->setTextAlignment(Qt::AlignCenter);
+
+        format_table->setItem(idx, 2, new QTableWidgetItem("4296000000 bytes"));
+        format_table->item(idx, 2)->setTextAlignment(Qt::AlignCenter);
+    }
+
+    format_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    format_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    format_table->setSelectionMode(QAbstractItemView::NoSelection);
+    format_table->verticalHeader()->hide();
+    format_table->horizontalHeader()->hide();
+    format_table->setFrameShape(QFrame::NoFrame);
+    format_table->setSortingEnabled(false);
+    format_table->horizontalHeader()->setHighlightSections(false);
+    format_table->horizontalHeader()->setStretchLastSection(true);
+    format_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+    format_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
+    format_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
+    fmt_table_style = new QCommonStyle;
+    format_table->verticalScrollBar()->setStyle(fmt_table_style);
+    format_table->verticalScrollBar()->setStyleSheet(   ":vertical {background-color: #8d6858; width: 10px}"
+                                                        "::handle:vertical {background-color: #895652; border-radius: 5px;}"
+                                                        "::sub-line:vertical {height: 0px}"
+                                                        "::add-line:vertical {height: 0px}" );
+
+    QFont tmpFont {*skin_font()};
+    tmpFont.setPixelSize(12);
+    tmpFont.setBold(false);
+    format_table->setFont(tmpFont);
+}
+
+ResultsByFormat::~ResultsByFormat()
+{
+    delete fmt_table_style;
+}
+
+void ResultsByFormat::rxInsertNewRecord(ResourceRecord *new_record)
+{
+    format_table->setRowCount(format_table->rowCount() + 1);
+}
+
 SessionWindow::SessionWindow(u32i session_id)
     : my_session_id(session_id)
     , QWidget(nullptr, Qt::FramelessWindowHint)  // окно это QWidget без родителя
@@ -479,12 +542,9 @@ SessionWindow::SessionWindow(u32i session_id)
     // каждому формату заранее создаём свою страницу (начиная со страницы 1)
     for (auto it = fformats.cbegin(); it != fformats.cend(); ++it)
     {
-        auto fformat_widget = new QWidget;
-        fformat_widget->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
-        fformat_widget->setAutoFillBackground(true);
-        pages->addWidget(fformat_widget);
+        auto by_fmt_widget = new ResultsByFormat(it.key(), &resources_db);
+        pages->addWidget(by_fmt_widget);
     };
-    //qInfo() << pages->count();
 
     // завершающей страницей будет информационный виджет (с анимацией и текстом)
     auto info_widget = new QWidget;
@@ -492,8 +552,9 @@ SessionWindow::SessionWindow(u32i session_id)
     info_widget->setAutoFillBackground(true);
     pages->addWidget(info_widget);
 
-    pages->setCurrentIndex(0);
+    pages->setCurrentIndex(fformats["mp3"].index + 1); // +1, т.к. страница 0 отдана под results_table
 
+    //qInfo() << pages->count();
     ///////////////////////// здесь готовим поток walker'а : создаём его, соединяем сигналы/слоты, затем запускаем поток
     create_and_start_walker();
     /////////////////////////////////////////////////////////
@@ -634,7 +695,8 @@ void SessionWindow::rxResourceFound(const QString &format_name, const QString &f
     }
     ++formats_counters[format_name];
     // занесение в БД
-    resources_db[format_name][file_name].append( { total_resources_found, file_offset, size, info, fformats[format_name].extension } );
+    //resources_db[format_name][file_name][total_resources_found] = {total_resources_found, true, file_offset, size, info, fformats[format_name].extension};
+    resources_db[format_name][file_name].append( {total_resources_found, true, file_offset, size, info, fformats[format_name].extension} );
     tiles_db[format_name]->update_counter(formats_counters[format_name]);
     total_resources->setText(QString::number(total_resources_found));
 }
@@ -680,7 +742,7 @@ void SessionWindow::rxStartSaveAllProcess()
             data_buffer.append(qba_file_name);
             //qInfo() << "written 'SrcChange' for file" << source_files.firstKey() << "; current size of buffer:" << data_buffer.size();;
             ///
-            QList <ResourceRecord> &resource_records = resources_db[format_name_key][file_name_key];
+            QList<ResourceRecord> &resource_records = resources_db[format_name_key][file_name_key];
             while(!resource_records.isEmpty())
             {
                 ResourceRecord &one_resource = resource_records.first();
@@ -688,6 +750,7 @@ void SessionWindow::rxStartSaveAllProcess()
                 tlv_header.type = TLV_Type::POD;
                 tlv_header.length = sizeof(POD_ResourceRecord);
                 pod_rr.order_number = one_resource.order_number;
+                //pod_rr.order_number = resource_records.firstKey();
                 pod_rr.offset = one_resource.offset;
                 pod_rr.size = one_resource.size;
                 data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
@@ -710,6 +773,7 @@ void SessionWindow::rxStartSaveAllProcess()
                 data_buffer.append(qba_info);
                 //qInfo() << "written 'Info' for" << one_resource.info << "; current size of buffer:" << data_buffer.size();
                 ///
+                //resource_records.remove(resource_records.firstKey());
                 resource_records.removeFirst();
                 resource_records.squeeze();
             }
@@ -762,8 +826,8 @@ void SessionWindow::rxStartSaveAllProcess()
     data_buffer.clear();   // обнуляем и буфер, т.к. теперь все данные в shared_memory
     data_buffer.squeeze(); //
 
-    sys_semaphore.acquire();
-    sys_semaphore.acquire(); // <- здесь ждём, когда saving_process отдаст семафор
+    sys_semaphore.acquire(); // счётчик 1-1 = 0
+    sys_semaphore.acquire(); // счётчик = 0 <- здесь ждём, когда saving_process сделает 0+1 и отдаст нам семафор
     sys_semaphore.release(); // и тогда уже можно будет оторваться (detach) от shared memory
 
     shared_memory.detach();

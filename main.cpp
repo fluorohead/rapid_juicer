@@ -41,13 +41,16 @@ int main(int argc, char **argv)
         }
     }
 
+    //auto sim = QImageReader::supportedImageFormats();
+    //qInfo() << sim;
+
     //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mp3\00001.mp3)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Games\Horizon Forbidden West Complete Edition\LocalCacheWinGame\package\package.00.11.core)", "", false});
+    //task.addTaskPath(TaskPath {R"(C:/Games/Horizon Forbidden West Complete Edition/LocalCacheWinGame/package/package.00.04.core)", "", false});
 
     settings = new Settings;
     settings->initSkin();

@@ -17,13 +17,18 @@ enum class TLV_Type: u8i { FmtChange = 0, SrcChange = 1, POD = 2, DstExtension =
 struct ResourceRecord
 {
     u64i    order_number; // назначенный порядковый номер
+    bool    is_selected; // выбран для последующего сохранения?
     s64i    offset; // смещение в файле
     u64i    size;   // размер ресурса
     QString info;   // доп. информация о ресурсе
     QString dest_extension; // расширение файла для сохранения
 };
-
-using RR_Map = QMap <QString, QMap<QString, QList<ResourceRecord>>>;
+//                   |--- наименование формата
+//                   |            |--- имя исходного файла
+//                   |            |
+//                   |            |              |--- данные о ресурсах
+//                   V            V              V
+using RR_Map = QMap<QString, QMap<QString, QList<ResourceRecord>>>;
 
 #pragma pack(push,1)
 struct POD_ResourceRecord
@@ -46,6 +51,7 @@ struct TileCoordinates
     int column;
 };
 
+
 class FormatTile: public QLabel
 {
     QLabel *counter;
@@ -54,6 +60,22 @@ public:
     FormatTile(const QString &format_name);
     friend SessionWindow;
 };
+
+
+class ResultsByFormat: public QWidget
+{
+    Q_OBJECT
+    QString my_fmt;
+    QTableWidget *format_table;
+    QCommonStyle *fmt_table_style;
+    RR_Map *resources_db;
+public:
+    ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr);
+    ~ResultsByFormat();
+public Q_SLOTS:
+    void rxInsertNewRecord(ResourceRecord *new_record);
+};
+
 
 class SessionWindow: public QWidget
 {

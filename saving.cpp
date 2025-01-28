@@ -69,7 +69,7 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
             current_rr.order_number = current_pod_ptr->order_number;
             current_rr.offset = current_pod_ptr->offset;
             current_rr.size = current_pod_ptr->size;
-            info_text->append("-> POD: order_number: " + QString::number(current_rr.order_number) + "; offset: " + QString::number(current_rr.offset) + "; size: " + QString::number(current_rr.size));
+            info_text->append("-> POD : order_number: " + QString::number(current_rr.order_number) + "; offset: " + QString::number(current_rr.offset) + "; size: " + QString::number(current_rr.size));
             break;
         }
         case TLV_Type::DstExtension:
@@ -85,6 +85,7 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
             info_text->append("-> Info: '" + current_info + "'");
             current_rr.info = current_info;
             // TLV "Info" всегда идёт завершающей, значит можно сделать запись в БД
+            //resources_db[current_format][current_source][current_rr.order_number] = current_rr;
             resources_db[current_format][current_source].append(current_rr);
             break;
         }

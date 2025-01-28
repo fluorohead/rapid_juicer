@@ -48,6 +48,7 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QByteArray>
+#include <QMimeDatabase>
 
 // #define ASMJIT_STATIC
 // #define ASMJIT_NO_AARCH64
@@ -1079,7 +1080,6 @@ inline void Engine::update_file_progress(const QString &file_name, u64i file_siz
     {
         previous_msecs = current_msecs;
         previous_file_progress = current_file_progress;
-        //Q_EMIT txFileProgress(file_name, current_file_progress);
         Q_EMIT txFileProgress(current_file_progress);
     }
 }
@@ -1112,11 +1112,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " BMP recognizer called!";
-    static const u32i bmp_id = fformats["bmp"].index;
     static constexpr u64i min_room_need = sizeof(FileHeader);
     static const QSet <u32i> VALID_BMP_HEADER_SIZE { 12, 40, 108 };
     static const QSet <u16i> VALID_BITS_PER_PIXEL { 1, 4, 8, 16, 24, 32 };
-    if ( !e->selected_formats[bmp_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -1167,7 +1165,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << "\nPNG recognizer called!\n";
-    static const u32i png_id = fformats["png"].index;
     static const u64i min_room_need = sizeof(FileHeader) + sizeof(ChunkHeader) + sizeof(IHDRData) + sizeof(CRC);
     static const QSet <u8i>  VALID_BIT_DEPTH  {1, 2, 4, 8, 16};
     static const QSet <u8i>  VALID_COLOR_TYPE {0, 2, 3, 4, 6};
@@ -1177,8 +1174,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
                                                    0x74584574 /*tEXt*/, 0x7458547A /*zTXt*/, 0x63415266 /*fRAc*/, 0x67464967 /*gIFg*/, 0x74464967 /*gIFt*/, 0x78464967 /*gIFx*/, 0x444E4549 /*IEND*/,
                                                    0x42475273 /*sRGB*/, 0x52455473 /*sTER*/, 0x4C414370 /*pCAL*/, 0x47495364 /*dSIG*/, 0x50434369 /*iCCP*/, 0x50434963 /*iICP*/, 0x7643446D /*mDCv*/,
                                                    0x694C4C63 /*cLLi*/, 0x74585469 /*iTXt*/, 0x744C5073 /*sPLt*/, 0x66495865 /*eXIf*/, 0x52444849 /*iHDR*/};
-
-    if ( ( !e->selected_formats[png_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -1360,10 +1355,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
         u16i division;
     };
 #pragma pack(pop)
-    static u32i mid_id {fformats["mid"].index};
     static const u64i min_room_need = sizeof(MidiChunk) + sizeof(HeaderData);
     static const QSet <u32i> VALID_CHUNK_TYPE { 0x6468544D /*MThd*/, 0x6B72544D /*MTrk*/};
-    if ( !e->selected_formats[mid_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -1621,9 +1614,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_pcx RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " PCX RECOGNIZER CALLED!";
-    static u32i pcx_id {fformats["pcx"].index};
     static const u64i min_room_need = sizeof(PcxHeader);
-    if ( ( !e->selected_formats[pcx_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     PcxHeader* pcx_info_header = (PcxHeader*)(&(e->mmf_scanbuf[e->scanbuf_offset]));
     if ( pcx_info_header->encoding != 1 ) return 0;
@@ -1706,11 +1697,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " GIF recognizer called!";
-    static u32i gif_id {fformats["gif"].index};
     static constexpr u64i min_room_need = sizeof(FileHeader) + 1; // где +1 на u8i separator
     static const QSet <u16i> VALID_VERSIONS  { 0x6137 /*7a*/, 0x6139 /*9a*/ };
     static const QSet <u8i>  EXT_LABELS_TO_PROCESS { 0x01, 0xCE, 0xFE, 0xFF };
-    if ( ( !e->selected_formats[gif_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -1817,11 +1806,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         u8i  xthumb, ythumb;
     };
 #pragma pack(pop)
-    static u32i jpg_id {fformats["jpg"].index};
     static constexpr u64i min_room_need = sizeof(JFIF_Header);
     static const QSet <u16i> VALID_VERSIONS  { 0x0100, 0x0101, 0x0102 };
     static const QSet <u8i> VALID_UNITS { 0x00, 0x01, 0x02 };
-    if ( ( !e->selected_formats[jpg_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -1850,6 +1837,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
     last_index += 2; // на размер EOI-идентификатора
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
+
+    // QImage image;
+    // bool valid = image.loadFromData(e->mmf_scanbuf + base_index, resource_size);
+    // qInfo() << "\njpeg is:" << valid;
+
     Q_EMIT e->txResourceFound("jpg", e->file.fileName(), base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -1877,8 +1869,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " MOD RECOGNIZER CALLED: " << e->scanbuf_offset;
-    static u32i mod_id {fformats["mod"].index};
-    if ( ( !e->selected_formats[mod_id] ) ) return 0;
     uchar *buffer = e->mmf_scanbuf;
     u64i base_index = e->scanbuf_offset;
     // определяем положительную поправку для размера заголовка :
@@ -2025,9 +2015,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
         u8i  name[22];
     };
 #pragma pack(pop)
-    static u32i xm_id {fformats["xm"].index};
     static constexpr u64i min_room_need = sizeof(XM_Header);
-    if ( ( !e->selected_formats[xm_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -2144,10 +2132,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     // - patterns in order
     // - samples in order
     // поэтому задача отследить смещение данных самого дальнего сэмпла и его размер
-    static u32i s3m_id {fformats["s3m"].index};
     static const u64i min_room_need = 52;
     static const QSet <u32i> VALID_INSTR_SIGNATURE { 0x53524353 /*SCRS*/, 0x49524353 /*SCRI*/, 0x00000000 /*empty instrument*/};
-    if ( ( !e->selected_formats[s3m_id] ) ) return 0;
     if ( e->scanbuf_offset < 44 ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0; // хватит ли места, начиная с поля signature?
     uchar *buffer = e->mmf_scanbuf;
@@ -2249,9 +2235,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << "\nIT recognizer called!\n";
-    static u32i it_id {fformats["it"].index};
     static constexpr u64i min_room_need = sizeof(IT_Header);
-    if ( ( !e->selected_formats[it_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -2416,9 +2400,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
         u32i dummy;
     };
 #pragma pack(pop)
-    static u32i smk_id {fformats["smk"].index};
     static constexpr u64i min_room_need = sizeof(SMK_Header);
-    if ( !e->selected_formats[smk_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -2459,10 +2441,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
         u32i data_offset;
     };
 #pragma pack(pop)
-    static u32i tif_ii_id {fformats["tif_ii"].index};
     static constexpr u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
-    if ( !e->selected_formats[tif_ii_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -2597,10 +2577,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         u32i data_offset;
     };
 #pragma pack(pop)
-    static u32i tif_mm_id {fformats["tif_mm"].index};
     static constexpr u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
-    if ( !e->selected_formats[tif_mm_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     uchar *buffer = e->mmf_scanbuf;
@@ -2738,9 +2716,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
         u16i reserved;
     };
 #pragma pack(pop)
-    static u32i flc_id {fformats["flc"].index};
     static constexpr u64i min_room_need = sizeof(FLC_Header) - sizeof(FLC_Header::file_size);
-    if ( !e->selected_formats[flc_id] ) return 0;
     if ( e->scanbuf_offset < sizeof(FLC_Header::file_size) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset - sizeof(FLC_Header::file_size);
@@ -2783,9 +2759,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! 669 RECOGNIZER CALLED !!!";
-    static u32i _669_id {fformats["669"].index};
     static constexpr u64i min_room_need = sizeof(_669_Header);
-    if ( !e->selected_formats[_669_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
@@ -2851,10 +2825,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_au RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! AU RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static u32i au_id {fformats["au"].index};
     static constexpr u64i min_room_need = sizeof(AU_Header);
     static const QSet <u32i> VALID_SAMPLE_RATE { 5500, 7333, 8000, 8012, 8013, 8192, 8363, 11025, 16000, 22050, 32000, 44056, 44100, 48000 };
-    if ( !e->selected_formats[au_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
@@ -2891,10 +2863,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! VOC RECOGNIZER CALLED !!!";
-    static u32i voc_id {fformats["voc"].index};
     static constexpr u64i min_room_need = sizeof(VOC_Header);
     static const QSet <u16i> VALID_VERSION { 0x0100, 0x010A, 0x0114 };
-    if ( !e->selected_formats[voc_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
@@ -3226,7 +3196,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! MP3 RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static u32i mp3_id {fformats["mp3"].index};
     static const QMap <u8i, u64i> VALID_BIT_RATE {
                                                     {0b0001, 32000 }, {0b0010, 40000 }, {0b0011, 48000 }, {0b0100, 56000 },
                                                     {0b0101, 64000 }, {0b0110, 80000 }, {0b0111, 96000 }, {0b1000, 112000},
@@ -3235,7 +3204,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
                                                  };
     static const QMap <u8i, u64i> VALID_SAMPLE_RATE { {0b00, 44100}, {0b01, 48000}, {0b10, 32000} };
     static const QSet <u64i> VALID_LYRICS_FIELD { 0x444E49 /*IND*/, 0x52594C /*LYR*/, 0x464E49 /*INF*/, 0x545541 /*AUT*/, 0x4C4145 /*EAL*/, 0x524145 /*EAR*/, 0x545445 /*ETT*/, 0x474D49 /*IMG*/ };
-    if ( !e->selected_formats[mp3_id] ) return 0;
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
     u64i last_index = base_index;
@@ -3396,9 +3364,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! OGG RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static u32i ogg_id {fformats["ogg"].index};
     static constexpr u64i min_room_need = sizeof(PageHeader);
-    if ( !e->selected_formats[ogg_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
@@ -3455,9 +3421,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! MED RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static u32i med_id {fformats["med"].index};
     static constexpr u64i min_room_need = sizeof(MED_Header);
-    if ( !e->selected_formats[med_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;
@@ -3521,12 +3485,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! DBM0 RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static u32i dbm0_id {fformats["dbm0"].index};
     static constexpr u64i min_room_need = sizeof(DBM0_Header);
     static const QSet <u32i> VALID_CHUNK_ID {   0x454D414E /*'NAME'*/, 0x4F464E49 /*'INFO'*/, 0x474E4F53 /*'SONG'*/, 0x54534E49 /*'INST'*/,
                                                 0x54544150 /*'PATT'*/, 0x4C504D53 /*'SMPL'*/, 0x564E4556 /*'VENV'*/, 0x564E4550 /*'PENV'*/,
                                                 0x45505344 /*'DSPE'*/, 0x4D414E50 /*'PNAM'*/};
-    if ( !e->selected_formats[dbm0_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     uchar *buffer = e->mmf_scanbuf;

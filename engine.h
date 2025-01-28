@@ -9,10 +9,6 @@
 
 #define MIN_SIGNAL_INTERVAL_MSECS 20
 
-#define MIN_RESOURCE_SIZE 32 // должно быть кратно MAX_SIGN_SIZE
-#define MAX_SIGNATURE_SIZE 4
-#define AUX_BUFFER_SIZE 512
-
 #define RECOGNIZE_FUNC_HEADER (Engine *e)
 #define RECOGNIZE_FUNC_DECL_RETURN static u64i
 #define RECOGNIZE_FUNC_RETURN u64i
@@ -100,7 +96,6 @@ public:
 
 Q_SIGNALS:
     void txFileChange(QString file_name);
-    //void txFileProgress(QString file_name, s64i percentage_value);
     void txFileProgress(s64i percentage_value);
     void txResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
 

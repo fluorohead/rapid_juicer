@@ -185,7 +185,8 @@ DirlistTable::DirlistTable(QWidget *parent)
     tmpFont.setPixelSize(13); // выставляем размер шрифта для всего, кроме строки 0 (для неё шрифт выставляется в методе drawZeroRowHeader)
     this->setFont(tmpFont);
 
-    for (u32i row_idx = 0; row_idx < (DIRTABLE_MAX_PATHS + 1); ++row_idx) { // выставляем высоту всех строк, включая "заголовок" в строке 0
+    for (u32i row_idx = 0; row_idx < (DIRTABLE_MAX_PATHS + 1); ++row_idx) // выставляем высоту всех строк, включая "заголовок" в строке 0
+    {
         this->setRowHeight(row_idx, DIRTABLE_ROW_H);
     }
 }
@@ -200,7 +201,7 @@ void DirlistTable::fill_header()
     QFont tmpFont {*skin_font()};
     tmpFont.setPixelSize(12);
     tmpFont.setBold(true);
-    for (u32i column = 0; column <= 2; ++column) // выставляем настройки всех трёх колонок строки 0, которая вместо обычного заголовка таблицы
+    for (u32i column = 0; column < 3; ++column) // выставляем настройки всех трёх колонок строки 0, которая вместо обычного заголовка таблицы
     {
         auto header_label = new QLabel(dirtable_header_txt[curr_lang()][column]);
         header_label->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
@@ -212,7 +213,7 @@ void DirlistTable::fill_header()
 
 void DirlistTable::update_header()
 {
-    for (u32i column = 0; column <= 2; ++column) // выставляем настройки всех трёх колонок строки 0, которая вместо обычного заголовка таблицы
+    for (u32i column = 0; column < 3; ++column) // выставляем настройки всех трёх колонок строки 0, которая вместо обычного заголовка таблицы
     {
         ((QLabel*)this->cellWidget(0, column))->setText(dirtable_header_txt[curr_lang()][column]);
     }
