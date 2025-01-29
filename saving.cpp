@@ -33,19 +33,25 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     u8i *shm_buffer = (u8i*)shared_memory.data();
     TLV_Header *tlv_header;
     QString current_format;
-    QString current_source;
-    POD_ResourceRecord *current_pod_ptr;
-    ResourceRecord current_rr;
+    QString src_file;
+    POD_ResourceRecord_v2 *current_pod_ptr;
+    ResourceRecord_v2 current_rr;
     QString current_dest_ext;
     QString current_info;
     u64i next_header_offset = 0; // =0 - важно!
-
     do
     {
         tlv_header = (TLV_Header*)&shm_buffer[next_header_offset];
-        info_text->append("type:" + QString::number(int(tlv_header->type)) + " length:" + QString::number(int(tlv_header->length)));
+        info_text->append("\ntype:" + QString::number(int(tlv_header->type)) + " length:" + QString::number(int(tlv_header->length)));
         switch(tlv_header->type)
         {
+        case TLV_Type::SrcFile: // эти TLV всегда идут первыми, один за одним
+        {
+            src_file = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
+            src_files.append(src_file);
+            info_text->append("-> SrcFile: '" + src_file + "'");
+            break;
+        }
         case TLV_Type::FmtChange:
         {
             current_format = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
@@ -57,19 +63,15 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
             ++formats_counters[current_format];
             break;
         }
-        case TLV_Type::SrcChange:
-        {
-            current_source = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            info_text->append("-> SrcChange: '" + current_source + "'");
-            break;
-        }
         case TLV_Type::POD:
         {
-            current_pod_ptr = (POD_ResourceRecord*)((char*)tlv_header + sizeof(TLV_Header));
+            current_pod_ptr = (POD_ResourceRecord_v2*)((char*)tlv_header + sizeof(TLV_Header));
             current_rr.order_number = current_pod_ptr->order_number;
+            current_rr.src_fname_idx = current_pod_ptr->src_fname_idx;
             current_rr.offset = current_pod_ptr->offset;
             current_rr.size = current_pod_ptr->size;
-            info_text->append("-> POD : order_number: " + QString::number(current_rr.order_number) + "; offset: " + QString::number(current_rr.offset) + "; size: " + QString::number(current_rr.size));
+            info_text->append("-> POD : order_number: " + QString::number(current_rr.order_number) + "; src_fname_idx: " + QString::number(current_rr.src_fname_idx) + "; offset: " + QString::number(current_rr.offset) + "; size: " + QString::number(current_rr.size));
+            info_text->append("-> POD : src_file by idx: " + src_files[current_rr.src_fname_idx]);
             break;
         }
         case TLV_Type::DstExtension:
@@ -86,7 +88,7 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
             current_rr.info = current_info;
             // TLV "Info" всегда идёт завершающей, значит можно сделать запись в БД
             //resources_db[current_format][current_source][current_rr.order_number] = current_rr;
-            resources_db[current_format][current_source].append(current_rr);
+            resources_db[current_format].append(current_rr);
             break;
         }
         case TLV_Type::Terminator:

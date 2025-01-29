@@ -183,7 +183,7 @@ FormatTile::FormatTile(const QString &format_name)
     counter->setFont(tmpFont);
 }
 
-ResultsByFormat::ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr)
+ResultsByFormat::ResultsByFormat(const QString &your_fmt, RR_Map_v2 *db_ptr)
     : QWidget(nullptr)
     , my_fmt(your_fmt)
     , resources_db(db_ptr)
@@ -542,7 +542,7 @@ SessionWindow::SessionWindow(u32i session_id)
     // каждому формату заранее создаём свою страницу (начиная со страницы 1)
     for (auto it = fformats.cbegin(); it != fformats.cend(); ++it)
     {
-        auto by_fmt_widget = new ResultsByFormat(it.key(), &resources_db);
+        auto by_fmt_widget = new ResultsByFormat(it.key(), &resources_db_v2);
         pages->addWidget(by_fmt_widget);
     };
 
@@ -552,7 +552,7 @@ SessionWindow::SessionWindow(u32i session_id)
     info_widget->setAutoFillBackground(true);
     pages->addWidget(info_widget);
 
-    pages->setCurrentIndex(fformats["mp3"].index + 1); // +1, т.к. страница 0 отдана под results_table
+    //pages->setCurrentIndex(fformats["mp3"].index + 1); // +1, т.к. страница 0 отдана под results_table
 
     //qInfo() << pages->count();
     ///////////////////////// здесь готовим поток walker'а : создаём его, соединяем сигналы/слоты, затем запускаем поток
@@ -652,7 +652,7 @@ void SessionWindow::create_and_start_walker()
     pause_resume_button->setEnabled(true);
     skip_button->setEnabled(true);
 
-    connect(save_all_button, &QPushButton::clicked, this, &SessionWindow::rxStartSaveAllProcess);
+    connect(save_all_button, &QPushButton::clicked, this, &SessionWindow::rxSerializeAndStartSaveProcess_v2);
 
     walker->start(QThread::InheritPriority);
 }
@@ -669,10 +669,15 @@ void SessionWindow::rxGeneralProgress(QString remaining, u64i percentage_value)
     general_progress_bar->setValue(percentage_value);
 }
 
-void SessionWindow::rxFileChange(QString file_name)
+void SessionWindow::rxFileChange(const QString &file_name)
 {
     QString tmp_fn = reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN);
     current_file_label->setText(reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN));
+    // v2
+    current_file_name = file_name;
+    resources_in_current_file = 0;
+    //
+    //qInfo() << "---> FILE CHANGE signal:" << file_name;
 }
 
 void SessionWindow::rxFileProgress(s64i percentage_value)
@@ -680,10 +685,11 @@ void SessionWindow::rxFileProgress(s64i percentage_value)
     file_progress_bar->setValue(percentage_value);
 }
 
-void SessionWindow::rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info)
+//void SessionWindow::rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info)
+void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info)
 {
     ++total_resources_found;
-    if ( !resources_db.contains(format_name) ) // формат встретился первый раз?
+    if ( !resources_db_v2.contains(format_name) ) // формат встретился первый раз?
     {
         ++unique_formats_found;
         int row = (unique_formats_found - 1) / 7;
@@ -695,18 +701,158 @@ void SessionWindow::rxResourceFound(const QString &format_name, const QString &f
     }
     ++formats_counters[format_name];
     // занесение в БД
-    //resources_db[format_name][file_name][total_resources_found] = {total_resources_found, true, file_offset, size, info, fformats[format_name].extension};
-    resources_db[format_name][file_name].append( {total_resources_found, true, file_offset, size, info, fformats[format_name].extension} );
+    //resources_db[format_name][current_file_name].append( {total_resources_found, true, file_offset, size, info, fformats[format_name].extension} );
     tiles_db[format_name]->update_counter(formats_counters[format_name]);
     total_resources->setText(QString::number(total_resources_found));
+
+    //v2
+    ++resources_in_current_file;
+    if ( resources_in_current_file == 1 )
+    {
+       src_files.append(current_file_name);
+    }
+    resources_db_v2[format_name].append( { total_resources_found, true, u64i(src_files.count() - 1), file_offset, size, info, fformats[format_name].extension } );
+    //
 }
 
-void SessionWindow::rxStartSaveAllProcess()
+// void SessionWindow::rxStartSaveAllProcess()
+// {
+//     save_all_button->setDisabled(true);
+//     report_button->setDisabled(true);
+//     QByteArray data_buffer;
+//     // временные переменные, используемые ниже при обходе бд
+//     TLV_Header tlv_header;
+//     QByteArray qba_format_name;
+//     QByteArray qba_file_name;
+//     QByteArray qba_dst_extension;
+//     QByteArray qba_info;
+//     QString format_name_key;
+//     QString file_name_key;
+//     POD_ResourceRecord pod_rr;
+//     //
+//     // перенос данных из resources_db в QByteArray (с одновременным обнулением resources_db)
+//     while(!resources_db.isEmpty()) // обход ключей форматов
+//     {
+//         /// запись TLV "FmtChange" 'смена формата':
+//         format_name_key = resources_db.firstKey();
+//         tlv_header.type = TLV_Type::FmtChange;
+//         qba_format_name = format_name_key.toLatin1();
+//         tlv_header.length = qba_format_name.length();// + 1; // +1 на нулевой символ в конце
+//         data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+//         //data_buffer.append(QByteArray(&str_end), 1);
+//         data_buffer.append(qba_format_name);
+//         //qInfo() << "written 'FmtChange' for" << format_name_key << "; current size of buffer:" << data_buffer.size();
+//         ///
+//         QMap<QString, QList<ResourceRecord>> &source_files = resources_db[format_name_key];
+//         while(!source_files.isEmpty()) // обход ключей имён файлов
+//         {
+//             /// запись TLV "SrcChange" 'смена файла':
+//             file_name_key = source_files.firstKey();
+//             tlv_header.type = TLV_Type::SrcFile;
+//             qba_file_name = file_name_key.toUtf8();
+//             tlv_header.length = qba_file_name.length();
+//             data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+//             data_buffer.append(qba_file_name);
+//             //qInfo() << "written 'SrcChange' for file" << source_files.firstKey() << "; current size of buffer:" << data_buffer.size();;
+//             ///
+//             QList<ResourceRecord> &resource_records = resources_db[format_name_key][file_name_key];
+//             while(!resource_records.isEmpty())
+//             {
+//                 ResourceRecord &one_resource = resource_records.first();
+//                 /// запись TLV "POD":
+//                 tlv_header.type = TLV_Type::POD;
+//                 tlv_header.length = sizeof(POD_ResourceRecord);
+//                 pod_rr.order_number = one_resource.order_number;
+//                 //pod_rr.order_number = resource_records.firstKey();
+//                 pod_rr.offset = one_resource.offset;
+//                 pod_rr.size = one_resource.size;
+//                 data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+//                 data_buffer.append(QByteArray((char*)&pod_rr, sizeof(pod_rr)));
+//                 //qInfo() << "written 'POD' for pod_rr.order_num:" << pod_rr.order_number << " pod_rr.offset:" << pod_rr.offset << "pod_rr.size:" << pod_rr.size << "; current size of buffer:" << data_buffer.size();;
+//                 ///
+//                 /// запись TLV "DstExtension":
+//                 tlv_header.type = TLV_Type::DstExtension;
+//                 qba_dst_extension = one_resource.dest_extension.toLatin1();
+//                 tlv_header.length = qba_dst_extension.length();
+//                 data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+//                 data_buffer.append(qba_dst_extension);
+//                 //qInfo() << "written 'DstExtension' for" << one_resource.dest_extension << "; current size of buffer:" << data_buffer.size();
+//                 ///
+//                 /// запись TLV "Info":
+//                 tlv_header.type = TLV_Type::Info;
+//                 qba_info = one_resource.info.toUtf8();
+//                 tlv_header.length = qba_info.length();
+//                 data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+//                 data_buffer.append(qba_info);
+//                 //qInfo() << "written 'Info' for" << one_resource.info << "; current size of buffer:" << data_buffer.size();
+//                 ///
+//                 //resource_records.remove(resource_records.firstKey());
+//                 resource_records.removeFirst();
+//                 resource_records.squeeze();
+//             }
+//             source_files.remove(source_files.firstKey()); // удаление ключа имени файла
+//         }
+//         resources_db.remove(resources_db.firstKey()); // удаление ключа формата
+//     }
+//     /// запись TLV "Terminator" 'Завершитель'
+//     tlv_header.type = TLV_Type::Terminator;
+//     tlv_header.length = 0;
+//     data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+//     //qInfo() << "written 'Terminator'; current size of buffer:" << data_buffer.size();
+//     ///
+//     resources_db.clear();  // на всякий случай ещё раз обнуляем (хотя после обхода, бд уже должна быть пустой).
+
+//     QSharedMemory shared_memory {QString("/shm/rj/%1/%2/%3").arg(  //создаём максимально уникальный key для shared memory
+//                                                                     QString::number(QApplication::applicationPid()),
+//                                                                     QString::number(u64i(QThread::currentThreadId())),
+//                                                                     QString::number(QDateTime::currentMSecsSinceEpoch())
+//                                                                 ) };
+//     if ( !shared_memory.create(data_buffer.size(), QSharedMemory::ReadWrite) )
+//     {
+//         qInfo() << "shm error:" << shared_memory.error();
+//         return;
+//     }
+
+//     QSystemSemaphore sys_semaphore {QString("/ssem/rj/%1/%2/%3").arg(  //создаём максимально уникальный key для system semaphore
+//                                                                         QString::number(QApplication::applicationPid()),
+//                                                                         QString::number(u64i(QThread::currentThreadId())),
+//                                                                         QString::number(QDateTime::currentMSecsSinceEpoch())),
+//                                     1,
+//                                     QSystemSemaphore::Create
+//                                     };
+//     if ( sys_semaphore.error() != QSystemSemaphore::NoError )
+//     {
+//         qInfo() << "ssem error:" << sys_semaphore.error();
+//         shared_memory.detach();
+//         return;
+//     }
+
+//     // копирование из буфера в shared_memory
+//     char *from_buffer = (char*)data_buffer.data();
+//     char *to_shm = (char*)shared_memory.data();
+//     memcpy(to_shm, from_buffer, data_buffer.size());
+//     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
+
+//     QProcess saving_process;
+//     saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key() }, "");
+
+//     data_buffer.clear();   // обнуляем и буфер, т.к. теперь все данные в shared_memory
+//     data_buffer.squeeze(); //
+
+//     sys_semaphore.acquire(); // счётчик 1-1 = 0
+//     sys_semaphore.acquire(); // счётчик = 0 <- здесь ждём, когда saving_process сделает 0+1 и отдаст нам семафор
+//     sys_semaphore.release(); // и тогда уже можно будет оторваться (detach) от shared memory
+
+//     shared_memory.detach();
+
+//     this->close(); // закрываем окно и оно автоматически уничтожается
+// }
+
+void SessionWindow::rxSerializeAndStartSaveProcess_v2()
 {
     save_all_button->setDisabled(true);
     report_button->setDisabled(true);
     QByteArray data_buffer;
-    char str_end = 0;
     // временные переменные, используемые ниже при обходе бд
     TLV_Header tlv_header;
     QByteArray qba_format_name;
@@ -715,71 +861,70 @@ void SessionWindow::rxStartSaveAllProcess()
     QByteArray qba_info;
     QString format_name_key;
     QString file_name_key;
-    POD_ResourceRecord pod_rr;
+    POD_ResourceRecord_v2 pod_rr;
     //
     // перенос данных из resources_db в QByteArray (с одновременным обнулением resources_db)
-    while(!resources_db.isEmpty()) // обход ключей форматов
+    while(!src_files.isEmpty()) // сначала запихиваем имена исходных файлов по порядку их следования
+    {
+        /// запись TLV "SrcFile" 'имя исходного файла':
+        file_name_key = src_files.first();
+        tlv_header.type = TLV_Type::SrcFile;
+        qba_file_name = file_name_key.toUtf8();
+        tlv_header.length = qba_file_name.length();
+        data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+        data_buffer.append(qba_file_name);
+        //qInfo() << "written 'SrcFile' for" << file_name_key << "; current size of buffer:" << data_buffer.size();
+        src_files.removeFirst();
+    } // здесь src_files должен стать пустым
+
+    while(!resources_db_v2.isEmpty()) // обход ключей форматов
     {
         /// запись TLV "FmtChange" 'смена формата':
-        format_name_key = resources_db.firstKey();
+        format_name_key = resources_db_v2.firstKey();
         tlv_header.type = TLV_Type::FmtChange;
         qba_format_name = format_name_key.toLatin1();
-        tlv_header.length = qba_format_name.length();// + 1; // +1 на нулевой символ в конце
+        tlv_header.length = qba_format_name.length();
         data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
-        //data_buffer.append(QByteArray(&str_end), 1);
         data_buffer.append(qba_format_name);
         //qInfo() << "written 'FmtChange' for" << format_name_key << "; current size of buffer:" << data_buffer.size();
-        ///
-        QMap<QString, QList<ResourceRecord>> &source_files = resources_db[format_name_key];
-        while(!source_files.isEmpty()) // обход ключей имён файлов
+        //
+        QList<ResourceRecord_v2> &resource_records = resources_db_v2[format_name_key];
+        while(!resource_records.isEmpty())
         {
-            /// запись TLV "SrcChange" 'смена файла':
-            file_name_key = source_files.firstKey();
-            tlv_header.type = TLV_Type::SrcChange;
-            qba_file_name = file_name_key.toUtf8();
-            tlv_header.length = qba_file_name.length();
+            ResourceRecord_v2 &one_resource = resource_records.first();
+            /// запись TLV "POD":
+            tlv_header.type = TLV_Type::POD;
+            tlv_header.length = sizeof(POD_ResourceRecord_v2);
+            pod_rr.order_number = one_resource.order_number;
+            pod_rr.src_fname_idx = one_resource.src_fname_idx;
+            pod_rr.offset = one_resource.offset;
+            pod_rr.size = one_resource.size;
             data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
-            data_buffer.append(qba_file_name);
-            //qInfo() << "written 'SrcChange' for file" << source_files.firstKey() << "; current size of buffer:" << data_buffer.size();;
+            data_buffer.append(QByteArray((char*)&pod_rr, sizeof(pod_rr)));
+            //qInfo() << "written 'POD' for pod_rr.order_num:" << pod_rr.order_number << " pod_rr.src_fname_idx:" << pod_rr.src_fname_idx << " pod_rr.offset:"
+                    //<< pod_rr.offset << "pod_rr.size:" << pod_rr.size << "; current size of buffer:" << data_buffer.size();;
             ///
-            QList<ResourceRecord> &resource_records = resources_db[format_name_key][file_name_key];
-            while(!resource_records.isEmpty())
-            {
-                ResourceRecord &one_resource = resource_records.first();
-                /// запись TLV "POD":
-                tlv_header.type = TLV_Type::POD;
-                tlv_header.length = sizeof(POD_ResourceRecord);
-                pod_rr.order_number = one_resource.order_number;
-                //pod_rr.order_number = resource_records.firstKey();
-                pod_rr.offset = one_resource.offset;
-                pod_rr.size = one_resource.size;
-                data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
-                data_buffer.append(QByteArray((char*)&pod_rr, sizeof(pod_rr)));
-                //qInfo() << "written 'POD' for pod_rr.order_num:" << pod_rr.order_number << " pod_rr.offset:" << pod_rr.offset << "pod_rr.size:" << pod_rr.size << "; current size of buffer:" << data_buffer.size();;
-                ///
-                /// запись TLV "DstExtension":
-                tlv_header.type = TLV_Type::DstExtension;
-                qba_dst_extension = one_resource.dest_extension.toLatin1();
-                tlv_header.length = qba_dst_extension.length();
-                data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
-                data_buffer.append(qba_dst_extension);
-                //qInfo() << "written 'DstExtension' for" << one_resource.dest_extension << "; current size of buffer:" << data_buffer.size();
-                ///
-                /// запись TLV "Info":
-                tlv_header.type = TLV_Type::Info;
-                qba_info = one_resource.info.toUtf8();
-                tlv_header.length = qba_info.length();
-                data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
-                data_buffer.append(qba_info);
-                //qInfo() << "written 'Info' for" << one_resource.info << "; current size of buffer:" << data_buffer.size();
-                ///
-                //resource_records.remove(resource_records.firstKey());
-                resource_records.removeFirst();
-                resource_records.squeeze();
-            }
-            source_files.remove(source_files.firstKey()); // удаление ключа имени файла
+            /// запись TLV "DstExtension":
+            tlv_header.type = TLV_Type::DstExtension;
+            qba_dst_extension = one_resource.dest_extension.toLatin1();
+            tlv_header.length = qba_dst_extension.length();
+            data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+            data_buffer.append(qba_dst_extension);
+            //qInfo() << "written 'DstExtension' for" << one_resource.dest_extension << "; current size of buffer:" << data_buffer.size();
+            ///
+            /// запись TLV "Info":
+            tlv_header.type = TLV_Type::Info;
+            qba_info = one_resource.info.toUtf8();
+            tlv_header.length = qba_info.length();
+            data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+            data_buffer.append(qba_info);
+            //qInfo() << "written 'Info'" << one_resource.info << "; current size of buffer:" << data_buffer.size();
+            ///
+            //resource_records.remove(resource_records.firstKey());
+            resource_records.removeFirst();
+            resource_records.squeeze();
         }
-        resources_db.remove(resources_db.firstKey()); // удаление ключа формата
+        resources_db_v2.remove(resources_db_v2.firstKey()); // удаление ключа формата
     }
     /// запись TLV "Terminator" 'Завершитель'
     tlv_header.type = TLV_Type::Terminator;
@@ -787,13 +932,13 @@ void SessionWindow::rxStartSaveAllProcess()
     data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
     //qInfo() << "written 'Terminator'; current size of buffer:" << data_buffer.size();
     ///
-    resources_db.clear();  // на всякий случай ещё раз обнуляем (хотя после обхода, бд уже должна быть пустой).
+    resources_db_v2.clear();  // на всякий случай ещё раз обнуляем (хотя после обхода, бд уже должна быть пустой).
 
     QSharedMemory shared_memory {QString("/shm/rj/%1/%2/%3").arg(  //создаём максимально уникальный key для shared memory
-                                                                    QString::number(QApplication::applicationPid()),
-                                                                    QString::number(u64i(QThread::currentThreadId())),
-                                                                    QString::number(QDateTime::currentMSecsSinceEpoch())
-                                                                ) };
+        QString::number(QApplication::applicationPid()),
+        QString::number(u64i(QThread::currentThreadId())),
+        QString::number(QDateTime::currentMSecsSinceEpoch())
+        ) };
     if ( !shared_memory.create(data_buffer.size(), QSharedMemory::ReadWrite) )
     {
         qInfo() << "shm error:" << shared_memory.error();
@@ -801,12 +946,12 @@ void SessionWindow::rxStartSaveAllProcess()
     }
 
     QSystemSemaphore sys_semaphore {QString("/ssem/rj/%1/%2/%3").arg(  //создаём максимально уникальный key для system semaphore
-                                                                        QString::number(QApplication::applicationPid()),
-                                                                        QString::number(u64i(QThread::currentThreadId())),
-                                                                        QString::number(QDateTime::currentMSecsSinceEpoch())),
-                                    1,
-                                    QSystemSemaphore::Create
-                                    };
+            QString::number(QApplication::applicationPid()),
+            QString::number(u64i(QThread::currentThreadId())),
+            QString::number(QDateTime::currentMSecsSinceEpoch())),
+        1,
+        QSystemSemaphore::Create
+    };
     if ( sys_semaphore.error() != QSystemSemaphore::NoError )
     {
         qInfo() << "ssem error:" << sys_semaphore.error();

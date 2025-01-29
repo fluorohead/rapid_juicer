@@ -12,7 +12,18 @@
 
 #define MAX_FILENAME_LEN 66
 
-enum class TLV_Type: u8i { FmtChange = 0, SrcChange = 1, POD = 2, DstExtension = 3, Info = 4, Terminator = 5 };
+enum class TLV_Type: u8i { SrcFile = 0, FmtChange = 1, POD = 2, DstExtension = 3, Info = 4, Terminator = 5 };
+
+struct ResourceRecord_v2
+{
+    u64i    order_number; // назначенный порядковый номер
+    bool    is_selected; // выбран для последующего сохранения?
+    u64i    src_fname_idx; // индекс имени файла в списке исходных файлов
+    s64i    offset; // смещение в файле
+    u64i    size;   // размер ресурса
+    QString info;   // доп. информация о ресурсе
+    QString dest_extension; // расширение файла для сохранения
+};
 
 struct ResourceRecord
 {
@@ -29,11 +40,20 @@ struct ResourceRecord
 //                   |            |              |--- данные о ресурсах
 //                   V            V              V
 using RR_Map = QMap<QString, QMap<QString, QList<ResourceRecord>>>;
+using RR_Map_v2 = QMap<QString, QList<ResourceRecord_v2>>;
 
 #pragma pack(push,1)
 struct POD_ResourceRecord
 {
     u64i order_number;
+    s64i offset;
+    u64i size;
+};
+
+struct POD_ResourceRecord_v2
+{
+    u64i order_number;
+    u64i src_fname_idx;
     s64i offset;
     u64i size;
 };
@@ -68,9 +88,9 @@ class ResultsByFormat: public QWidget
     QString my_fmt;
     QTableWidget *format_table;
     QCommonStyle *fmt_table_style;
-    RR_Map *resources_db;
+    RR_Map_v2 *resources_db;
 public:
-    ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr);
+    ResultsByFormat(const QString &your_fmt, RR_Map_v2 *db_ptr);
     ~ResultsByFormat();
 public Q_SLOTS:
     void rxInsertNewRecord(ResourceRecord *new_record);
@@ -85,7 +105,7 @@ class SessionWindow: public QWidget
     void mousePressEvent(QMouseEvent *event);
     void closeEvent(QCloseEvent *event);
     u32i my_session_id;
-    bool is_walker_dead   {true}; // начальное true; перед запуском выставляем false; после получения сигнала finished от walker'а выставляется опять true
+    bool is_walker_dead {true}; // начальное true; перед запуском выставляем false; после получения сигнала finished от walker'а выставляется опять true
     bool is_walker_paused {false};
     QPushButton *stop_button;
     QPushButton *pause_resume_button;
@@ -107,19 +127,27 @@ class SessionWindow: public QWidget
     u32i unique_formats_found {0}; // счётчик уникальных форматов среди найдённых ресурсов; по нему высчитываются строка/столбец следующего тайла
     QStackedWidget *pages;
     QTableWidget *results_table;
-    RR_Map resources_db; // основная БД найденных ресурсов
+    //RR_Map resources_db; // основная БД найденных ресурсов
     QMap <QString, u64i> formats_counters;
     QMap <QString, FormatTile*> tiles_db; // ссылки на виджеты тайлов : ключ - формат
     QMap <QString, TileCoordinates> tile_coords; // координаты тайлов (строка, столбец) : ключ - формат
+    // v2
+    QString current_file_name;
+    u64i resources_in_current_file;
+    QStringList src_files;
+    RR_Map_v2 resources_db_v2;
+    //
 public:
     SessionWindow(u32i session_id);
     ~SessionWindow();
 public Q_SLOTS:
     void rxGeneralProgress(QString remaining, u64i percentage_value);
-    void rxFileChange(QString file_name);
+    void rxFileChange(const QString &file_name);
     void rxFileProgress(s64i percentage_value);
-    void rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
-    void rxStartSaveAllProcess();
+    //void rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
+    void rxResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);
+    //void rxStartSaveAllProcess();
+    void rxSerializeAndStartSaveProcess_v2();
 };
 
 
