@@ -9,48 +9,30 @@
 #include <QMutex>
 #include <QStackedWidget>
 #include <QMovie>
+#include <QCheckBox>
 
 #define MAX_FILENAME_LEN 66
 
 enum class TLV_Type: u8i { SrcFile = 0, FmtChange = 1, POD = 2, DstExtension = 3, Info = 4, Terminator = 5 };
 
-struct ResourceRecord_v2
+struct ResourceRecord
 {
-    u64i    order_number; // назначенный порядковый номер
+    u64i    order_number; // назначенный порядковый номер (по сути счётчик находок)
     bool    is_selected; // выбран для последующего сохранения?
     u64i    src_fname_idx; // индекс имени файла в списке исходных файлов
     s64i    offset; // смещение в файле
-    u64i    size;   // размер ресурса
-    QString info;   // доп. информация о ресурсе
+    u64i    size; // размер ресурса
+    QString info; // доп. информация о ресурсе
     QString dest_extension; // расширение файла для сохранения
 };
 
-struct ResourceRecord
-{
-    u64i    order_number; // назначенный порядковый номер
-    bool    is_selected; // выбран для последующего сохранения?
-    s64i    offset; // смещение в файле
-    u64i    size;   // размер ресурса
-    QString info;   // доп. информация о ресурсе
-    QString dest_extension; // расширение файла для сохранения
-};
-//                   |--- наименование формата
-//                   |            |--- имя исходного файла
-//                   |            |
-//                   |            |              |--- данные о ресурсах
-//                   V            V              V
-using RR_Map = QMap<QString, QMap<QString, QList<ResourceRecord>>>;
-using RR_Map_v2 = QMap<QString, QList<ResourceRecord_v2>>;
+//                     |--- наименование формата
+//                     |            |--- данные о ресурсах
+//                     V            V
+using RR_Map = QMap<QString, QList<ResourceRecord>>;
 
 #pragma pack(push,1)
 struct POD_ResourceRecord
-{
-    u64i order_number;
-    s64i offset;
-    u64i size;
-};
-
-struct POD_ResourceRecord_v2
 {
     u64i order_number;
     u64i src_fname_idx;
@@ -72,8 +54,9 @@ struct TileCoordinates
 };
 
 
-class FormatTile: public QLabel
+class FormatTile: public QPushButton
 {
+    Q_OBJECT
     QLabel *counter;
     void update_counter(u64i value);
 public:
@@ -84,18 +67,24 @@ public:
 
 class ResultsByFormat: public QWidget
 {
-    Q_OBJECT
     QString my_fmt;
     QTableWidget *format_table;
     QCommonStyle *fmt_table_style;
-    RR_Map_v2 *resources_db;
+    RR_Map *resources_db;
 public:
-    ResultsByFormat(const QString &your_fmt, RR_Map_v2 *db_ptr);
+    ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr);
     ~ResultsByFormat();
-public Q_SLOTS:
-    void rxInsertNewRecord(ResourceRecord *new_record);
+    void rxInsertNewRecord(ResourceRecord *new_record, int qlist_idx);
 };
 
+class FormatCheckBox: public QCheckBox
+{
+    QString my_fmt;
+    RR_Map *resources_db;
+    int my_qlist_idx;
+public:
+    FormatCheckBox(const QString &your_fmt, RR_Map *db_ptr, int qlist_idx);
+};
 
 class SessionWindow: public QWidget
 {
@@ -112,6 +101,9 @@ class SessionWindow: public QWidget
     QPushButton *skip_button;
     QPushButton *save_all_button;
     QPushButton *report_button;
+    QPushButton *back_button;
+    QPushButton *select_all_button;
+    QPushButton *unselect_all_button;
     QProgressBar *file_progress_bar;
     QProgressBar *general_progress_bar;
     QLabel *current_file_label;
@@ -127,16 +119,13 @@ class SessionWindow: public QWidget
     u32i unique_formats_found {0}; // счётчик уникальных форматов среди найдённых ресурсов; по нему высчитываются строка/столбец следующего тайла
     QStackedWidget *pages;
     QTableWidget *results_table;
-    //RR_Map resources_db; // основная БД найденных ресурсов
     QMap <QString, u64i> formats_counters;
     QMap <QString, FormatTile*> tiles_db; // ссылки на виджеты тайлов : ключ - формат
     QMap <QString, TileCoordinates> tile_coords; // координаты тайлов (строка, столбец) : ключ - формат
-    // v2
     QString current_file_name;
     u64i resources_in_current_file;
     QStringList src_files;
-    RR_Map_v2 resources_db_v2;
-    //
+    RR_Map resources_db;
 public:
     SessionWindow(u32i session_id);
     ~SessionWindow();
@@ -144,10 +133,9 @@ public Q_SLOTS:
     void rxGeneralProgress(QString remaining, u64i percentage_value);
     void rxFileChange(const QString &file_name);
     void rxFileProgress(s64i percentage_value);
-    //void rxResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
     void rxResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);
-    //void rxStartSaveAllProcess();
-    void rxSerializeAndStartSaveProcess_v2();
+    void rxSerializeAndStartSaveProcess();
+    void rxChangePageTo(int page);
 };
 
 

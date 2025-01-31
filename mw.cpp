@@ -217,6 +217,7 @@ FormatsTable::FormatsTable(QWidget *parent)
     this->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     this->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     this->setSelectionMode(QAbstractItemView::NoSelection);
+    this->setFocusPolicy(Qt::NoFocus);
     this->verticalHeader()->hide();
     this->horizontalHeader()->hide();
     this->setFrameShape(QFrame::NoFrame);

@@ -10,7 +10,7 @@ class SavingWindow: public QWidget
 {
     QSharedMemory shared_memory;
     QSystemSemaphore *sys_semaphore;
-    RR_Map_v2 resources_db; // основная БД найденных ресурсов
+    RR_Map resources_db; // основная БД найденных ресурсов
     QMap <QString, u64i> formats_counters;
     QStringList src_files;
 public:

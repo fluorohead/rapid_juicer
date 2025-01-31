@@ -34,8 +34,8 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     TLV_Header *tlv_header;
     QString current_format;
     QString src_file;
-    POD_ResourceRecord_v2 *current_pod_ptr;
-    ResourceRecord_v2 current_rr;
+    POD_ResourceRecord *current_pod_ptr;
+    ResourceRecord current_rr;
     QString current_dest_ext;
     QString current_info;
     u64i next_header_offset = 0; // =0 - важно!
@@ -65,7 +65,7 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
         }
         case TLV_Type::POD:
         {
-            current_pod_ptr = (POD_ResourceRecord_v2*)((char*)tlv_header + sizeof(TLV_Header));
+            current_pod_ptr = (POD_ResourceRecord*)((char*)tlv_header + sizeof(TLV_Header));
             current_rr.order_number = current_pod_ptr->order_number;
             current_rr.src_fname_idx = current_pod_ptr->src_fname_idx;
             current_rr.offset = current_pod_ptr->offset;

@@ -1326,7 +1326,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         if ( ( !e->selected_formats[rmi_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(MidiInfoHeader)) ) return 0;
         MidiInfoHeader *midi_info_header = (MidiInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
-        QString info = QString(R"(%1 tracks)").arg(be2le(midi_info_header->ntrks));
+        QString info = QString(R"(%1 track(s))").arg(be2le(midi_info_header->ntrks));
         //Q_EMIT e->txResourceFound("rmi", e->file.fileName(), base_index, resource_size, info);
         Q_EMIT e->txResourceFound("rmi", base_index, resource_size, info);
         e->resource_offset = base_index;
@@ -1388,7 +1388,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
     }
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
-    QString info = QString(R"(%1 tracks)").arg(be2le(info_header->ntrks));
+    QString info = QString(R"(%1 track(s))").arg(be2le(info_header->ntrks));
     //Q_EMIT e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("mid", base_index, resource_size, info);
     e->resource_offset = base_index;
@@ -1973,7 +1973,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("%1-ch, song name: '%2'").arg(   QString::number(channels),
+    QString info = QString("%1-ch, song : '%2'").arg(   QString::number(channels),
                                                             QString(QByteArray((char*)(info_header->song_name), song_name_len))
                                                         );
     //Q_EMIT e->txResourceFound("mod", e->file.fileName(), base_index, resource_size, info);
@@ -2115,7 +2115,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->module_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("%1-ch, song name: '%2'").arg(   QString::number(info_header->channels_number),
+    QString info = QString("%1-ch, song : '%2'").arg(   QString::number(info_header->channels_number),
                                                             QString(QByteArray((char*)(info_header->module_name), song_name_len))
                                                          );
     //Q_EMIT e->txResourceFound("xm", e->file.fileName(), base_index, resource_size, info);
@@ -2222,7 +2222,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    QString info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     //Q_EMIT e->txResourceFound("s3m", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("s3m", base_index, resource_size, info);
     e->resource_offset = base_index;
@@ -2337,7 +2337,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    QString info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     //Q_EMIT e->txResourceFound("it", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("it", base_index, resource_size, info);
     e->resource_offset = base_index;
@@ -2842,7 +2842,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("song name: %1").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    QString info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     //Q_EMIT e->txResourceFound("669", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("669", base_index, resource_size, info);
     e->resource_offset = base_index;
@@ -3375,7 +3375,7 @@ mp3_id3v1:
         ID3v1 *id3v1 = (ID3v1*)&buffer[last_index];
         if ( ( id3v1->signature1 == 0x4154 ) and ( id3v1->signature2 == 0x47 ) )
         {
-            info = "song name: '";
+            info = "song : '";
             for (u8i song_name_len = 0; song_name_len < 30; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [29]
             {
                 if ( id3v1->title[song_name_len] == 0 ) break;
@@ -3497,7 +3497,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
                 {
                     u32i songname_len = be2le(exp_data->songname_len);
                     u8i *songname_ptr = &buffer[base_index + be2le(exp_data->songname_ptr)];
-                    info = "song name: '";
+                    info = "song : '";
                     if (songname_len > 32) songname_len = 32;
                     for (u32i s_idx = 0; s_idx < (songname_len - 1); ++s_idx)
                     {
@@ -3556,7 +3556,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
         if ( chunk->id == 0x454D414E /*'NAME'*/ )
         {
             u8i *songname_ptr = &buffer[last_index + sizeof(Chunk)];
-            info = "song name: '";
+            info = "song : '";
             for (u32i s_idx = 0; s_idx < 44; ++s_idx)
             {
                 if ( songname_ptr[s_idx] == 0 ) break;
