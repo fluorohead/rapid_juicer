@@ -121,6 +121,7 @@ public Q_SLOTS:
     void addDir();
     void showSettings();
     void showNewSessionWindow();
+    void updateSessionsCounter();
 Q_SIGNALS:
     void txFilenames(QStringList filenames);
     void txDirname(QString dirname);

@@ -12,9 +12,6 @@ enum class Langs: int {Eng = 0, Rus = 1, MAX};
 #define curr_lang() settings->config.lang_idx
 #define skin_font() settings->skin.main_font
 
-#define MAX_SESSIONS 3
-
-
 struct Config
 {
     bool        scrupulous;

@@ -1,5 +1,6 @@
 #include "session.h"
 #include "task.h"
+#include "elements.h"
 #include <QMouseEvent>
 #include <QEventLoop>
 #include <QPushButton>
@@ -12,6 +13,7 @@
 #include <QSharedMemory>
 #include <QBuffer>
 #include <QSystemSemaphore>
+#include <QToolTip>
 
 #define RESULTS_TABLE_WIDTH 785
 #define RESULTS_TABLE_HEIGHT 450
@@ -29,6 +31,8 @@ extern const QList<u64i> permitted_buffers;
 extern const QString yes_no_txt[int(Langs::MAX)][2];
 
 extern const QString mebibytes_txt[int(Langs::MAX)];
+
+extern const QString warning_title_txt[int(Langs::MAX)];
 
 const QString properties_header_txt[int(Langs::MAX)]
 {
@@ -69,7 +73,7 @@ const QString pause_button_txt[int(Langs::MAX)]
 const QString resume_button_txt[int(Langs::MAX)]
 {
     "RESUME",
-    "ВОЗОБН."
+    "ВОЗОБН"
 };
 
 const QString skip_button_txt[int(Langs::MAX)]
@@ -132,25 +136,31 @@ const QString scan_skip_request_txt[int(Langs::MAX)]
     "ЗАПРОС НА ПРОПУСК ФАЙЛА..."
 };
 
-const QString total_txt[int(Langs::MAX)]
+const QString total_resources_txt[int(Langs::MAX)]
 {
-    "Total:",
-    "Всего:"
+    "Resources:",
+    "Ресурсов :"
 };
 
 const QMap <u64i, QString> first_categ_resources
-    {
-        { CAT_IMAGE, ":/gui/session/cat_image_big.png" },
-        { CAT_VIDEO, ":/gui/session/cat_video_big.png" },
-        { CAT_AUDIO, ":/gui/session/cat_audio_big.png" },
-        { CAT_MUSIC, ":/gui/session/cat_music_big.png" },
-        { CAT_3D,    ":/gui/session/cat_3d_big.png"    }
-    };
+{
+    { CAT_IMAGE, ":/gui/session/cat_image_big.png" },
+    { CAT_VIDEO, ":/gui/session/cat_video_big.png" },
+    { CAT_AUDIO, ":/gui/session/cat_audio_big.png" },
+    { CAT_MUSIC, ":/gui/session/cat_music_big.png" },
+    { CAT_3D,    ":/gui/session/cat_3d_big.png"    }
+};
 
 const QString back_txt[int(Langs::MAX)]
 {
     "back",
     "назад"
+};
+
+const QString save_txt[int(Langs::MAX)]
+{
+    "save selected",
+    "сохр.выбранное"
 };
 
 const QString select_all_txt[int(Langs::MAX)]
@@ -163,6 +173,31 @@ const QString unselect_all_txt[int(Langs::MAX)]
 {
     "unselect all",
     "сбросить всё"
+};
+
+const QString select_one_resource_txt[int(Langs::MAX)]
+{
+    "Select at least\none resource.",
+    "Необходимо выбрать\nкак минимум один ресурс\nиз списка."
+};
+
+const QString results_displayed_txt[int(Langs::MAX)]
+{
+    "The results will be displayed here.\nPlease wait.",
+    "Результаты поиска будут отображаться здесь.\nПожалуйста, ожидайте."
+};
+
+const QString no_resources_found_txt[int(Langs::MAX)]
+{
+    "Unfortunately no resources were found.\n\nPossible reasons:\n\n"
+    "1. There are indeed no known resources in the files\n"
+    "2. The files are packed with some archiver\n\n"
+    "In the latter case, use third-party utilities."
+    ,
+    "К сожалению никаких ресурсов не было найдено.\n\nВозможные причины:\n\n"
+    "1. В файлах действительно нет известных ресурсов\n"
+    "2. Файлы запакованы каким-либо архиватором\n\n"
+    "В последнем случае воспользуйтесь сторонними утилитами."
 };
 
 void FormatTile::update_counter(u64i value)
@@ -201,7 +236,7 @@ FormatTile::FormatTile(const QString &format_name)
     counter->setFont(tmpFont);
 }
 
-ResultsByFormat::ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr)
+ResultsByFormatWidget::ResultsByFormatWidget(const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr)
     : QWidget(nullptr)
     , my_fmt(your_fmt)
     , resources_db(db_ptr)
@@ -209,40 +244,7 @@ ResultsByFormat::ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr)
     this->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
     this->setAutoFillBackground(true);
 
-    format_table = new QTableWidget(0, 4);
-    format_table->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
-    format_table->setParent(this);
-    format_table->move(0, 0);
-    format_table->setStyleSheet("color: #d6e7e7; gridline-color: #949494; background-color: #8d6858");
-    format_table->setColumnWidth(0, 32);
-    format_table->setColumnWidth(1, 144);
-    format_table->setColumnWidth(2, 164);
-    format_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-    format_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    format_table->setSelectionMode(QAbstractItemView::MultiSelection);
-    format_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    format_table->setFocusPolicy(Qt::NoFocus); // отключаем прямоугольник фокуса при клике на ячейке
-    format_table->setEditTriggers(QAbstractItemView::NoEditTriggers); // отключаем редактирование ячеек
-    format_table->verticalHeader()->hide();
-    format_table->horizontalHeader()->hide();
-    format_table->setFrameShape(QFrame::NoFrame);
-    format_table->setSortingEnabled(false);
-    format_table->horizontalHeader()->setHighlightSections(false);
-    format_table->horizontalHeader()->setStretchLastSection(true);
-    format_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
-    format_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
-    format_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
-    fmt_table_style = new QCommonStyle;
-    format_table->verticalScrollBar()->setStyle(fmt_table_style);
-    format_table->verticalScrollBar()->setStyleSheet(   ":vertical {background-color: #8d6858; width: 10px}"
-                                                        "::handle:vertical {background-color: #895652; border-radius: 5px; min-height: 64px}"
-                                                        "::sub-line:vertical {height: 0px}"
-                                                        "::add-line:vertical {height: 0px}" );
-
-    QFont tmpFont {*skin_font()};
-    tmpFont.setPixelSize(12);
-    tmpFont.setBold(true);
-    format_table->setFont(tmpFont);
+    format_table = new ResultsByFormatTable(this, my_fmt, resources_db, src_files_ptr);
 
     connect(format_table->selectionModel(), &QItemSelectionModel::selectionChanged, [this](const QItemSelection &selected, const QItemSelection &deselected){
         auto sl_indexes = selected.indexes();
@@ -255,9 +257,10 @@ ResultsByFormat::ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr)
         if ( rows_selected != 0 )
         {
             int runner = 0;
+            QList<ResourceRecord> &one_format = (*resources_db)[my_fmt];
             do
             {
-                (*resources_db)[my_fmt][sl_indexes[runner].row()].is_selected = true;
+                one_format[sl_indexes[runner].row()].is_selected = true;
                 runner += columns_count;
                 --rows_selected;
             } while (rows_selected != 0);
@@ -265,9 +268,10 @@ ResultsByFormat::ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr)
         if ( rows_deselected != 0 )
         {
             int runner = 0;
+            QList<ResourceRecord> &one_format = (*resources_db)[my_fmt];
             do
             {
-                (*resources_db)[my_fmt][dsl_indexes[runner].row()].is_selected = false;
+                one_format[dsl_indexes[runner].row()].is_selected = false;
                 runner += columns_count;
                 --rows_deselected;
             } while (rows_deselected != 0);
@@ -275,12 +279,12 @@ ResultsByFormat::ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr)
     });
 }
 
-ResultsByFormat::~ResultsByFormat()
+ResultsByFormatWidget::~ResultsByFormatWidget()
 {
-    delete fmt_table_style;
+
 }
 
-void ResultsByFormat::rxInsertNewRecord(ResourceRecord *new_record, int qlist_idx)
+void ResultsByFormatWidget::InsertNewRecord(ResourceRecord *new_record, int qlist_idx)
 {
     int active_row = format_table->rowCount(); // # строка, в которую будем записывать новые данные
     format_table->setRowCount(active_row + 1);
@@ -297,23 +301,72 @@ void ResultsByFormat::rxInsertNewRecord(ResourceRecord *new_record, int qlist_id
     tmp_qtwi = new QTableWidgetItem(QString("%1").arg( new_record->info));
     tmp_qtwi->setTextAlignment(Qt::AlignCenter);
     format_table->setItem(active_row, 3, tmp_qtwi);
-
-    //format_table->selectRow(active_row);
 }
 
-FormatCheckBox::FormatCheckBox(const QString &your_fmt, RR_Map *db_ptr, int qlist_idx)
-    : QCheckBox(nullptr)
+ResultsByFormatTable::ResultsByFormatTable(QWidget *parent, const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr)
+    : QTableWidget(0, 4, parent)
     , my_fmt(your_fmt)
     , resources_db(db_ptr)
-    , my_qlist_idx(qlist_idx)
+    , src_files(src_files_ptr)
 {
-    connect(this, &QCheckBox::stateChanged, [this](int state)
+    this->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
+    this->move(0, 0);
+    this->setStyleSheet("color: #d6e7e7; gridline-color: #949494; background-color: #8d6858");
+    this->setColumnWidth(0, 32);
+    this->setColumnWidth(1, 144);
+    this->setColumnWidth(2, 164);
+    this->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    this->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    this->setSelectionMode(QAbstractItemView::MultiSelection);
+    this->setSelectionBehavior(QAbstractItemView::SelectRows);
+    this->setFocusPolicy(Qt::NoFocus); // отключаем прямоугольник фокуса при клике на ячейке
+    this->setEditTriggers(QAbstractItemView::NoEditTriggers); // отключаем редактирование ячеек
+    this->verticalHeader()->hide();
+    this->horizontalHeader()->hide();
+    this->setFrameShape(QFrame::NoFrame);
+    this->setSortingEnabled(false);
+    this->horizontalHeader()->setHighlightSections(false);
+    this->horizontalHeader()->setStretchLastSection(true);
+    this->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+    this->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
+    this->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
+    fmt_table_style = new QCommonStyle;
+    this->verticalScrollBar()->setStyle(fmt_table_style);
+    this->verticalScrollBar()->setStyleSheet(   ":vertical {background-color: #8d6858; width: 10px}"
+                                                "::handle:vertical {background-color: #895652; border-radius: 5px; min-height: 64px}"
+                                                "::sub-line:vertical {height: 0px}"
+                                                "::add-line:vertical {height: 0px}" );
+
+    QFont tmpFont {*skin_font()};
+    tmpFont.setPixelSize(12);
+    tmpFont.setBold(true);
+    this->setFont(tmpFont);
+}
+
+ResultsByFormatTable::~ResultsByFormatTable()
+{
+    delete fmt_table_style;
+}
+
+bool ResultsByFormatTable::event(QEvent* ev)
+{
+    if ( ev->type() == QEvent::ToolTip )
     {
-        //qInfo() << "\ncheckbox clicked! new state is:" << state;
-        (*resources_db)[my_fmt][my_qlist_idx].is_selected = ( state == Qt::Checked );
-        ResourceRecord tmp = (*resources_db)[my_fmt][my_qlist_idx];
-        //qInfo() << " resource" << tmp.dest_extension << " in file #" << tmp.src_fname_idx << " at offset:" << tmp.offset << " and size:" << tmp.size << " info:" << tmp.info << " selected:" << tmp.is_selected << " resource_order_number:" << tmp.order_number;
-    });
+        int row_item = this->row(this->itemAt(((QHelpEvent*)ev)->pos()));
+        if ( row_item >= 0 )
+        {
+            QToolTip::showText(((QHelpEvent*)ev)->globalPos(), QString("source file:\n%1\noffset:\n0x%2 (%3)").arg(
+                                                                                                                    QDir::toNativeSeparators((*src_files)[(*resources_db)[my_fmt][row_item].src_fname_idx]),
+                                                                                                                    QString::number((*resources_db)[my_fmt][row_item].offset, 16),
+                                                                                                                    QString::number((*resources_db)[my_fmt][row_item].offset, 10)
+                                                                                                                    ));
+        }
+    }
+    else
+    {
+        return QTableWidget::event(ev);
+    }
+    return true;
 }
 
 SessionWindow::SessionWindow(u32i session_id)
@@ -321,7 +374,7 @@ SessionWindow::SessionWindow(u32i session_id)
     , QWidget(nullptr, Qt::FramelessWindowHint)  // окно это QWidget без родителя
 {
     this->setAttribute(Qt::WA_TranslucentBackground);
-    this->setAttribute(Qt::WA_DeleteOnClose);
+    this->setAttribute(Qt::WA_DeleteOnClose); // само удалится при закрытии
     this->setAttribute(Qt::WA_NoSystemBackground);
 
     QPixmap background {":/gui/session/ssnw.png"};
@@ -441,6 +494,8 @@ SessionWindow::SessionWindow(u32i session_id)
     save_all_button->setParent(central_widget);
     save_all_button->move(663, 182);
 
+    connect(save_all_button, &QPushButton::clicked, this, &SessionWindow::rxSerializeAndSaveAll);
+
     report_button = new QPushButton;
     report_button->setAttribute(Qt::WA_NoMousePropagation);
     report_button->setFixedSize(96, 32);
@@ -548,14 +603,14 @@ SessionWindow::SessionWindow(u32i session_id)
 
     tmpFont.setPixelSize(14);
     tmpFont.setBold(false);
-    tmp_label = new QLabel; // надпись "Total:"
-    tmp_label->setFixedSize(64, 16);
+    tmp_label = new QLabel; // надпись "Resources:"
+    tmp_label->setFixedSize(80, 16);
     tmp_label->setStyleSheet("color: #d4e9e9");
     tmp_label->setFont(tmpFont);
     tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     tmp_label->setParent(central_widget);
     tmp_label->move(92, central_widget->height() - 36);
-    tmp_label->setText(total_txt[curr_lang()]);
+    tmp_label->setText(total_resources_txt[curr_lang()]);
 
     tmpFont.setPixelSize(15);
     tmpFont.setBold(true);
@@ -566,7 +621,7 @@ SessionWindow::SessionWindow(u32i session_id)
     total_resources->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     total_resources->setText("0");
     total_resources->setParent(central_widget);
-    total_resources->move(148, central_widget->height() - 36);
+    total_resources->move(176, central_widget->height() - 36);
 
     movie_zone = new QLabel; // регион для отображения анимационных gif'ы в зависимости от статуса
     movie_zone->setFixedSize(32, 32);
@@ -614,76 +669,113 @@ SessionWindow::SessionWindow(u32i session_id)
     // каждому формату заранее создаём свою страницу (начиная со страницы 1)
     for (auto it = fformats.cbegin(); it != fformats.cend(); ++it)
     {
-        auto by_fmt_widget = new ResultsByFormat(it.key(), &resources_db);
+        auto by_fmt_widget = new ResultsByFormatWidget(it.key(), &resources_db, &src_files);
         pages->addWidget(by_fmt_widget);
     };
 
-    // завершающей страницей будет информационный виджет (с анимацией и текстом)
-    auto info_widget = new QWidget;
-    info_widget->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
-    info_widget->setAutoFillBackground(true);
-    pages->addWidget(info_widget);
-
     tmpFont.setBold(true);
     tmpFont.setItalic(false);
+    tmpFont.setPixelSize(16);
+
+    // завершающей страницей будет информационный виджет (с анимацией и текстом)
+    auto info_widget = new QLabel;
+    info_widget->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
+    info_widget->setStyleSheet("QLabel {color: #fffef9;}");
+    info_widget->setAlignment(Qt::AlignCenter);
+    info_widget->setText(results_displayed_txt[curr_lang()]);
+    info_widget->setFont(tmpFont);
+    pages->addWidget(info_widget);
+
+    pages->setCurrentIndex(pages->count() - 1);
+
     tmpFont.setPixelSize(12);
+
     back_button = new QPushButton;
     back_button->setAttribute(Qt::WA_NoMousePropagation);
     back_button->setFixedSize(72, 24);
-    back_button->setStyleSheet( "QPushButton:enabled  {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
-                                "QPushButton:hover    {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+    back_button->setStyleSheet(
+                                "QPushButton:enabled  {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
+                                "QPushButton:hover    {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
                                 "QPushButton:pressed  {color: #fffef9; background-color: #8b4132; border-width: 0px;}"
-                                "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 12px;}");
+                                "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 10px;}");
     back_button->setFont(tmpFont);
     back_button->setText(back_txt[curr_lang()]);
     back_button->setParent(central_widget);
-    back_button->move(428, 717);
+    back_button->move(300, 717);
     back_button->setHidden(true);
 
     connect(back_button, &QPushButton::clicked, [this](){
         this->back_button->hide();
+        this->save_button->hide();
         this->select_all_button->hide();
         this->unselect_all_button->hide();
         this->pages->setCurrentIndex(0);
     });
 
+    save_button = new QPushButton;
+    save_button->setAttribute(Qt::WA_NoMousePropagation);
+    save_button->setFixedSize(124, 24);
+    save_button->setStyleSheet( "QPushButton:enabled  {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+                                "QPushButton:hover    {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+                                "QPushButton:pressed  {color: #fffef9; background-color: #ab6152; border-width: 0px;}"
+                                "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 12px;}");
+    save_button->setFont(tmpFont);
+    save_button->setText(save_txt[curr_lang()]);
+    save_button->setParent(central_widget);
+    save_button->move(454, 717);
+    save_button->setHidden(true);
+    save_button->setDisabled(true);
+
+    connect(save_button, &QPushButton::clicked, [this](){
+        if ( ((ResultsByFormatWidget*)pages->currentWidget())->format_table->selectionModel()->hasSelection() )
+        {
+            rxSerializeAndSaveSelected(((ResultsByFormatWidget*)pages->currentWidget())->my_fmt);
+        }
+        else
+        {
+            auto mdliw = new ModalInfoWindow(this, warning_title_txt[curr_lang()], select_one_resource_txt[curr_lang()], ModalInfoWindow::Type::Warning);
+            mdliw->show(); // модальное окно уничтожается автоматически после вызова close()
+            return;
+        }
+    });
+
     select_all_button = new QPushButton(this);
     select_all_button->setAttribute(Qt::WA_NoMousePropagation);
-    select_all_button->setFixedSize(104, 24);
-    select_all_button->setStyleSheet(   "QPushButton:enabled {color: #fffef9; background-color: #7fab6d; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
-                                        "QPushButton:hover   {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+    select_all_button->setFixedSize(104, 20);
+    select_all_button->setStyleSheet(   "QPushButton:enabled {color: #fffef9; background-color: #7fab6d; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
+                                        "QPushButton:hover   {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
                                         "QPushButton:pressed {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
-                                        "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 12px;}");
+                                        "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 10px;}");
     select_all_button->setFont(tmpFont);
     select_all_button->setText(select_all_txt[curr_lang()]);
     select_all_button->setParent(central_widget);
-    select_all_button->move(650, 717);
+    select_all_button->move(650, 719);
     select_all_button->setHidden(true);
     select_all_button->setDisabled(true);
 
     connect(select_all_button, &QPushButton::clicked, [this](){
-
+        ((ResultsByFormatWidget*)pages->currentWidget())->format_table->selectAll();
     });
 
     unselect_all_button = new QPushButton(this);
     unselect_all_button->setAttribute(Qt::WA_NoMousePropagation);
-    unselect_all_button->setFixedSize(104, 24);
-    unselect_all_button->setStyleSheet( "QPushButton:enabled  {color: #fffef9; background-color: #9ca14e; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
-                                        "QPushButton:hover    {color: #fffef9; background-color: #7c812e; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+    unselect_all_button->setFixedSize(104, 20);
+    unselect_all_button->setStyleSheet( "QPushButton:enabled  {color: #fffef9; background-color: #9ca14e; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
+                                        "QPushButton:hover    {color: #fffef9; background-color: #7c812e; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
                                         "QPushButton:pressed  {color: #fffef9; background-color: #7c812e; border-width: 0px;}"
-                                        "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 12px;}");
+                                        "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 10px;}");
     unselect_all_button->setFont(tmpFont);
     unselect_all_button->setText(unselect_all_txt[curr_lang()]);
     unselect_all_button->setParent(central_widget);
-    unselect_all_button->move(764, 717);
+    unselect_all_button->move(764, 719);
     unselect_all_button->setHidden(true);
     unselect_all_button->setDisabled(true);
 
     connect(unselect_all_button, &QPushButton::clicked, [this](){
-
+        ((ResultsByFormatWidget*)pages->currentWidget())->format_table->clearSelection();
     });
 
-    pages->setCurrentIndex(0); // страница 0 - результаты по форматам
+   // pages->setCurrentIndex(0); // страница 0 - результаты по форматам
 
     ///////////////////////// здесь готовим поток walker'а : создаём его, соединяем сигналы/слоты, затем запускаем поток
     create_and_start_walker();
@@ -705,6 +797,8 @@ void SessionWindow::create_and_start_walker()
             skip_button->setDisabled(true);
             current_status->setText(scan_is_done_txt[curr_lang()]);
             is_walker_dead = true;
+            // разблокируем кнопки на страницах форматов
+            this->save_button->setEnabled(true);
             this->select_all_button->setEnabled(true);
             this->unselect_all_button->setEnabled(true);
             // разблокируем кнопки "Save All" и "Report"
@@ -712,6 +806,10 @@ void SessionWindow::create_and_start_walker()
             {
                 save_all_button->setEnabled(true);
                 report_button->setEnabled(true);
+            }
+            else
+            {
+                ((QLabel*)pages->widget(pages->count()-1))->setText(no_resources_found_txt[curr_lang()]);
             }
             scan_movie->stop();
             movie_zone->setPixmap(QPixmap(":/gui/session/done.png"));
@@ -784,8 +882,6 @@ void SessionWindow::create_and_start_walker()
     pause_resume_button->setEnabled(true);
     skip_button->setEnabled(true);
 
-    connect(save_all_button, &QPushButton::clicked, this, &SessionWindow::rxSerializeAndStartSaveProcess);
-
     walker->start(QThread::InheritPriority);
 }
 
@@ -805,10 +901,8 @@ void SessionWindow::rxFileChange(const QString &file_name)
 {
     QString tmp_fn = reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN);
     current_file_label->setText(reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN));
-    // v2
     current_file_name = file_name;
     resources_in_current_file = 0;
-    //
     //qInfo() << "---> FILE CHANGE signal:" << file_name;
 }
 
@@ -829,11 +923,13 @@ void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset
         results_table->setCellWidget(row, column, tile);
         tiles_db[format_name] = tile;
         formats_counters[format_name] = 0;
+        if ( total_resources_found == 1 ) pages->setCurrentIndex(0);
         int page_index = fformats[format_name].index + 1;
         connect(tile, &FormatTile::clicked, [this,page_index]()
         {
             pages->setCurrentIndex(page_index);
             this->back_button->show();
+            this->save_button->show();
             this->select_all_button->show();
             this->unselect_all_button->show();
         });
@@ -846,16 +942,17 @@ void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset
     if ( resources_in_current_file == 1 )
     {
        src_files.append(current_file_name); // если сменился исходный файл, то заносим новый в этот список.
-       //накладно хранить в каждой записи ресурса имя исходного файла,поэтому храним там только индекс из этого списка.
+       //накладно хранить в каждой записи имя исходного файла,поэтому храним там только индекс из этого списка.
     }
     // занесение в БД
-    resources_db[format_name].append( { total_resources_found, true, u64i(src_files.count() - 1), file_offset, size, info, fformats[format_name].extension } );
+    resources_db[format_name].append( { total_resources_found, false, u64i(src_files.count() - 1), file_offset, size, info, fformats[format_name].extension } );
 
     // занесение на страницу формата
-    ((ResultsByFormat*)pages->widget(fformats[format_name].index + 1))->rxInsertNewRecord( &resources_db[format_name].last(), resources_db[format_name].count() - 1 );
+    ((ResultsByFormatWidget*)pages->widget(fformats[format_name].index + 1))->InsertNewRecord( &resources_db[format_name].last(), resources_db[format_name].count() - 1 );
+
 }
 
-void SessionWindow::rxSerializeAndStartSaveProcess()
+void SessionWindow::rxSerializeAndSaveAll()
 {
     save_all_button->setDisabled(true);
     report_button->setDisabled(true);
@@ -899,38 +996,34 @@ void SessionWindow::rxSerializeAndStartSaveProcess()
         while(!resource_records.isEmpty())
         {
             ResourceRecord &one_resource = resource_records.first();
-            if ( one_resource.is_selected )
-            {
-                /// запись TLV "POD":
-                tlv_header.type = TLV_Type::POD;
-                tlv_header.length = sizeof(POD_ResourceRecord);
-                pod_rr.order_number = one_resource.order_number;
-                pod_rr.src_fname_idx = one_resource.src_fname_idx;
-                pod_rr.offset = one_resource.offset;
-                pod_rr.size = one_resource.size;
-                data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
-                data_buffer.append(QByteArray((char*)&pod_rr, sizeof(pod_rr)));
-                //qInfo() << "written 'POD' for pod_rr.order_num:" << pod_rr.order_number << " pod_rr.src_fname_idx:" << pod_rr.src_fname_idx << " pod_rr.offset:"
-                //<< pod_rr.offset << "pod_rr.size:" << pod_rr.size << "; current size of buffer:" << data_buffer.size();;
-                ///
-                /// запись TLV "DstExtension":
-                tlv_header.type = TLV_Type::DstExtension;
-                qba_dst_extension = one_resource.dest_extension.toLatin1();
-                tlv_header.length = qba_dst_extension.length();
-                data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
-                data_buffer.append(qba_dst_extension);
-                //qInfo() << "written 'DstExtension' for" << one_resource.dest_extension << "; current size of buffer:" << data_buffer.size();
-                ///
-                /// запись TLV "Info":
-                tlv_header.type = TLV_Type::Info;
-                qba_info = one_resource.info.toUtf8();
-                tlv_header.length = qba_info.length();
-                data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
-                data_buffer.append(qba_info);
-                //qInfo() << "written 'Info'" << one_resource.info << "; current size of buffer:" << data_buffer.size();
-                ///
-            }
-            //resource_records.remove(resource_records.firstKey());
+            /// запись TLV "POD":
+            tlv_header.type = TLV_Type::POD;
+            tlv_header.length = sizeof(POD_ResourceRecord);
+            pod_rr.order_number = one_resource.order_number;
+            pod_rr.src_fname_idx = one_resource.src_fname_idx;
+            pod_rr.offset = one_resource.offset;
+            pod_rr.size = one_resource.size;
+            data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+            data_buffer.append(QByteArray((char*)&pod_rr, sizeof(pod_rr)));
+            //qInfo() << "written 'POD' for pod_rr.order_num:" << pod_rr.order_number << " pod_rr.src_fname_idx:" << pod_rr.src_fname_idx << " pod_rr.offset:"
+            //<< pod_rr.offset << "pod_rr.size:" << pod_rr.size << "; current size of buffer:" << data_buffer.size();;
+            ///
+            /// запись TLV "DstExtension":
+            tlv_header.type = TLV_Type::DstExtension;
+            qba_dst_extension = one_resource.dest_extension.toLatin1();
+            tlv_header.length = qba_dst_extension.length();
+            data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+            data_buffer.append(qba_dst_extension);
+            //qInfo() << "written 'DstExtension' for" << one_resource.dest_extension << "; current size of buffer:" << data_buffer.size();
+            ///
+            /// запись TLV "Info":
+            tlv_header.type = TLV_Type::Info;
+            qba_info = one_resource.info.toUtf8();
+            tlv_header.length = qba_info.length();
+            data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+            data_buffer.append(qba_info);
+            //qInfo() << "written 'Info'" << one_resource.info << "; current size of buffer:" << data_buffer.size();
+            ///
             resource_records.removeFirst();
             resource_records.squeeze();
         }
@@ -988,6 +1081,127 @@ void SessionWindow::rxSerializeAndStartSaveProcess()
     shared_memory.detach();
 
     this->close(); // закрываем окно и оно автоматически уничтожается
+}
+
+void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
+{
+    save_all_button->setDisabled(true);
+    report_button->setDisabled(true);
+    QByteArray data_buffer;
+    // временные переменные, используемые ниже при обходе бд
+    TLV_Header tlv_header;
+    QByteArray qba_format_name;
+    QByteArray qba_file_name;
+    QByteArray qba_dst_extension;
+    QByteArray qba_info;
+    POD_ResourceRecord pod_rr;
+    //
+    // перенос данных из resources_db в QByteArray
+    for (auto & one_src_file: src_files)// сначала запихиваем имена исходных файлов по порядку их следования
+    {
+        /// запись TLV "SrcFile" 'имя исходного файла':
+        tlv_header.type = TLV_Type::SrcFile;
+        qba_file_name = one_src_file.toUtf8();
+        tlv_header.length = qba_file_name.length();
+        data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+        data_buffer.append(qba_file_name);
+        //qInfo() << "written 'SrcFile' for" << file_name_key << "; current size of buffer:" << data_buffer.size();
+    }
+    /// запись TLV "FmtChange" 'смена формата':
+    tlv_header.type = TLV_Type::FmtChange;
+    qba_format_name = format_name.toLatin1();
+    tlv_header.length = qba_format_name.length();
+    data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+    data_buffer.append(qba_format_name);
+    //qInfo() << "written 'FmtChange' for" << format_name_key << "; current size of buffer:" << data_buffer.size();
+    //
+
+    for (auto & one_resource: resources_db[format_name])
+    {
+        if ( one_resource.is_selected )
+        {
+            /// запись TLV "POD":
+            tlv_header.type = TLV_Type::POD;
+            tlv_header.length = sizeof(POD_ResourceRecord);
+            pod_rr.order_number = one_resource.order_number;
+            pod_rr.src_fname_idx = one_resource.src_fname_idx;
+            pod_rr.offset = one_resource.offset;
+            pod_rr.size = one_resource.size;
+            data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+            data_buffer.append(QByteArray((char*)&pod_rr, sizeof(pod_rr)));
+            //qInfo() << "written 'POD' for pod_rr.order_num:" << pod_rr.order_number << " pod_rr.src_fname_idx:" << pod_rr.src_fname_idx << " pod_rr.offset:"
+            //<< pod_rr.offset << "pod_rr.size:" << pod_rr.size << "; current size of buffer:" << data_buffer.size();;
+            ///
+            /// запись TLV "DstExtension":
+            tlv_header.type = TLV_Type::DstExtension;
+            qba_dst_extension = one_resource.dest_extension.toLatin1();
+            tlv_header.length = qba_dst_extension.length();
+            data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+            data_buffer.append(qba_dst_extension);
+            //qInfo() << "written 'DstExtension' for" << one_resource.dest_extension << "; current size of buffer:" << data_buffer.size();
+            ///
+            /// запись TLV "Info":
+            tlv_header.type = TLV_Type::Info;
+            qba_info = one_resource.info.toUtf8();
+            tlv_header.length = qba_info.length();
+            data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+            data_buffer.append(qba_info);
+            //qInfo() << "written 'Info'" << one_resource.info << "; current size of buffer:" << data_buffer.size();
+            ///
+        }
+    }
+
+    /// запись TLV "Terminator" 'Завершитель'
+    tlv_header.type = TLV_Type::Terminator;
+    tlv_header.length = 0;
+    data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+    //qInfo() << "written 'Terminator'; current size of buffer:" << data_buffer.size();
+    ///
+
+    QSharedMemory shared_memory {QString("/shm/rj/%1/%2/%3/%4").arg(  //создаём максимально уникальный key для shared memory
+        QString::number(QApplication::applicationPid()),
+        QString::number(u64i(QThread::currentThreadId())),
+        QString::number(QDateTime::currentMSecsSinceEpoch()),
+        format_name
+        ) };
+    if ( !shared_memory.create(data_buffer.size(), QSharedMemory::ReadWrite) )
+    {
+        qInfo() << "shm error:" << shared_memory.error();
+        return;
+    }
+
+    QSystemSemaphore sys_semaphore {QString("/ssem/rj/%1/%2/%3/%4").arg(  //создаём максимально уникальный key для system semaphore
+            QString::number(QApplication::applicationPid()),
+            QString::number(u64i(QThread::currentThreadId())),
+            QString::number(QDateTime::currentMSecsSinceEpoch()),
+            format_name),
+        1,
+        QSystemSemaphore::Create
+    };
+    if ( sys_semaphore.error() != QSystemSemaphore::NoError )
+    {
+        qInfo() << "ssem error:" << sys_semaphore.error();
+        shared_memory.detach();
+        return;
+    }
+
+    // копирование из буфера в shared_memory
+    char *from_buffer = (char*)data_buffer.data();
+    char *to_shm = (char*)shared_memory.data();
+    memcpy(to_shm, from_buffer, data_buffer.size());
+    //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
+
+    QProcess saving_process;
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key() }, "");
+
+    data_buffer.clear();   // обнуляем и буфер, т.к. теперь все данные в shared_memory
+    data_buffer.squeeze(); //
+
+    sys_semaphore.acquire(); // счётчик 1-1 = 0
+    sys_semaphore.acquire(); // счётчик = 0 <- здесь ждём, когда saving_process сделает 0+1 и отдаст нам семафор
+    sys_semaphore.release(); // и тогда уже можно будет оторваться (detach) от shared memory
+
+    shared_memory.detach();
 }
 
 void SessionWindow::rxChangePageTo(int page)

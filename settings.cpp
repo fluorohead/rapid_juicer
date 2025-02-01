@@ -89,7 +89,7 @@ const Config default_config
 {
     true,             // scrupulous
     u32i(Langs::Eng), // English language
-    1,                // index 1 is 10Mbytes
+    2,                // index 2 is 50Mbytes
     false,            // recursion
     "*.*",            // any files to search for
 #ifdef _WIN64

@@ -12,6 +12,7 @@
 #include <QCheckBox>
 
 #define MAX_FILENAME_LEN 66
+#define MAX_SESSIONS 16
 
 enum class TLV_Type: u8i { SrcFile = 0, FmtChange = 1, POD = 2, DstExtension = 3, Info = 4, Terminator = 5 };
 
@@ -65,25 +66,28 @@ public:
 };
 
 
-class ResultsByFormat: public QWidget
+class ResultsByFormatWidget: public QWidget
 {
     QString my_fmt;
-    QTableWidget *format_table;
-    QCommonStyle *fmt_table_style;
     RR_Map *resources_db;
+    QTableWidget *format_table;
 public:
-    ResultsByFormat(const QString &your_fmt, RR_Map *db_ptr);
-    ~ResultsByFormat();
-    void rxInsertNewRecord(ResourceRecord *new_record, int qlist_idx);
+    ResultsByFormatWidget(const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr);
+    ~ResultsByFormatWidget();
+    void InsertNewRecord(ResourceRecord *new_record, int qlist_idx);
+    friend SessionWindow;
 };
 
-class FormatCheckBox: public QCheckBox
+class ResultsByFormatTable: public QTableWidget
 {
     QString my_fmt;
     RR_Map *resources_db;
-    int my_qlist_idx;
+    QStringList *src_files;
+    QCommonStyle *fmt_table_style;
+    bool event(QEvent* ev);
 public:
-    FormatCheckBox(const QString &your_fmt, RR_Map *db_ptr, int qlist_idx);
+    ResultsByFormatTable(QWidget *parent, const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr);
+    ~ResultsByFormatTable();
 };
 
 class SessionWindow: public QWidget
@@ -102,6 +106,7 @@ class SessionWindow: public QWidget
     QPushButton *save_all_button;
     QPushButton *report_button;
     QPushButton *back_button;
+    QPushButton *save_button;
     QPushButton *select_all_button;
     QPushButton *unselect_all_button;
     QProgressBar *file_progress_bar;
@@ -134,7 +139,8 @@ public Q_SLOTS:
     void rxFileChange(const QString &file_name);
     void rxFileProgress(s64i percentage_value);
     void rxResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);
-    void rxSerializeAndStartSaveProcess();
+    void rxSerializeAndSaveAll();
+    void rxSerializeAndSaveSelected(const QString &format_name);
     void rxChangePageTo(int page);
 };
 

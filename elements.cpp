@@ -140,7 +140,8 @@ void TwoStatesButton::mousePressEvent(QMouseEvent *event)
     }
 }
 
-void TwoStatesButton::mouseReleaseEvent(QMouseEvent *event) {
+void TwoStatesButton::mouseReleaseEvent(QMouseEvent *event)
+{
     if (event->button() == Qt::LeftButton) {
         *state_flag = !(*state_flag);
         this->setPixmap(hover_pixmap[*state_flag]);
@@ -148,17 +149,20 @@ void TwoStatesButton::mouseReleaseEvent(QMouseEvent *event) {
     }
 }
 
-void TwoStatesButton::mouseMoveEvent(QMouseEvent *event) {
+void TwoStatesButton::mouseMoveEvent(QMouseEvent *event)
+{
     event->accept();
 }
 
-void TwoStatesButton::enterEvent(QEnterEvent *event) {
+void TwoStatesButton::enterEvent(QEnterEvent *event)
+{
     this->setPixmap(hover_pixmap[*state_flag]);
     this->setMask(hover_pixmap[*state_flag].mask());
     event->accept();
 }
 
-void TwoStatesButton::leaveEvent(QEvent *event) {
+void TwoStatesButton::leaveEvent(QEvent *event)
+{
     this->setPixmap(main_pixmap[*state_flag]);
     this->setMask(main_pixmap[*state_flag].mask());
     event->accept();
@@ -249,14 +253,16 @@ ModalInfoWindow::~ModalInfoWindow()
 
 }
 
-void ModalInfoWindow::mouseMoveEvent(QMouseEvent *event) {
+void ModalInfoWindow::mouseMoveEvent(QMouseEvent *event)
+{
     if (event->buttons() == Qt::LeftButton) {
         this->move(this->pos() + (event->globalPosition() - prev_cursor_pos).toPoint());
         prev_cursor_pos = event->globalPosition();
     }
 }
 
-void ModalInfoWindow::mousePressEvent(QMouseEvent *event) {
+void ModalInfoWindow::mousePressEvent(QMouseEvent *event)
+{
     if (event->buttons() == Qt::LeftButton) {
         prev_cursor_pos = event->globalPosition();
     }

@@ -35,8 +35,8 @@ const QString scrup_mode_txt[int(Langs::MAX)]
 
 const QString tasks_label_txt[int(Langs::MAX)]
 {
-    "Running Tasks:",
-    "Задач в работе:"
+    "Running Tasks : ",
+    "Задач в работе: "
 };
 
 const QString paths_button_txt[int(Langs::MAX)]
@@ -51,7 +51,7 @@ const QString header_txt[int(Langs::MAX)][3]
     { "Форм.", "Описание",    "Категория" }
 };
 
-const QString warning_title_txt[int(Langs::MAX)]
+extern const QString warning_title_txt[int(Langs::MAX)]
 {
     "!!! WARNING !!!",
     "!!! ВНИМАНИЕ !!!"
@@ -67,6 +67,12 @@ const QString select_one_fmt_txt[int(Langs::MAX)]
 {
     "Select at least one\nfile format to continue.",
     "Необходимо выбрать как\nминимум один формат\nдля продолжения."
+};
+
+const QString too_much_sessions_txt[int(Langs::MAX)]
+{
+    "The max number of\nparallel search sessions\nhas been exceeded (16).",
+    "Превышено максимальное\nколичество одновременных\nпоисковых сессий (16)."
 };
 
 const u64i filters[MAX_FILTERS] { CAT_IMAGE,
@@ -444,7 +450,7 @@ MainWindow::MainWindow()
     tasks_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     tasks_label->setParent(this);
     tasks_label->move(624, 504);
-    tasks_label->setText(tasks_label_txt[curr_lang()]);
+    tasks_label->setText(QString("%1%2").arg(tasks_label_txt[curr_lang()], QString::number(sessions_pool.get_active_count())));
 
     connect(add_file_button, &OneStateButton::imReleased, this, &MainWindow::addFiles);
     connect(add_dir_button, &OneStateButton::imReleased, this, &MainWindow::addDir);
@@ -553,6 +559,7 @@ void MainWindow::showNewSessionWindow()
     if ( new_session_id != 0 )
     {
         auto new_session_window = new SessionWindow(new_session_id);
+        connect(new_session_window, &SessionWindow::destroyed, this, &MainWindow::updateSessionsCounter);
         if ( sessions_pool.write_new_session(new_session_window, new_session_id) == 0 )
         {
             // если по какой-то причине не удалось записать указатель в пул с переданным id, тогда уничтожаем окно
@@ -562,6 +569,17 @@ void MainWindow::showNewSessionWindow()
         {
             new_session_window->show();
         }
+        updateSessionsCounter();
         dirlist.remove_all(); // очищаем список путей в task и в DirlistWindow
     }
+    else
+    {
+        auto mdliw = new ModalInfoWindow(this, warning_title_txt[curr_lang()], too_much_sessions_txt[curr_lang()], ModalInfoWindow::Type::Warning);
+        mdliw->show(); // модальное окно уничтожается автоматически после вызова close()
+    }
+}
+
+void MainWindow::updateSessionsCounter()
+{
+    tasks_label->setText(QString("%1%2").arg(tasks_label_txt[curr_lang()], QString::number(sessions_pool.get_active_count())));
 }

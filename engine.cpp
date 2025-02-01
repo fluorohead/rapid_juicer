@@ -1973,7 +1973,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("%1-ch, song : '%2'").arg(   QString::number(channels),
+    QString info = QString("%1-chan. song : '%2'").arg(   QString::number(channels),
                                                             QString(QByteArray((char*)(info_header->song_name), song_name_len))
                                                         );
     //Q_EMIT e->txResourceFound("mod", e->file.fileName(), base_index, resource_size, info);
@@ -2115,7 +2115,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->module_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("%1-ch, song : '%2'").arg(   QString::number(info_header->channels_number),
+    QString info = QString("%1-chan. song : '%2'").arg(   QString::number(info_header->channels_number),
                                                             QString(QByteArray((char*)(info_header->module_name), song_name_len))
                                                          );
     //Q_EMIT e->txResourceFound("xm", e->file.fileName(), base_index, resource_size, info);
@@ -3086,15 +3086,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     TGA_Header *info_header = (TGA_Header*)(&buffer[base_index]);
     if ( info_header->cmap_start != 0 ) return recognize_ico_cur(e);
     if ( info_header->cmap_len != 0 ) return recognize_ico_cur(e);
+    if ( info_header->cmap_depth != 0 ) return recognize_ico_cur(e);
     if ( ( info_header->width < 1) or ( info_header->width >= 4096 ) ) return recognize_ico_cur(e);
     if ( info_header->height < 1) return recognize_ico_cur(e);
     if ( info_header->height / info_header->width > 5 ) return recognize_ico_cur(e); // предположение, что такие файлы маловероятны
     if ( info_header->width / info_header->height > 5 ) return recognize_ico_cur(e); //
     if ( info_header->height < 1 ) return recognize_ico_cur(e);
     if ( !VALID_PIX_DEPTH.contains(info_header->pix_depth) ) return recognize_ico_cur(e);
-    if ( info_header->cmap_start != 0 ) return recognize_ico_cur(e);
-    if ( info_header->cmap_len != 0 ) return recognize_ico_cur(e);
-    if ( info_header->cmap_depth != 0 ) return recognize_ico_cur(e);
     if ( (info_header->image_descriptor >> 6) != 0 ) return recognize_ico_cur(e);
     u64i last_index = base_index + sizeof(TGA_Header) + info_header->width * info_header->height * (info_header->pix_depth / 8); // вычисление эмпирического размера
     last_index += 4096; // накидываем ещё 4K : вдруг это TGA v2? у которого есть области расширения и разработчика.
