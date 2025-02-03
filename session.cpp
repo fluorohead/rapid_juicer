@@ -52,10 +52,16 @@ const QString file_txt[int(Langs::MAX)]
     "файл  :"
 };
 
-const QString paths_txt[int(Langs::MAX)]
+const QString files_scanned_txt[int(Langs::MAX)]
 {
-    "paths :",
-    "путей :"
+    "processed    :",
+    "обработано   :"
+};
+
+const QString total_bytes_txt[int(Langs::MAX)]
+{
+    "data amount  :",
+    "общий размер :"
 };
 
 const QString stop_button_txt[int(Langs::MAX)]
@@ -200,6 +206,43 @@ const QString no_resources_found_txt[int(Langs::MAX)]
     "В последнем случае воспользуйтесь сторонними утилитами."
 };
 
+const QString files_num_txt[int(Langs::MAX)]
+{
+    "%1 file(s)",
+    "%1 файл(а,ов)"
+};
+
+const QString bytes_amount_txt[int(Langs::MAX)]
+{
+    "%1 byte(s) (%2)",
+    "%1 байт(а) (%2)"
+};
+
+const QString running_time_txt[int(Langs::MAX)]
+{
+    "running time :",
+    "время работы :"
+};
+
+const QString unit_names[int(Langs::MAX)][5]
+{
+    { "byte(s)", "KiB", "MiB", "GiB", "TiB" },
+    { "байт(а)", "КиБ", "МиБ", "ГиБ", "ТиБ" },
+};
+
+QString human_readable_bytes(u64i value)
+{
+    int exponent {0};
+    double new_value = double(value);
+    while( (value / 1024) != 0)
+    {
+        value /= 1024;
+        ++exponent;
+    }
+    new_value = new_value / pow(1024, exponent);
+    return QString("%1 %2").arg(QString::number(new_value, 'g', 3), unit_names[curr_lang()][exponent]);
+}
+
 void FormatTile::update_counter(u64i value)
 {
     counter->setText(QString::number(value));
@@ -279,11 +322,6 @@ ResultsByFormatWidget::ResultsByFormatWidget(const QString &your_fmt, RR_Map *db
     });
 }
 
-ResultsByFormatWidget::~ResultsByFormatWidget()
-{
-
-}
-
 void ResultsByFormatWidget::InsertNewRecord(ResourceRecord *new_record, int qlist_idx)
 {
     int active_row = format_table->rowCount(); // # строка, в которую будем записывать новые данные
@@ -311,7 +349,7 @@ ResultsByFormatTable::ResultsByFormatTable(QWidget *parent, const QString &your_
 {
     this->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
     this->move(0, 0);
-    this->setStyleSheet("color: #d6e7e7; gridline-color: #949494; background-color: #8d6858");
+    this->setStyleSheet("color: #d6e7e7; gridline-color: #949494; background-color: #8d6858; selection-color: #fffef9; selection-background-color: #7fab6d");
     this->setColumnWidth(0, 32);
     this->setColumnWidth(1, 144);
     this->setColumnWidth(2, 164);
@@ -524,7 +562,7 @@ SessionWindow::SessionWindow(u32i session_id)
     progress_label->setText(current_progress_header_txt[curr_lang()]);
 
     file_progress_bar = new QProgressBar;
-    file_progress_bar->setFixedSize(488, 16);
+    file_progress_bar->setFixedSize(512, 16);
     file_progress_bar->setFont(tmpFont);
     file_progress_bar->setMinimum(0);
     file_progress_bar->setMaximum(100);
@@ -532,74 +570,88 @@ SessionWindow::SessionWindow(u32i session_id)
     file_progress_bar->setStyleSheet(progress_bar_style_sheet);
     file_progress_bar->setFormat("%v%");
     file_progress_bar->setParent(central_widget);
-    file_progress_bar->move(372, 86);
+    file_progress_bar->move(344, 86);
     file_progress_bar->setValue(0);
-
-    general_progress_bar = new QProgressBar;
-    general_progress_bar->setFixedSize(488, 16);
-    general_progress_bar->setFont(tmpFont);
-    general_progress_bar->setMinimum(0);
-    general_progress_bar->setMaximum(100);
-    general_progress_bar->setAlignment(Qt::AlignCenter);
-    general_progress_bar->setStyleSheet(progress_bar_style_sheet);
-    general_progress_bar->setFormat("%v%");
-    general_progress_bar->setParent(central_widget);
-    general_progress_bar->move(372, 132);
-    general_progress_bar->setValue(0);
 
     tmpFont.setBold(false);
     tmpFont.setPixelSize(13);
-    tmp_label = new QLabel; // надпись "file"
-    tmp_label->setFixedSize(144, 16);
+    tmp_label = new QLabel; // надпись "Scanned files"
+    tmp_label->setFixedSize(112, 16);
     tmp_label->setStyleSheet("color: #d4e9e9");
     tmp_label->setFont(tmpFont);
     tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     tmp_label->setParent(central_widget);
-    tmp_label->move(336, y_offset);
-    tmp_label->setText(file_txt[curr_lang()]);
+    tmp_label->move(344, y_offset + 48);
+    tmp_label->setText(files_scanned_txt[curr_lang()]);
 
-    tmp_label = new QLabel; // надпись "paths"
-    tmp_label->setFixedSize(144, 16);
+    tmp_label = new QLabel; // надпись "Total bytes"
+    tmp_label->setFixedSize(112, 16);
     tmp_label->setStyleSheet("color: #d4e9e9");
     tmp_label->setFont(tmpFont);
     tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     tmp_label->setParent(central_widget);
-    tmp_label->move(336, y_offset + 48);
-    tmp_label->setText(paths_txt[curr_lang()]);
+    tmp_label->move(344, y_offset + 48 + 22);
+    tmp_label->setText(total_bytes_txt[curr_lang()]);
+
+    tmp_label = new QLabel; // надпись "running time"
+    tmp_label->setFixedSize(112, 16);
+    tmp_label->setStyleSheet("color: #d4e9e9");
+    tmp_label->setFont(tmpFont);
+    tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    tmp_label->setParent(central_widget);
+    tmp_label->move(638, y_offset + 48 + 11);
+    tmp_label->setText(running_time_txt[curr_lang()]);
 
     tmpFont.setBold(true);
     tmpFont.setItalic(true);
     tmpFont.setPixelSize(11);
-    current_file_label = new QLabel; // имя текущего файла
-    current_file_label->setFixedSize(464, 16);
-    current_file_label->setStyleSheet("color: #d9b855");
-    current_file_label->setFont(tmpFont);
-    current_file_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    current_file_label->setParent(central_widget);
-    current_file_label->move(400, y_offset);
+    current_file_lbl = new QLabel; // имя текущего файла
+    current_file_lbl->setFixedSize(512, 16);
+    current_file_lbl->setStyleSheet("color: #d9b855");
+    current_file_lbl->setFont(tmpFont);
+    current_file_lbl->setAlignment(Qt::AlignCenter);
+    current_file_lbl->setParent(central_widget);
+    current_file_lbl->move(344, y_offset);
 
+    tmpFont.setItalic(false);
     tmpFont.setPixelSize(13);
-    paths_remaining = new QLabel; // количество оставшихся путей
-    paths_remaining->setFixedSize(128, 16);
-    paths_remaining->setStyleSheet("color: #d9b855");
-    paths_remaining->setFont(tmpFont);
-    paths_remaining->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    paths_remaining->setParent(central_widget);
-    paths_remaining->move(400, y_offset + 48);
+    scanned_files_lbl = new QLabel; // количество просканированных файлов
+    scanned_files_lbl->setFixedSize(196, 16);
+    scanned_files_lbl->setStyleSheet("color: #d9b855");
+    scanned_files_lbl->setFont(tmpFont);
+    scanned_files_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    scanned_files_lbl->setParent(central_widget);
+    scanned_files_lbl->move(464, y_offset + 48);
+
+    total_amount_lbl = new QLabel; // количество просканированных байт
+    total_amount_lbl->setFixedSize(256, 16);
+    total_amount_lbl->setStyleSheet("color: #d9b855");
+    total_amount_lbl->setFont(tmpFont);
+    total_amount_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    total_amount_lbl->setParent(central_widget);
+    total_amount_lbl->move(464, y_offset + 48 + 22);
+
+    total_time_lbl = new QLabel; // количество просканированных байт
+    total_time_lbl->setFixedSize(98, 16);
+    total_time_lbl->setStyleSheet("color: #d9b855");
+    total_time_lbl->setFont(tmpFont);
+    total_time_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    total_time_lbl->setParent(central_widget);
+    total_time_lbl->move(758, y_offset + 48 + 11);
+    total_time_lbl->setText("--:--:--.---");
 
     connect(close_button, &OneStateButton::imReleased, this, &SessionWindow::close);
     connect(minimize_button, &OneStateButton::imReleased, this, &SessionWindow::showMinimized);
 
     tmpFont.setPixelSize(15);
-    tmpFont.setItalic(false);
-    current_status = new QLabel; // текущий статус
-    current_status->setFixedSize(224, 16);
-    current_status->setStyleSheet("color: #f9d875");
-    current_status->setFont(tmpFont);
-    current_status->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    current_status->setText(scan_in_progress_txt[curr_lang()]);
-    current_status->setParent(central_widget);
-    current_status->move(364, y_offset + 125);
+    current_status_lbl = new QLabel; // текущий статус
+    current_status_lbl->setFixedSize(224, 16);
+    current_status_lbl->setStyleSheet("color: #f9d875");
+    current_status_lbl->setFont(tmpFont);
+    current_status_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    current_status_lbl->setText(scan_in_progress_txt[curr_lang()]);
+    current_status_lbl->setParent(central_widget);
+    current_status_lbl->move(364, y_offset + 125);
 
     tmpFont.setPixelSize(14);
     tmpFont.setBold(false);
@@ -614,22 +666,22 @@ SessionWindow::SessionWindow(u32i session_id)
 
     tmpFont.setPixelSize(15);
     tmpFont.setBold(true);
-    total_resources = new QLabel; // счётчик ресурсов
-    total_resources->setFixedSize(196, 16);
-    total_resources->setStyleSheet("color: #d4e9e9");
-    total_resources->setFont(tmpFont);
-    total_resources->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    total_resources->setText("0");
-    total_resources->setParent(central_widget);
-    total_resources->move(176, central_widget->height() - 36);
+    total_resources_lbl = new QLabel; // счётчик ресурсов
+    total_resources_lbl->setFixedSize(196, 16);
+    total_resources_lbl->setStyleSheet("color: #d4e9e9");
+    total_resources_lbl->setFont(tmpFont);
+    total_resources_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    total_resources_lbl->setText("0");
+    total_resources_lbl->setParent(central_widget);
+    total_resources_lbl->move(176, central_widget->height() - 36);
 
-    movie_zone = new QLabel; // регион для отображения анимационных gif'ы в зависимости от статуса
-    movie_zone->setFixedSize(32, 32);
-    movie_zone->setParent(central_widget);
-    movie_zone->move(316, 180);
+    movie_zone_lbl = new QLabel; // регион для отображения анимационных gif'ы в зависимости от статуса
+    movie_zone_lbl->setFixedSize(32, 32);
+    movie_zone_lbl->setParent(central_widget);
+    movie_zone_lbl->move(316, 180);
 
     scan_movie = new QMovie(":/gui/session/scanning.gif");
-    movie_zone->setMovie(scan_movie);
+    movie_zone_lbl->setMovie(scan_movie);
     scan_movie->start();
 
     pages = new QStackedWidget;
@@ -775,8 +827,6 @@ SessionWindow::SessionWindow(u32i session_id)
         ((ResultsByFormatWidget*)pages->currentWidget())->format_table->clearSelection();
     });
 
-   // pages->setCurrentIndex(0); // страница 0 - результаты по форматам
-
     ///////////////////////// здесь готовим поток walker'а : создаём его, соединяем сигналы/слоты, затем запускаем поток
     create_and_start_walker();
     /////////////////////////////////////////////////////////
@@ -795,7 +845,11 @@ void SessionWindow::create_and_start_walker()
             stop_button->setDisabled(true);
             pause_resume_button->setDisabled(true);
             skip_button->setDisabled(true);
-            current_status->setText(scan_is_done_txt[curr_lang()]);
+            current_status_lbl->setText(scan_is_done_txt[curr_lang()]);
+            end_msecs = QDateTime::currentMSecsSinceEpoch(); // фиксируем время останова
+            QTime time(0, 0, 0);
+            time = time.addMSecs(end_msecs - start_msecs);
+            total_time_lbl->setText(time.toString(Qt::ISODateWithMs));
             is_walker_dead = true;
             // разблокируем кнопки на страницах форматов
             this->save_button->setEnabled(true);
@@ -812,21 +866,21 @@ void SessionWindow::create_and_start_walker()
                 ((QLabel*)pages->widget(pages->count()-1))->setText(no_resources_found_txt[curr_lang()]);
             }
             scan_movie->stop();
-            movie_zone->setPixmap(QPixmap(":/gui/session/done.png"));
+            movie_zone_lbl->setPixmap(QPixmap(":/gui/session/done.png"));
         }, Qt::QueuedConnection);
 
     connect(walker, &WalkerThread::finished, walker, &QObject::deleteLater); // WalkerThread будет уничтожен в главном потоке после завершения работы метода .run()
 
-    connect(walker, &WalkerThread::txFileWasSkipped, this, [this](){ // Engine завершил работы по причине получения сигнала Skip -> нам надо обновить статус
+    connect(walker, &WalkerThread::txFileWasSkipped, this, [this](){ // Engine завершил работу по причине получения сигнала Skip -> нам надо обновить статус
         //qInfo() << " :::: txFileWasSkipped() :::: signal received from WalkerThread and slot executed in thread id" << QThread::currentThreadId();
-        current_status->setText(scan_in_progress_txt[curr_lang()]);
+        current_status_lbl->setText(scan_in_progress_txt[curr_lang()]);
     });
 
     connect(walker, &WalkerThread::txImPaused, this, [this]() { // walker отчитывается сюда, что он встал на паузу
             stop_button->setEnabled(true);
             pause_resume_button->setEnabled(true);
             skip_button->setDisabled(true);
-            current_status->setText(scan_is_paused_txt[curr_lang()]);
+            current_status_lbl->setText(scan_is_paused_txt[curr_lang()]);
             scan_movie->setPaused(true);
         }, Qt::QueuedConnection);
 
@@ -834,7 +888,7 @@ void SessionWindow::create_and_start_walker()
             stop_button->setEnabled(true);
             skip_button->setEnabled(true);
             pause_resume_button->setEnabled(true);
-            current_status->setText(scan_in_progress_txt[curr_lang()]);
+            current_status_lbl->setText(scan_in_progress_txt[curr_lang()]);
             scan_movie->setPaused(false);
         }, Qt::QueuedConnection);
 
@@ -844,7 +898,7 @@ void SessionWindow::create_and_start_walker()
             skip_button->setDisabled(true);
             walker->command = WalkerCommand::Stop;
             walker_mutex->unlock();
-            current_status->setText(scan_stop_request_txt[curr_lang()]);
+            current_status_lbl->setText(scan_stop_request_txt[curr_lang()]);
         }, Qt::QueuedConnection);
 
     connect(pause_resume_button, &QPushButton::clicked, [this](){
@@ -854,7 +908,7 @@ void SessionWindow::create_and_start_walker()
         // начальное значение is_walker_paused = false и выставляется при создании объекта SessionWindow
         if ( !is_walker_paused ) // нажали pause
         {
-            current_status->setText(scan_pause_request_txt[curr_lang()]);
+            current_status_lbl->setText(scan_pause_request_txt[curr_lang()]);
             walker_mutex->lock();
             walker->command = WalkerCommand::Pause;
             pause_resume_button->setText(resume_button_txt[curr_lang()]);
@@ -875,13 +929,14 @@ void SessionWindow::create_and_start_walker()
 
     connect(skip_button, &QPushButton::clicked, [this](){
         walker->command = WalkerCommand::Skip;
-        current_status->setText(scan_skip_request_txt[curr_lang()]);
+        current_status_lbl->setText(scan_skip_request_txt[curr_lang()]);
     });
 
     stop_button->setEnabled(true);
     pause_resume_button->setEnabled(true);
     skip_button->setEnabled(true);
 
+    start_msecs = QDateTime::currentMSecsSinceEpoch(); // фиксируем время запуска
     walker->start(QThread::InheritPriority);
 }
 
@@ -891,18 +946,19 @@ SessionWindow::~SessionWindow()
     //qInfo() << "Session window destroyed";
 }
 
-void SessionWindow::rxGeneralProgress(QString remaining, u64i percentage_value)
-{
-    // qInfo() << "thread" << QThread::currentThreadId() << ": general progress is" << percentage_value << "%";
-    general_progress_bar->setValue(percentage_value);
-}
-
-void SessionWindow::rxFileChange(const QString &file_name)
+void SessionWindow::rxFileChange(const QString &file_name, u64i file_size)
 {
     QString tmp_fn = reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN);
-    current_file_label->setText(reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN));
+    current_file_lbl->setText(reduce_file_path(QDir::toNativeSeparators(file_name), MAX_FILENAME_LEN));
     current_file_name = file_name;
     resources_in_current_file = 0;
+    scanned_files_lbl->setText(QString(files_num_txt[curr_lang()]).arg(QString::number(scanned_files_counter)));
+    total_amount_lbl->setText(human_readable_bytes(total_amount_scanned));
+    if ( !file_name.isEmpty() )
+    {
+        ++scanned_files_counter;
+        total_amount_scanned += file_size;
+    }
     //qInfo() << "---> FILE CHANGE signal:" << file_name;
 }
 
@@ -936,7 +992,7 @@ void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset
     }
     ++formats_counters[format_name];
     tiles_db[format_name]->update_counter(formats_counters[format_name]);
-    total_resources->setText(QString::number(total_resources_found));
+    total_resources_lbl->setText(QString::number(total_resources_found));
 
     ++resources_in_current_file;
     if ( resources_in_current_file == 1 )

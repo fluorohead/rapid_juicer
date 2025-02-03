@@ -21,7 +21,7 @@ class WalkerThread: public QThread
     Engine *engine;
     WalkerCommand command {WalkerCommand::Run};
     s64i previous_msecs; // должно быть инициализировано значением QDateTime::currentMSecsSinceEpoch(); до первого вызова update_general_progress()
-    void update_general_progress(int paths_total, int current_path_index);
+    //void update_general_progress(int paths_total, int current_path_index);
     bool *selected_formats_fast; // массив будет построен в prepare_struct..(), для последующего быстрого lookup'а внутри recognizer'ов
     void prepare_structures_before_engine(); // подготавливает selected_formats_fast
     void clean_structures_after_engine();    // освобождает selected_formats_fast
@@ -31,7 +31,7 @@ public:
     ~WalkerThread();
     void run();
 Q_SIGNALS:
-    void txGeneralProgress(QString remaining, u64i percents);
+    //void txGeneralProgress(QString remaining, u64i percents);
     void txImPaused();
     void txImResumed();
     void txFileWasSkipped();

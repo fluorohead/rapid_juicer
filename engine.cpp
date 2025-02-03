@@ -1028,7 +1028,7 @@ void Engine::scan_file_win64(const QString &file_name)
 
     previous_msecs = QDateTime::currentMSecsSinceEpoch();
     done_cause_skip = false;
-    Q_EMIT txFileChange(file_name); // путь очередного файла всегда оправляем в SessionWindow для отображения
+    Q_EMIT txFileChange(file_name, file.size()); // путь очередного файла всегда оправляем в SessionWindow для отображения
     for (iteration = 1; iteration <= max_iterations; ++iteration)
     {
         start_offset = last_offset;

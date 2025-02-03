@@ -11,7 +11,7 @@
 #include <QMovie>
 #include <QCheckBox>
 
-#define MAX_FILENAME_LEN 66
+#define MAX_FILENAME_LEN 73  // исп-ся в SessionWindow для отображения длинных путей (усечение)
 #define MAX_SESSIONS 16
 
 enum class TLV_Type: u8i { SrcFile = 0, FmtChange = 1, POD = 2, DstExtension = 3, Info = 4, Terminator = 5 };
@@ -73,7 +73,6 @@ class ResultsByFormatWidget: public QWidget
     QTableWidget *format_table;
 public:
     ResultsByFormatWidget(const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr);
-    ~ResultsByFormatWidget();
     void InsertNewRecord(ResourceRecord *new_record, int qlist_idx);
     friend SessionWindow;
 };
@@ -110,20 +109,24 @@ class SessionWindow: public QWidget
     QPushButton *select_all_button;
     QPushButton *unselect_all_button;
     QProgressBar *file_progress_bar;
-    QProgressBar *general_progress_bar;
-    QLabel *current_file_label;
-    QLabel *paths_remaining;
-    QLabel *current_status;
-    QLabel *total_resources;
-    QLabel *movie_zone;
+    //QProgressBar *general_progress_bar;
+    QLabel *current_file_lbl;
+    QLabel *scanned_files_lbl;
+    QLabel *total_amount_lbl;
+    QLabel *total_time_lbl;
+    QLabel *current_status_lbl;
+    QLabel *total_resources_lbl;
+    QLabel *movie_zone_lbl;
     QMovie *scan_movie;
     QMutex *walker_mutex;
     WalkerThread *walker;
     void create_and_start_walker(); // создание walker-потока и запуск его в работу
     u64i total_resources_found {0}; // счётчик найдённых ресурсов
     u32i unique_formats_found {0}; // счётчик уникальных форматов среди найдённых ресурсов; по нему высчитываются строка/столбец следующего тайла
+    u64i scanned_files_counter {0}; // счётчик просканированных файлов
+    u64i total_amount_scanned {0}; // счётчик размера обработанных данных
     QStackedWidget *pages;
-    QTableWidget *results_table;
+    QTableWidget *results_table; // таблица с тайлами
     QMap <QString, u64i> formats_counters;
     QMap <QString, FormatTile*> tiles_db; // ссылки на виджеты тайлов : ключ - формат
     QMap <QString, TileCoordinates> tile_coords; // координаты тайлов (строка, столбец) : ключ - формат
@@ -131,12 +134,14 @@ class SessionWindow: public QWidget
     u64i resources_in_current_file;
     QStringList src_files;
     RR_Map resources_db;
+    s64i start_msecs;
+    s64i end_msecs;
 public:
     SessionWindow(u32i session_id);
     ~SessionWindow();
 public Q_SLOTS:
-    void rxGeneralProgress(QString remaining, u64i percentage_value);
-    void rxFileChange(const QString &file_name);
+    //void rxGeneralProgress(QString remaining, u64i percentage_value);
+    void rxFileChange(const QString &file_name, u64i file_size);
     void rxFileProgress(s64i percentage_value);
     void rxResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);
     void rxSerializeAndSaveAll();

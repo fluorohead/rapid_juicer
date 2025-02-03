@@ -95,7 +95,7 @@ public:
     RECOGNIZE_FUNC_DECL_RETURN recognize_dbm0 RECOGNIZE_FUNC_HEADER;
 
 Q_SIGNALS:
-    void txFileChange(QString file_name);
+    void txFileChange(const QString &file_name, u64i bytes_amount);
     void txFileProgress(s64i percentage_value);
     //void txResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
     void txResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);

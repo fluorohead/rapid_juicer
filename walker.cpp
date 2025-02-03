@@ -22,17 +22,17 @@ WalkerThread::~WalkerThread()
 //    qInfo() << "WalkerThread object was destroyed in thread id:" << currentThreadId();
 }
 
-inline void WalkerThread::update_general_progress(int paths_total, int current_path_index)
-{
-    s64i current_msecs = QDateTime::currentMSecsSinceEpoch();
-    u64i general_progress = ( current_path_index == paths_total ) ? 100 : ((current_path_index + 1) * 100) / paths_total; // там, где current_path_index+1 - т.к. это индекс и он начинается с 0
-    if ( ( current_msecs < previous_msecs ) or ( current_msecs - previous_msecs >= MIN_SIGNAL_INTERVAL_MSECS ) )
-    {
-        previous_msecs = current_msecs;
-        Q_EMIT txGeneralProgress("", general_progress);
-        return;
-    }
-}
+// inline void WalkerThread::update_general_progress(int paths_total, int current_path_index)
+// {
+//     s64i current_msecs = QDateTime::currentMSecsSinceEpoch();
+//     u64i general_progress = ( current_path_index == paths_total ) ? 100 : ((current_path_index + 1) * 100) / paths_total; // там, где current_path_index+1 - т.к. это индекс и он начинается с 0
+//     if ( ( current_msecs < previous_msecs ) or ( current_msecs - previous_msecs >= MIN_SIGNAL_INTERVAL_MSECS ) )
+//     {
+//         previous_msecs = current_msecs;
+//         Q_EMIT txGeneralProgress("", general_progress);
+//         return;
+//     }
+// }
 
 void WalkerThread::prepare_structures_before_engine()
 {
@@ -57,7 +57,7 @@ void WalkerThread::run()
 
     engine = new Engine(this);
     connect(engine, &Engine::txResourceFound, my_receiver, &SessionWindow::rxResourceFound, Qt::QueuedConnection); // исполнение слота в основном потоке
-    connect(this, &WalkerThread::txGeneralProgress, my_receiver, &SessionWindow::rxGeneralProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
+    //connect(this, &WalkerThread::txGeneralProgress, my_receiver, &SessionWindow::rxGeneralProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
     connect(engine, &Engine::txFileChange, my_receiver, &SessionWindow::rxFileChange, Qt::QueuedConnection); // слот будет исполняться в основном потоке
     connect(engine, &Engine::txFileProgress, my_receiver, &SessionWindow::rxFileProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
 
@@ -178,11 +178,11 @@ void WalkerThread::run()
             /////
         }
         // обновляем графику для general progress
-        update_general_progress(tp_count, tp_idx);
+        //update_general_progress(tp_count, tp_idx);
     }
 
     // финальный аккорд, обнуляем графику для file progress
-    Q_EMIT engine->txFileChange("");
+    Q_EMIT engine->txFileChange("", 0);
     Q_EMIT engine->txFileProgress(0);
 
     clean_structures_after_engine();

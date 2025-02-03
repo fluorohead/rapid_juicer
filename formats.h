@@ -19,8 +19,7 @@ using u8i  = quint8;
 #define RECOGNIZE_FUNC_DECL_RETURN static u64i
 #define RECOGNIZE_FUNC_RETURN u64i
 
-#define MAX_SIGNATURE_SIZE 4  // максимальный размер сигнатуры
-#define MIN_RESOURCE_SIZE 32  // должно быть кратно MAX_SIGNATURE_SIZE
+#define MIN_RESOURCE_SIZE 16 // по факту минимальный размер исходного файла, иначе пропускаем
 
 // Все возможные категории ресурсов
 extern const u64i CAT_NONE;

@@ -55,7 +55,7 @@ int main(int argc, char **argv)
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mus_669)", "*.*", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\different formats)", "*.*", false});
     //task.addTaskPath(TaskPath {R"(C:/Games/Horizon Forbidden West Complete Edition/LocalCacheWinGame/package/package.00.04.core)", "", false});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\iff_ilbm\24.lbm)", "", false});
+    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\au\o2_722.au)", "", false});
 
     settings = new Settings;
     settings->initSkin();
