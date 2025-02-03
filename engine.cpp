@@ -1395,7 +1395,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
-
 RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
@@ -1868,7 +1867,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
     // bool valid = image.loadFromData(e->mmf_scanbuf + base_index, resource_size);
     // qInfo() << "\njpeg is:" << valid;
 
-    //Q_EMIT e->txResourceFound("jpg", e->file.fileName(), base_index, resource_size, "");
     Q_EMIT e->txResourceFound("jpg", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -2475,6 +2473,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
         u32i data_offset;
     };
 #pragma pack(pop)
+    //qInfo() << " TIF_II recognizer called!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
@@ -2495,7 +2494,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     s64i ifd_strip_counts_table; // смещение таблицы размеров "отрезков" изображения
     u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
     s64i ifd_exif_offset; // смещение exif ifd
-    // qInfo() << ": Next TIFF_II scan iteration! Signature found at offset:" << base_index;
+    //qInfo() << ": Next TIFF_II scan iteration! Signature found at offset:" << base_index;
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
         ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
@@ -2504,12 +2503,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
         ifd_strip_counts_table = -1;
         ifd_strip_num = 0;
         ifd_exif_offset = -1;
-        // qInfo() << ": IFD at offset:" << last_index;
+        //qInfo() << ": IFD at offset:" << last_index;
         if ( last_index + 6 > file_size ) return 0; // не хватает места на NumDirEntries (2) + NextIFDOffset (4)
         num_of_tags = *((u16i*)&buffer[last_index]); // место есть - считываем количество тегов
         if ( last_index + 6 + num_of_tags * 12 > file_size ) return 0; // а вот на сами теги места уже не хватает -> капитуляция
-        // qInfo() << ": num_of_tags:" << num_of_tags;
+        //qInfo() << ": num_of_tags:" << num_of_tags;
         tag_pointer = (TIF_Tag*)&buffer[last_index + 2]; // ставим указатель на самый первый тег под индексом [0]
+        if ( ifds_and_tags_db.contains(next_ifd_offset) ) break; // защита от зацикленных IFD (как в файле jpeg_exif_invalid_data_back_pointers.jpg)
         ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * 12; // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
         for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
         {
@@ -2580,7 +2580,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
             }
         }
         next_ifd_offset = *((u32i*)&buffer[last_index + 2 + num_of_tags * 12]); // считываем смещение следующего IFD из конца предыдущего IFD
-        // qInfo() << "   next_ifd_offset:" << next_ifd_offset;
+        //qInfo() << "   next_ifd_offset:" << next_ifd_offset;
         if ( next_ifd_offset == 0 ) break;
         last_index = base_index + next_ifd_offset;
     }
@@ -2590,7 +2590,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
     // qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
-    //Q_EMIT e->txResourceFound("tif_ii", e->file.fileName(), base_index, resource_size, "");
     Q_EMIT e->txResourceFound("tif_ii", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -2612,6 +2611,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         u32i data_offset;
     };
 #pragma pack(pop)
+    //qInfo() << " TIF_MM recognizer called!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
@@ -2647,6 +2647,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         if ( last_index + 6 + num_of_tags * 12 > file_size ) return 0; // а вот на сами теги места уже не хватает -> капитуляция
         // qInfo() << ": num_of_tags:" << num_of_tags;
         tag_pointer = (TIF_Tag*)&buffer[last_index + 2]; // ставим указатель на самый первый тег под индексом [0]
+        if ( ifds_and_tags_db.contains(next_ifd_offset) ) break; // защита от зацикленных IFD (как в файле jpeg_exif_invalid_data_back_pointers.jpg)
         ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * 12; // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
         for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
         {
@@ -2878,8 +2879,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_au RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index + be2le(info_header->data_offset) + be2le(info_header->data_size);
     if ( last_index > e->file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    //Q_EMIT e->txResourceFound("au", e->file.fileName(), base_index, resource_size, "");
-    Q_EMIT e->txResourceFound("au", base_index, resource_size, "");
+    QString info = QString("%1Hz %2-ch").arg(QString::number(be2le(info_header->sample_rate)), QString::number(be2le(info_header->channels)));
+    Q_EMIT e->txResourceFound("au", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }

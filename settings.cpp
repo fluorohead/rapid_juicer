@@ -510,9 +510,9 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     excluding_le->setPlaceholderText(enter_here_txt[curr_lang()]);
     excluding_le->setValidator(&eev);
 
-    static const QString buttons_style {    "QPushButton:enabled {color: #fffef9; background-color: #4d7099; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-        "QPushButton:hover   {color: #fffef9; background-color: #2d5079; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-        "QPushButton:pressed {color: #fffef9; background-color: #2d5079; border-width: 0px;}"
+    static const QString buttons_style {"QPushButton:enabled {color: #fffef9; background-color: #4d7099; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                        "QPushButton:hover   {color: #fffef9; background-color: #2d5079; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                        "QPushButton:pressed {color: #fffef9; background-color: #2d5079; border-width: 0px;}"
     };
 
     auto add_button = new QPushButton(&background);
@@ -543,8 +543,8 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     defaults_button->setAttribute(Qt::WA_NoMousePropagation);
     defaults_button->setFixedSize(86, 40);
     defaults_button->setStyleSheet( "QPushButton:enabled {color: #fffef9; background-color: #9ca14e; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                                   "QPushButton:hover   {color: #fffef9; background-color: #7c812e; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                                   "QPushButton:pressed {color: #fffef9; background-color: #7c812e; border-width: 0px;}"
+                                    "QPushButton:hover   {color: #fffef9; background-color: #7c812e; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                    "QPushButton:pressed {color: #fffef9; background-color: #7c812e; border-width: 0px;}"
                                    );
     defaults_button->setFont(tmpFont);
     defaults_button->setText(defaults_txt[curr_lang()]);
@@ -554,8 +554,8 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     ok_button->setAttribute(Qt::WA_NoMousePropagation);
     ok_button->setFixedSize(72, 32);
     ok_button->setStyleSheet(   "QPushButton:enabled {color: #fffef9; background-color: #7fab6d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                             "QPushButton:hover   {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                             "QPushButton:pressed {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
+                                "QPushButton:hover   {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                "QPushButton:pressed {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
                              );
     ok_button->setFont(tmpFont);
     ok_button->setText(ok_txt[curr_lang()]);
@@ -565,8 +565,8 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     cancel_button->setAttribute(Qt::WA_NoMousePropagation);
     cancel_button->setFixedSize(72, 32);
     cancel_button->setStyleSheet(   "QPushButton:enabled {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                                 "QPushButton:hover   {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                                 "QPushButton:pressed {color: #fffef9; background-color: #8b4132; border-width: 0px;}"
+                                    "QPushButton:hover   {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                    "QPushButton:pressed {color: #fffef9; background-color: #8b4132; border-width: 0px;}"
                                  );
     cancel_button->setFont(tmpFont);
     cancel_button->setText(cancel_txt[curr_lang()]);

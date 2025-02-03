@@ -692,16 +692,16 @@ SessionWindow::SessionWindow(u32i session_id)
 
     back_button = new QPushButton;
     back_button->setAttribute(Qt::WA_NoMousePropagation);
-    back_button->setFixedSize(72, 24);
+    back_button->setFixedSize(72, 28);
     back_button->setStyleSheet(
-                                "QPushButton:enabled  {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
-                                "QPushButton:hover    {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
+                                "QPushButton:enabled  {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                "QPushButton:hover    {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                 "QPushButton:pressed  {color: #fffef9; background-color: #8b4132; border-width: 0px;}"
-                                "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 10px;}");
+                                "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
     back_button->setFont(tmpFont);
     back_button->setText(back_txt[curr_lang()]);
     back_button->setParent(central_widget);
-    back_button->move(300, 717);
+    back_button->move(364, 715);
     back_button->setHidden(true);
 
     connect(back_button, &QPushButton::clicked, [this](){
@@ -714,15 +714,15 @@ SessionWindow::SessionWindow(u32i session_id)
 
     save_button = new QPushButton;
     save_button->setAttribute(Qt::WA_NoMousePropagation);
-    save_button->setFixedSize(124, 24);
-    save_button->setStyleSheet( "QPushButton:enabled  {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
-                                "QPushButton:hover    {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+    save_button->setFixedSize(124, 28);
+    save_button->setStyleSheet( "QPushButton:enabled  {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                "QPushButton:hover    {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                 "QPushButton:pressed  {color: #fffef9; background-color: #ab6152; border-width: 0px;}"
-                                "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 12px;}");
+                                "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
     save_button->setFont(tmpFont);
     save_button->setText(save_txt[curr_lang()]);
     save_button->setParent(central_widget);
-    save_button->move(454, 717);
+    save_button->move(454, 715);
     save_button->setHidden(true);
     save_button->setDisabled(true);
 
@@ -955,6 +955,7 @@ void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset
 void SessionWindow::rxSerializeAndSaveAll()
 {
     save_all_button->setDisabled(true);
+    save_button->setDisabled(true);
     report_button->setDisabled(true);
     QByteArray data_buffer;
     // временные переменные, используемые ниже при обходе бд
@@ -1085,8 +1086,7 @@ void SessionWindow::rxSerializeAndSaveAll()
 
 void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
 {
-    save_all_button->setDisabled(true);
-    report_button->setDisabled(true);
+    save_button->setDisabled(true);
     QByteArray data_buffer;
     // временные переменные, используемые ниже при обходе бд
     TLV_Header tlv_header;
@@ -1167,6 +1167,7 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
     if ( !shared_memory.create(data_buffer.size(), QSharedMemory::ReadWrite) )
     {
         qInfo() << "shm error:" << shared_memory.error();
+        save_button->setEnabled(true);
         return;
     }
 
@@ -1182,6 +1183,7 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
     {
         qInfo() << "ssem error:" << sys_semaphore.error();
         shared_memory.detach();
+        save_button->setEnabled(true);
         return;
     }
 
@@ -1202,6 +1204,7 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
     sys_semaphore.release(); // и тогда уже можно будет оторваться (detach) от shared memory
 
     shared_memory.detach();
+    save_button->setEnabled(true);
 }
 
 void SessionWindow::rxChangePageTo(int page)
