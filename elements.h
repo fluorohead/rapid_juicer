@@ -7,7 +7,8 @@
 #include <QPushButton>
 
 // OneStateButton Without Text
-class OneStateButton: public QLabel {
+class OneStateButton: public QLabel
+{
     Q_OBJECT
     QPixmap main_pixmap;
     QPixmap hover_pixmap;
@@ -24,7 +25,8 @@ Q_SIGNALS:
 };
 
 // OneStateButton With Text and Dynamic Number Field
-class DynamicInfoButton: public OneStateButton {
+class DynamicInfoButton: public OneStateButton
+{
     Q_OBJECT
     const QString *my_text; // указатель на массив (т.к. multilang)
     int *my_num_ptr;
@@ -65,7 +67,8 @@ public:
 };
 
 // Модальное информационное окно
-class ModalInfoWindow: public QWidget {
+class ModalInfoWindow: public QWidget
+{
     Q_OBJECT
     QPointF prev_cursor_pos;
     void mouseMoveEvent(QMouseEvent *event);  // событие будет возникать и спускаться из Qlabel background

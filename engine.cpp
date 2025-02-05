@@ -1122,8 +1122,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
     static const QSet <u16i> VALID_BITS_PER_PIXEL { 1, 4, 8, 16, 24, 32 };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
-    FileHeader *info_header = (FileHeader*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (FileHeader*)(&buffer[base_index]);
     if ( info_header->reserved != 0 ) return 0;
     if ( !VALID_BMP_HEADER_SIZE.contains(info_header->bitmapheader_size) ) return 0;
     if ( info_header->planes != 1 ) return 0;
@@ -1133,11 +1133,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0; // неверное поле file_size
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
-    QString info = QString("%1x%2 %3-bpp").arg( QString::number(std::abs(info_header->width)),
-                                                QString::number(std::abs(info_header->height)),
-                                                QString::number(info_header->bits_per_pixel));
+    auto info = QString("%1x%2 %3-bpp").arg(QString::number(std::abs(info_header->width)),
+                                            QString::number(std::abs(info_header->height)),
+                                            QString::number(info_header->bits_per_pixel));
     e->resource_offset = base_index;
-    //Q_EMIT e->txResourceFound("bmp", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("bmp", base_index, resource_size, info);
     return resource_size;
 }
@@ -1182,10 +1181,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
                                                    0x694C4C63 /*cLLi*/, 0x74585469 /*iTXt*/, 0x744C5073 /*sPLt*/, 0x66495865 /*eXIf*/, 0x52444849 /*iHDR*/};
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     if ( *((u64i*)&buffer[base_index]) != 0x0A1A0A0D474E5089 /*.PNG\r\n \n*/ ) return 0;
     if ( *((u64i*)(&buffer[base_index + 0x08])) != 0x524448490D000000 ) return 0;
-    IHDRData *ihdr_data = (IHDRData*)(&buffer[base_index + 0x10]);
+    auto ihdr_data = (IHDRData*)(&buffer[base_index + 0x10]);
     if ( !VALID_BIT_DEPTH.contains(ihdr_data->bit_depth) ) return 0;
     if ( !VALID_COLOR_TYPE.contains(ihdr_data->color_type) ) return 0;
     if ( !VALID_INTERLACE.contains(ihdr_data->interlace) ) return 0;
@@ -1223,10 +1222,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
     case 6:
         color_type = "truecolor w/alpha";
     }
-    QString info = QString(R"(%1x%2 (%3))").arg(QString::number(be2le(ihdr_data->width)),
+    auto info = QString(R"(%1x%2 (%3))").arg(   QString::number(be2le(ihdr_data->width)),
                                                 QString::number(be2le(ihdr_data->height)),
                                                 color_type );
-    //Q_EMIT e->txResourceFound("png", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("png", base_index, resource_size, info);
     return resource_size;
 }
@@ -1282,7 +1280,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     if ( ( !e->selected_formats[avi_id] ) and ( !e->selected_formats[wav_id] ) and ( e->selected_formats[rmi_id] ) and ( e->selected_formats[ani_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
     u64i last_index = base_index + sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + (*((ChunkHeader*)(&buffer[base_index]))).chunk_size; // сразу переставляем last_index в конец ресурса
     if ( last_index > file_size ) return 0; // неверное поле chunk_size
@@ -1295,11 +1293,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     {
         if ( ( !e->selected_formats[avi_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(AviInfoHeader)) ) return 0;
-        AviInfoHeader *avi_info_header = (AviInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        auto avi_info_header = (AviInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
         if ( avi_info_header->hdrl_avih_sign != 0x686976616C726468 /*hdrlavih*/ ) return 0;
-        QString info = QString(R"(%1x%2)").arg( QString::number(avi_info_header->width),
-                                                QString::number(avi_info_header->height) );
-        //Q_EMIT e->txResourceFound("avi", e->file.fileName(), base_index, resource_size, info);
+        auto info = QString(R"(%1x%2)").arg(QString::number(avi_info_header->width),
+                                            QString::number(avi_info_header->height));
         Q_EMIT e->txResourceFound("avi", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -1308,15 +1305,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     {
         if ( ( !e->selected_formats[wav_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(WavInfoHeader)) ) return 0;
-        WavInfoHeader *wav_info_header = (WavInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        auto wav_info_header = (WavInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
         if ( ( wav_info_header->chans == 0 ) or ( wav_info_header->chans > 6 ) ) return 0;
         if ( !VALID_WAV_BPS.contains(wav_info_header->bits_per_sample) ) return 0;
         QString codec_name = ( wave_codecs.contains(wav_info_header->fmt_code) ) ? wave_codecs[wav_info_header->fmt_code] : "unknown";
-        QString info = QString(R"(%1 codec : %2-bit %3Hz %4-ch)").arg(  codec_name,
-                                                                        QString::number(wav_info_header->bits_per_sample),
-                                                                        QString::number(wav_info_header->sample_rate),
-                                                                        QString::number(wav_info_header->chans) );
-        //Q_EMIT e->txResourceFound("wav", e->file.fileName(), base_index, resource_size, info);
+        auto info = QString(R"(%1 codec : %2-bit %3Hz %4-ch)").arg( codec_name,
+                                                                    QString::number(wav_info_header->bits_per_sample),
+                                                                    QString::number(wav_info_header->sample_rate),
+                                                                    QString::number(wav_info_header->chans));
         Q_EMIT e->txResourceFound("wav", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -1325,9 +1321,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     {
         if ( ( !e->selected_formats[rmi_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(MidiInfoHeader)) ) return 0;
-        MidiInfoHeader *midi_info_header = (MidiInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
-        QString info = QString(R"(%1 track(s))").arg(be2le(midi_info_header->ntrks));
-        //Q_EMIT e->txResourceFound("rmi", e->file.fileName(), base_index, resource_size, info);
+        auto midi_info_header = (MidiInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        auto info = QString(R"(%1 track(s))").arg(be2le(midi_info_header->ntrks));
         Q_EMIT e->txResourceFound("rmi", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -1335,7 +1330,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     case 0x5453494C4E4F4341: // ani - animated cursor with ACONLIST subchunk
     {
         if ( ( !e->selected_formats[ani_id] ) ) return 0;
-        //Q_EMIT e->txResourceFound("ani_riff", e->file.fileName(), base_index, resource_size, "");
         Q_EMIT e->txResourceFound("ani_riff", base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
@@ -1343,7 +1337,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     case 0x68696E614E4F4341: // ani - animated cursor with ACONanih subchunk
     {
         if ( ( !e->selected_formats[ani_id] ) ) return 0;
-        //Q_EMIT e->txResourceFound("ani_riff", e->file.fileName(), base_index, resource_size, "");
         Q_EMIT e->txResourceFound("ani_riff", base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
@@ -1371,25 +1364,27 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mid RECOGNIZE_FUNC_HEADER
     static const QSet <u32i> VALID_CHUNK_TYPE { 0x6468544D /*MThd*/, 0x6B72544D /*MTrk*/};
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
-    HeaderData *info_header = (HeaderData*)(&buffer[base_index + sizeof(MidiChunk)]);
+    auto info_header = (HeaderData*)(&buffer[base_index + sizeof(MidiChunk)]);
     if ( be2le((*((MidiChunk*)(&buffer[base_index]))).size) > 6 ) return 0;
     u64i last_index = base_index + 6 + sizeof(MidiChunk); // сразу переставляем last_index после заголовка на первый чанк типа MTrk
     if ( last_index >= file_size ) return 0; // прыгнули за пределы файла => явно неверное поле size в заголовке
     u64i possible_last_index;
+    u64i tracks_counter = 0; // не доверяем информации из заголовка, а считаем треки сами
     while (true)
     {
         if ( last_index + sizeof(MidiChunk) > file_size ) break; // не хватает места для анализа очередного чанка => достигли конца ресурса
         if ( !VALID_CHUNK_TYPE.contains((*(MidiChunk*)(&buffer[last_index])).type) ) break; // встретили неизвестный чанк => достигли конца ресурса
+        if ( (*(MidiChunk*)(&buffer[last_index])).type == 0x6B72544D ) ++tracks_counter;
         possible_last_index = last_index + be2le((*(MidiChunk*)(&buffer[last_index])).size) + sizeof(MidiChunk);
         if ( possible_last_index > file_size ) break; // возможно кривое поле .size, либо усечённый файл, либо type попался (внезапно) корректный, но size некорректный и т.д.
         last_index = possible_last_index;
     }
     if ( last_index <= base_index ) return 0;
+    if ( tracks_counter == 0 ) return 0; // файл без треков не имеет смысла
     u64i resource_size = last_index - base_index;
-    QString info = QString(R"(%1 track(s))").arg(be2le(info_header->ntrks));
-    //Q_EMIT e->txResourceFound("mid", e->file.fileName(), base_index, resource_size, info);
+    auto info = QString(R"(%1 track(s))").arg(tracks_counter);
     Q_EMIT e->txResourceFound("mid", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -1442,9 +1437,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     if ( ( !e->selected_formats[lbm_id] ) and ( !e->selected_formats[aif_id] ) and ( !e->selected_formats[xmi_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
-    ChunkHeader *chunk_header = (ChunkHeader*)&buffer[base_index];
+    auto chunk_header = (ChunkHeader*)&buffer[base_index];
     u64i last_index = base_index + sizeof(ChunkHeader::chunk_id) + sizeof(ChunkHeader::chunk_size) + be2le((*((ChunkHeader*)(&buffer[base_index]))).chunk_size); // сразу переставляем last_index в конец ресурса (но для XMI это лишь начало структуры CAT
     if ( last_index > file_size ) return 0; // неверное поле chunk_size
     if ( !VALID_FORMAT_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->format_type) ) return 0; // проверка на валидные форматы
@@ -1458,7 +1453,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         QString info;
         if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
         {
-            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            auto bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
             if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
             {
                 info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
@@ -1466,7 +1461,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
                                                         QString::number(bitmap_info_header->bitplanes));
             }
         }
-        //Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
         Q_EMIT e->txResourceFound("lbm", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -1474,7 +1468,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     case 0x43464941: // "AIFC" sound
     {
         if ( ( !e->selected_formats[aif_id] ) ) return 0;
-        //Q_EMIT e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, "");
         Q_EMIT e->txResourceFound("aif", base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
@@ -1485,14 +1478,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         QString info;
         if ( resource_size >= (sizeof(ChunkHeader) + sizeof(AIFF_CommonInfoHeader)) )
         {
-            AIFF_CommonInfoHeader *aiff_info_header = (AIFF_CommonInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            auto aiff_info_header = (AIFF_CommonInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
             if ( aiff_info_header->local_chunk_id == 0x4D4D4F43 /*'COMM'*/)
             {
                 info = QString("%1-bit %2-ch").arg( QString::number(be2le(aiff_info_header->sample_size)),
                                                     QString::number(be2le(aiff_info_header->channels)));
             }
         }
-        //Q_EMIT e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, info);
         Q_EMIT e->txResourceFound("aif", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -1503,7 +1495,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         QString info;
         if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
         {
-            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            auto bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
             if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
             {
                 info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
@@ -1511,7 +1503,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
                                                         QString::number(bitmap_info_header->bitplanes - 1));
             }
         }
-        //Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
         Q_EMIT e->txResourceFound("lbm", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -1522,7 +1513,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         QString info;
         if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
         {
-            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            auto bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
             if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
             {
                 info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
@@ -1530,7 +1521,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
                                                         QString::number(bitmap_info_header->bitplanes));
             }
         }
-        //Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
         Q_EMIT e->txResourceFound("lbm", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -1541,7 +1531,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         QString info;
         if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
         {
-            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            auto bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
             if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
             {
                 info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
@@ -1549,7 +1539,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
                                                         QString::number(bitmap_info_header->bitplanes));
             }
         }
-        //Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
         Q_EMIT e->txResourceFound("lbm", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -1562,7 +1551,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         QString info;
         if ( resource_size >= (sizeof(ChunkHeader) + sizeof(BMHD_InfoHeader)) )
         {
-            BMHD_InfoHeader *bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+            auto bitmap_info_header = (BMHD_InfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
             if ( bitmap_info_header->local_chunk_id == 0x44484D42 /*BMHD*/ )
             {
                 info = QString(R"(%1x%2 %3-bpp)").arg(  QString::number(be2le(bitmap_info_header->width)),
@@ -1570,7 +1559,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
                                                         QString::number(bitmap_info_header->bitplanes - 1));
             }
         }
-        //Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, info);
         Q_EMIT e->txResourceFound("lbm", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -1578,7 +1566,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     case 0x50454544: // "DEEP" picture
     {
         if ( ( !e->selected_formats[lbm_id] ) ) return 0;
-        //Q_EMIT e->txResourceFound("lbm", e->file.fileName(), base_index, resource_size, "");
         Q_EMIT e->txResourceFound("lbm", base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
@@ -1588,12 +1575,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
         if ( ( !e->selected_formats[xmi_id] ) ) return 0;
         // у формата XMI особое строение, поэтому last_index сейчас стоит не на конце ресурса, а на структуре "CAT "
         if ( last_index + sizeof(XDIR_CatInfoHeader) > file_size ) return 0;
-        XDIR_CatInfoHeader* cat_info_header = (XDIR_CatInfoHeader*)(&buffer[last_index]);
+        auto cat_info_header = (XDIR_CatInfoHeader*)(&buffer[last_index]);
         if ( cat_info_header->cat_signature != 0x20544143 /*CAT */) return 0;
         last_index += (be2le(cat_info_header->size) + sizeof(XDIR_CatInfoHeader));
         if ( last_index > file_size) return 0;
         u64i resource_size = last_index - base_index;
-        //Q_EMIT e->txResourceFound("xmi", e->file.fileName(), base_index, resource_size, "");
         Q_EMIT e->txResourceFound("xmi", base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
@@ -1601,7 +1587,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     case 0x58565338: // "8SVX" sound
     {
         if ( ( !e->selected_formats[aif_id] ) ) return 0;
-        //Q_EMIT e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, "");
         Q_EMIT e->txResourceFound("aif", base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
@@ -1609,7 +1594,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     case 0x56533631: // "16SV" sound
     {
         if ( ( !e->selected_formats[aif_id] ) ) return 0;
-        //Q_EMIT e->txResourceFound("aif", e->file.fileName(), base_index, resource_size, "");
         Q_EMIT e->txResourceFound("aif", base_index, resource_size, "");
         e->resource_offset = base_index;
         return resource_size;
@@ -1639,7 +1623,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_pcx RECOGNIZE_FUNC_HEADER
     //qInfo() << " PCX RECOGNIZER CALLED!";
     static const u64i min_room_need = sizeof(PcxHeader);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
-    PcxHeader* pcx_info_header = (PcxHeader*)(&(e->mmf_scanbuf[e->scanbuf_offset]));
+    auto pcx_info_header = (PcxHeader*)(&(e->mmf_scanbuf[e->scanbuf_offset]));
     if ( pcx_info_header->encoding != 1 ) return 0;
     switch ( pcx_info_header->bits_per_plane )
     {
@@ -1682,10 +1666,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_pcx RECOGNIZE_FUNC_HEADER
     if ( last_index > e->file_size) last_index = e->file_size;
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
-    QString info = QString("%1x%2 %3-bpp").arg( QString::number(width),
+    auto info = QString("%1x%2 %3-bpp").arg(QString::number(width),
                                             QString::number(height),
                                             QString::number(bpp));
-    //Q_EMIT e->txResourceFound("pcx", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("pcx", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -1726,9 +1709,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     static const QSet <u8i>  EXT_LABELS_TO_PROCESS { 0x01, 0xCE, 0xFE, 0xFF };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
-    FileHeader *info_header = (FileHeader*)(&buffer[base_index]);
+    auto info_header = (FileHeader*)(&buffer[base_index]);
     u64i colors_num = 1ULL << ((info_header->packed & 0b00000111) + 1);
     bool global_palette = info_header->packed >> 7;
     u64i last_index = base_index + sizeof(FileHeader) + 3ULL * colors_num * global_palette; // перескок через глобальную цветовую таблицу, если она есть; выставляем last_index на первый вероятный separator
@@ -1806,9 +1789,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     }
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
-    QString info = QString("%1x%2").arg(QString::number(info_header->width),
+    auto info = QString("%1x%2").arg(   QString::number(info_header->width),
                                         QString::number(info_header->height));
-    //Q_EMIT e->txResourceFound("gif", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("gif", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -1836,9 +1818,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
     static const QSet <u8i> VALID_UNITS { 0x00, 0x01, 0x02 };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
-    JFIF_Header *info_header = (JFIF_Header*)(&buffer[base_index]);
+    auto info_header = (JFIF_Header*)(&buffer[base_index]);
     if ( be2le(info_header->len) != 16 ) return 0;
     if ( info_header->identifier_4b != 0x4649464A ) return 0;
     if ( info_header->identifier_1b != 0 ) return 0;
@@ -1894,7 +1876,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " MOD RECOGNIZER CALLED: " << e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     u64i base_index = e->scanbuf_offset;
     // определяем положительную поправку для размера заголовка :
     // +0 - для 'M.K.'
@@ -1933,7 +1915,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     //
     if ( e->scanbuf_offset < sizeof(MOD_31_Header) + offset_correction ) return 0;
     base_index = e->scanbuf_offset - (sizeof(MOD_31_Header) + offset_correction);
-    MOD_31_Header *info_header = (MOD_31_Header*)(&buffer[base_index]);
+    auto info_header = (MOD_31_Header*)(&buffer[base_index]);
     // сигнатура 'CH' часто встречается, поэтому надёжный метод проверить название модуля на запрещённые символы
     for (u8i idx = 0; idx < sizeof(MOD_31_Header::song_name); ++idx)
     {
@@ -1971,10 +1953,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("%1-chan. song : '%2'").arg(   QString::number(channels),
-                                                            QString(QByteArray((char*)(info_header->song_name), song_name_len))
-                                                        );
-    //Q_EMIT e->txResourceFound("mod", e->file.fileName(), base_index, resource_size, info);
+    auto info = QString("%1-chan. song : '%2'").arg(QString::number(channels),
+                                                    QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     Q_EMIT e->txResourceFound("mod", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2044,9 +2024,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
     static constexpr u64i min_room_need = sizeof(XM_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
-    XM_Header *info_header = (XM_Header*)(&buffer[base_index]);
+    auto info_header = (XM_Header*)(&buffer[base_index]);
     if ( info_header->sign1 != 0x6465646E65747845 ) return 0;
     if ( info_header->sign2 != 0x3A656C75646F4D20 ) return 0;
     if ( info_header->sign3 != 0x20 ) return 0;
@@ -2113,10 +2093,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->module_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("%1-chan. song : '%2'").arg(   QString::number(info_header->channels_number),
-                                                            QString(QByteArray((char*)(info_header->module_name), song_name_len))
-                                                         );
-    //Q_EMIT e->txResourceFound("xm", e->file.fileName(), base_index, resource_size, info);
+    auto info = QString("%1-chan. song : '%2'").arg(QString::number(info_header->channels_number),
+                                                    QString(QByteArray((char*)(info_header->module_name), song_name_len)));
     Q_EMIT e->txResourceFound("xm", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2163,9 +2141,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     static const QSet <u32i> VALID_INSTR_SIGNATURE { 0x53524353 /*SCRS*/, 0x49524353 /*SCRI*/, 0x00000000 /*empty instrument*/};
     if ( e->scanbuf_offset < 44 ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0; // хватит ли места, начиная с поля signature?
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     u64i base_index = e->scanbuf_offset - 44;
-    S3M_Header *info_header = (S3M_Header*)(&buffer[base_index]);
+    auto info_header = (S3M_Header*)(&buffer[base_index]);
     if ( info_header->Ox1A != 0x1A ) return 0;
     if ( info_header->type != 16 ) return 0;
     if ( info_header->ordnum % 2 != 0 ) return 0; // длина списка воспроизведения всегда д.б. чётной
@@ -2176,7 +2154,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     QMap<u32i, u32i> pp_db; // бд парапойнтеров на тела сэмплов (либо на тела паттернов, если сэмплов не было); ключ - парапойнтер, значение - размер блока по адресу парапойнтера
     SampleHeader *sample_header;
     u64i pointer32; // для преобразования парапойнтера через *16
-    u16i *parapointer = (u16i*)(&buffer[base_index + sizeof(S3M_Header) + info_header->ordnum]); // формируем указатель на [0] индекс списка instrument parapointers
+    auto parapointer = (u16i*)(&buffer[base_index + sizeof(S3M_Header) + info_header->ordnum]); // формируем указатель на [0] индекс списка instrument parapointers
     u32i long_memseg;
     for (u16i pp_idx = 0; pp_idx < info_header->insnum; ++pp_idx) // и идём по этому списку
     {
@@ -2220,8 +2198,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
-    //Q_EMIT e->txResourceFound("s3m", e->file.fileName(), base_index, resource_size, info);
+    auto info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     Q_EMIT e->txResourceFound("s3m", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2266,8 +2243,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
     static constexpr u64i min_room_need = sizeof(IT_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
-    IT_Header *info_header = (IT_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (IT_Header*)(&buffer[base_index]);
     if ( ( info_header->smpnum == 0 ) and ( info_header->patnum == 0 ) ) return 0; // модуль без сэмплов и одновременно без паттернов не имеет смысла
     if ( info_header->gv > 128 ) return 0; // global volume
     if ( info_header->mv > 128 ) return 0; // mixing volume
@@ -2278,7 +2255,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
     QMap<u32i, u32i> offsets_db; // бд указателей на тела сэмплов (либо на тела паттернов, если сэмплов не было); ключ - смещение, значение - размер блока по адресу смещения
     // qInfo() << "   ---> number of samples:" << info_header->smpnum;
     // qInfo() << "   ---> list of sample header offsets starts at: 0x" << QString::number(base_index + sizeof(IT_Header) + info_header->ordnum + info_header->insnum * 4, 16);
-    u32i *pointer = (u32i*)&buffer[base_index + sizeof(IT_Header) + info_header->ordnum + info_header->insnum * 4];
+    auto pointer = (u32i*)&buffer[base_index + sizeof(IT_Header) + info_header->ordnum + info_header->insnum * 4];
     SampleHeader *sample_header;
     u64i multiplier; // 1 - 8bit, 2 - 16bit'ный сэмпл
     for (u16i idx = 0; idx < info_header->smpnum; ++idx)
@@ -2335,8 +2312,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
-    //Q_EMIT e->txResourceFound("it", e->file.fileName(), base_index, resource_size, info);
+    auto info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     Q_EMIT e->txResourceFound("it", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2372,12 +2348,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
     if ( ( !e->selected_formats[bink1_id] ) and ( !e->selected_formats[bink2_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
-    BINK_Header *info_header = (BINK_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (BINK_Header*)(&buffer[base_index]);
     if ( ( info_header->signature1 == 0x4942 /*BI*/ ) and ( info_header->signature2 != 'K' ) ) return 0;
     if ( ( info_header->signature1 == 0x424B /*KB*/ ) and ( info_header->signature2 != '2' ) ) return 0;
     if ( ( info_header->version < 'a' ) or ( info_header->version > 'z' ) ) return 0;
     if ( ( info_header->audio_flag > 1 ) ) return 0; // только 0 и 1
+    if ( ( info_header->video_width == 0 ) or ( info_header->video_height == 0 ) ) return 0;
     if ( ( info_header->video_width > 6000 ) or ( info_header->video_height > 6000 ) ) return 0;
     s64i file_size = e->file_size;
     if ( base_index + sizeof(BINK_Header) + sizeof(AudioHeader) * info_header->audio_flag > file_size ) return 0;
@@ -2385,14 +2362,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0;
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
-    QString info = QString("%1x%2").arg(QString::number(info_header->video_width),
+    if ( resource_size <= (info_header->size + 8) ) return 0; // ресурс размером с заголовок не имеет смысла
+    auto info = QString("%1x%2").arg(   QString::number(info_header->video_width),
                                         QString::number(info_header->video_height));
     switch (info_header->signature2)
     {
     case 'K':
         if ( e->selected_formats[bink1_id] )
         {
-            //Q_EMIT e->txResourceFound("bik", e->file.fileName(), base_index, resource_size, info);
             Q_EMIT e->txResourceFound("bik", base_index, resource_size, info);
         }
         else
@@ -2403,7 +2380,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
     case '2':
         if ( e->selected_formats[bink2_id] )
         {
-            //Q_EMIT e->txResourceFound("bk2", e->file.fileName(), base_index, resource_size, info);
             Q_EMIT e->txResourceFound("bk2", base_index, resource_size, info);
         }
         else
@@ -2434,12 +2410,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
     static constexpr u64i min_room_need = sizeof(SMK_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
-    SMK_Header *info_header = (SMK_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (SMK_Header*)(&buffer[base_index]);
     if ( ( info_header->width > 6000 ) or ( info_header->height > 6000 ) ) return 0;
     s64i file_size = e->file_size;
     if ( base_index + sizeof(SMK_Header) + info_header->frames_num * 4 + info_header->frames_num * 1 > file_size ) return 0; // нет места для таблицы размеров кадров
-    u32i* pointer = (u32i*)&buffer[base_index + sizeof(SMK_Header)];
+    auto pointer = (u32i*)&buffer[base_index + sizeof(SMK_Header)];
     u64i total_frames_size = 0; // общий размер всех кадров
     for (u32i idx = 0; idx < info_header->frames_num; ++idx)
     {
@@ -2449,9 +2425,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0;
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
-    QString info = QString("%1x%2").arg(QString::number(info_header->width),
+    auto info = QString("%1x%2").arg(   QString::number(info_header->width),
                                         QString::number(info_header->height));
-    //Q_EMIT e->txResourceFound("smk", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("smk", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2478,8 +2453,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
-    TIF_Header *info_header = (TIF_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (TIF_Header*)(&buffer[base_index]);
     if ( info_header->ifd_offset < 8 ) return 0;
     s64i file_size = e->file_size;
     QMap<u32i, u32i> ifds_and_tags_db; // бд : ключ - смещение данных, значение - размер данных.
@@ -2546,8 +2521,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
         // в ином случае проверяем таблицы ifd_strip_offsets_table и ifd_strip_counts_table
         if ( ( ifd_strip_num > 0 ) and ( ifd_strip_counts_table > 0 ) and ( ifd_strip_counts_table > 0 ) ) // добавляем кусочки (strips) в бд
         {
-            u32i *strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
-            u32i *strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
+            auto strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
+            auto strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
             // qInfo() << "   image strips num:" << ifd_strip_num;
             for (u32i stp_idx = 0; stp_idx < ifd_strip_num; ++stp_idx)
             {
@@ -2561,7 +2536,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
             if ( base_index + ifd_exif_offset + 6 > file_size ) return 0; // не хватает места
             u16i num_of_tags = *((u16i*)&buffer[base_index + ifd_exif_offset]);
             if ( base_index + ifd_exif_offset + 6 + num_of_tags * 12 > file_size ) return 0; // не хватает места
-            TIF_Tag *tag_pointer = (TIF_Tag*)&buffer[base_index + ifd_exif_offset + 2];
+            auto tag_pointer = (TIF_Tag*)&buffer[base_index + ifd_exif_offset + 2];
             u64i result_tag_data_size;
             for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
             {
@@ -2589,7 +2564,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    // qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
     Q_EMIT e->txResourceFound("tif_ii", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -2616,8 +2590,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
-    uchar *buffer = e->mmf_scanbuf;
-    TIF_Header *info_header = (TIF_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (TIF_Header*)(&buffer[base_index]);
     if ( be2le(info_header->ifd_offset) < 8 ) return 0;
     s64i file_size = e->file_size;
     QMap<u32i, u32i> ifds_and_tags_db; // бд : ключ - смещение данных, значение - размер данных.
@@ -2686,8 +2660,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         // в ином случае проверяем таблицы ifd_strip_offsets_table и ifd_strip_counts_table
         if ( ( ifd_strip_num > 0 ) and ( ifd_strip_counts_table > 0 ) and ( ifd_strip_counts_table > 0 ) ) // добавляем кусочки (strips) в бд
         {
-            u32i *strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
-            u32i *strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
+            auto strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
+            auto strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
             // qInfo() << "   image strips num:" << ifd_strip_num;
             for (u32i stp_idx = 0; stp_idx < ifd_strip_num; ++stp_idx)
             {
@@ -2701,7 +2675,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
             if ( base_index + ifd_exif_offset + 6 > file_size ) return 0; // не хватает места
             u16i num_of_tags = be2le(*((u16i*)&buffer[base_index + ifd_exif_offset]));
             if ( base_index + ifd_exif_offset + 6 + num_of_tags * 12 > file_size ) return 0; // не хватает места
-            TIF_Tag *tag_pointer = (TIF_Tag*)&buffer[base_index + ifd_exif_offset + 2];
+            auto tag_pointer = (TIF_Tag*)&buffer[base_index + ifd_exif_offset + 2];
             u64i result_tag_data_size;
             for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
             {
@@ -2731,7 +2705,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
     // qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
-    //Q_EMIT e->txResourceFound("tif_mm", e->file.fileName(), base_index, resource_size, "");
     Q_EMIT e->txResourceFound("tif_mm", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -2757,8 +2730,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
     if ( e->scanbuf_offset < sizeof(FLC_Header::file_size) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset - sizeof(FLC_Header::file_size);
-    uchar *buffer = e->mmf_scanbuf;
-    FLC_Header *info_header = (FLC_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (FLC_Header*)(&buffer[base_index]);
     if ( ( info_header->pix_depth != 8 ) and ( info_header->pix_depth != 16 )) return 0; // формат FLX может использовать 16bit pix depth
     if ( ( info_header->width > 2000 ) or ( info_header->height > 2000 ) ) return 0; // вряд ли хранятся большие изображения, т.к. это старый формат
     if ( ( info_header->width == 0 ) or ( info_header->height == 0 ) ) return 0;
@@ -2769,10 +2742,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index + info_header->file_size;
     if ( last_index > e->file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    QString info = QString("%1x%2 %3-bpp").arg( QString::number(info_header->width),
-                                                QString::number(info_header->height),
-                                                QString::number(info_header->pix_depth));
-    //Q_EMIT e->txResourceFound("flc", e->file.fileName(), base_index, resource_size, info);
+    auto info = QString("%1x%2 %3-bpp").arg(QString::number(info_header->width),
+                                            QString::number(info_header->height),
+                                            QString::number(info_header->pix_depth));
     Q_EMIT e->txResourceFound("flc", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2800,8 +2772,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     static constexpr u64i min_room_need = sizeof(_669_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
-    _669_Header *info_header = (_669_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (_669_Header*)(&buffer[base_index]);
     if ( ( info_header->smpnum == 0 ) or ( info_header->patnum == 0 ) ) return 0; // жесткая проверка (т.к. в теории могут быть модули и без сэмплов и без паттернов), но вынужденная, иначе много ложных срабатываний
     if ( info_header->smpnum > 64 ) return 0; // согласно описанию
     if ( info_header->patnum > 128 ) return 0; // согласно описанию
@@ -2843,8 +2815,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    QString info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
-    //Q_EMIT e->txResourceFound("669", e->file.fileName(), base_index, resource_size, info);
+    auto info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     Q_EMIT e->txResourceFound("669", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2868,8 +2839,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_au RECOGNIZE_FUNC_HEADER
     static const QSet <u32i> VALID_SAMPLE_RATE { 5500, 7333, 8000, 8012, 8013, 8192, 8363, 11025, 16000, 22050, 32000, 44056, 44100, 48000 };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
-    AU_Header *info_header = (AU_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (AU_Header*)(&buffer[base_index]);
     if ( be2le(info_header->data_offset) < sizeof(AU_Header) ) return 0;
     //qInfo() << "encoding:" << be2le(info_header->encoding) << " sample_rate:" << be2le(info_header->sample_rate) << " channels:" << be2le(info_header->channels);
     if ( be2le(info_header->encoding) > 27 ) return 0;
@@ -2879,7 +2850,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_au RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index + be2le(info_header->data_offset) + be2le(info_header->data_size);
     if ( last_index > e->file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    QString info = QString("%1Hz %2-ch").arg(QString::number(be2le(info_header->sample_rate)), QString::number(be2le(info_header->channels)));
+    auto info = QString("%1Hz %2-ch").arg(  QString::number(be2le(info_header->sample_rate)),
+                                            QString::number(be2le(info_header->channels)));
     Q_EMIT e->txResourceFound("au", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2907,8 +2879,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
     static const QSet <u16i> VALID_VERSION { 0x0100, 0x010A, 0x0114 };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
-    VOC_Header *info_header = (VOC_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (VOC_Header*)(&buffer[base_index]);
     if ( info_header->signature1 != 0x6576697461657243 ) return 0;
     if ( info_header->signature2 != 0x46206563696F5620) return 0;
     if ( info_header->signature3 != 0x1A656C69 ) return 0;
@@ -2931,7 +2903,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
     last_index += 1; // на размер терминатора
     if ( last_index > file_size) return 0;
     u64i resource_size = last_index - base_index;
-    //Q_EMIT e->txResourceFound("voc", e->file.fileName(), base_index, resource_size, "");
     Q_EMIT e->txResourceFound("voc", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -2979,13 +2950,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mov_qt RECOGNIZE_FUNC_HEADER
     if ( base_index < sizeof(AtomHeader::size) ) return 0; // нет места на поле size
     base_index -= sizeof(AtomHeader::size);
     u64i last_index = base_index; // ставим на самый первый atom
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     bool mp4_flag = false;
     bool was_mdat = false; // встречался ли атом mdat?
     bool was_moov = false; // встречался ли атом moov?
     if ( e->selected_formats[mp4_qt_id] and ( base_index >= sizeof(MP4_FtypHeader) ) ) // может это mp4 с ftyp-заголовком, а не обычный mov ?
     {
-        MP4_FtypHeader *ftyp_header = (MP4_FtypHeader*)&buffer[base_index - sizeof(MP4_FtypHeader)];
+        auto ftyp_header = (MP4_FtypHeader*)&buffer[base_index - sizeof(MP4_FtypHeader)];
         if (( ftyp_header->signature1 == 0x707974661C000000 ) and
             ( ftyp_header->signature2 == 0x3234706D ) and
             ( ftyp_header->signature3 == 0x6D6F7369 ) and
@@ -2998,7 +2969,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mov_qt RECOGNIZE_FUNC_HEADER
     }
     if ( !mp4_flag and ( base_index >= sizeof(MOV_FtypHeader_32) ) ) // а может у mov тоже есть ftyp-заголовок?
     {
-        MOV_FtypHeader_32 *ftyp_header = (MOV_FtypHeader_32*)&buffer[base_index - sizeof(MOV_FtypHeader_32)];
+        auto ftyp_header = (MOV_FtypHeader_32*)&buffer[base_index - sizeof(MOV_FtypHeader_32)];
         if (( ftyp_header->signature1 == 0x70797466'14'000000 ) and
             ( ftyp_header->signature2 == 0x00'00'00'00'20207471 ) and
             ( ftyp_header->signature3 == 0x08'00000020207471 ) and
@@ -3010,7 +2981,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mov_qt RECOGNIZE_FUNC_HEADER
     }
     if ( !mp4_flag and ( base_index >= sizeof(MOV_FtypHeader_40) ) ) // а может у mov тоже есть ftyp-заголовок?
     {
-        MOV_FtypHeader_40 *ftyp_header = (MOV_FtypHeader_40*)&buffer[base_index - sizeof(MOV_FtypHeader_40)];
+        auto ftyp_header = (MOV_FtypHeader_40*)&buffer[base_index - sizeof(MOV_FtypHeader_40)];
         if (( ftyp_header->signature1 == 0x70797466'20'000000 ) and
             ( ftyp_header->signature2 == 0x00'03'05'20'20207471 ) and
             ( ftyp_header->signature3 == 0x00'00000020207471 ) and
@@ -3056,7 +3027,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mov_qt RECOGNIZE_FUNC_HEADER
     if ( resource_size < 48 ) return 0; // 48 - просто импирическая величина; вряд ли ресурс с таким размером является корректным
     //qInfo() << " was_moov:" << was_moov << " was_mdat:" << was_mdat << " last_index:" << last_index;
     if ( !was_moov or !was_mdat ) return 0; // ресурс имеет смысл только при наличии обоих атомов
-    //Q_EMIT e->txResourceFound(mp4_flag ? "mp4_qt" : "mov_qt", e->file.fileName(), base_index, resource_size, "");
     Q_EMIT e->txResourceFound(mp4_flag ? "mp4_qt" : "mov_qt", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -3083,8 +3053,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     if ( !e->selected_formats[tga_id] ) return recognize_ico_cur(e); // если не tga, так может cur ?
     if ( !e->enough_room_to_continue(min_room_need) ) return recognize_ico_cur(e);
     u64i base_index = e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
-    TGA_Header *info_header = (TGA_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (TGA_Header*)(&buffer[base_index]);
     if ( info_header->cmap_start != 0 ) return recognize_ico_cur(e);
     if ( info_header->cmap_len != 0 ) return recognize_ico_cur(e);
     if ( info_header->cmap_depth != 0 ) return recognize_ico_cur(e);
@@ -3099,10 +3069,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     last_index += 4096; // накидываем ещё 4K : вдруг это TGA v2? у которого есть области расширения и разработчика.
     if ( last_index > e->file_size ) last_index = e->file_size;
     u64i resource_size = last_index - base_index;
-    QString info = QString("%1x%2 %3-bpp").arg( QString::number(info_header->width),
-                                                QString::number(info_header->height),
-                                                QString::number(info_header->pix_depth));
-    //Q_EMIT e->txResourceFound("tga_tc", e->file.fileName(), base_index, resource_size, info);
+    auto info = QString("%1x%2 %3-bpp").arg(QString::number(info_header->width),
+                                            QString::number(info_header->height),
+                                            QString::number(info_header->pix_depth));
     Q_EMIT e->txResourceFound("tga_tc", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -3140,8 +3109,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
     if ( !e->selected_formats[ico_id] and !e->selected_formats[cur_id] ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
-    ICO_Header *info_header = (ICO_Header*)(&buffer[base_index]);
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (ICO_Header*)(&buffer[base_index]);
     if ( info_header->count < 1 ) return 0;
     bool is_cur = (info_header->signature == 0x00020000 );
     if ( is_cur and !e->selected_formats[cur_id] ) return 0;
@@ -3161,7 +3130,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
         db[directory->bitmap_offset] = directory->bitmap_size;
         //qInfo() << "bitmap_offset:" << base_index + directory->bitmap_offset;
         if ( base_index + directory->bitmap_offset + sizeof(BitmapInfoHeader) > file_size ) return 0; // нет места на bitmap-заголовок
-        BitmapInfoHeader *bitmap_ih = (BitmapInfoHeader*)&buffer[base_index + directory->bitmap_offset];
+        auto bitmap_ih = (BitmapInfoHeader*)&buffer[base_index + directory->bitmap_offset];
         if ( !VALID_BMP_HEADER_SIZE.contains(bitmap_ih->bitmapheader_size) ) // тогда может быть есть встроенный PNG?
         {
             if ( bitmap_ih->bitmapheader_size != 0x474E5089 ) return 0;
@@ -3178,7 +3147,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
     last_index = base_index + db.lastKey() + db[db.lastKey()];
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    //Q_EMIT e->txResourceFound((is_cur) ? "cur_win" : "ico_win", e->file.fileName(), base_index, resource_size, "");
     Q_EMIT e->txResourceFound((is_cur) ? "cur_win" : "ico_win", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -3247,7 +3215,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
     static const QMap <u8i, u64i> VALID_SAMPLE_RATE { {0b00, 44100}, {0b01, 48000}, {0b10, 32000} };
     static const QSet <u64i> VALID_LYRICS_FIELD { 0x444E49 /*IND*/, 0x52594C /*LYR*/, 0x464E49 /*INF*/, 0x545541 /*AUT*/, 0x4C4145 /*EAL*/, 0x524145 /*EAR*/, 0x545445 /*ETT*/, 0x474D49 /*IMG*/ };
     u64i base_index = e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     u64i last_index = base_index;
     s64i file_size = e->file_size;
     while(true)
@@ -3256,7 +3224,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
         {
             if ( file_size - last_index < sizeof(ID3v2) ) return 0; // нет места для заголовка ID3v2
             //qInfo() << "has id3v2!!!";
-            ID3v2 *id3v2 = (ID3v2*)&buffer[last_index];
+            auto id3v2 = (ID3v2*)&buffer[last_index];
             if ( id3v2->ver_major > 4 ) return 0;
             if ( id3v2->ver_minor == 0xFF ) return 0;
             if ( (id3v2->flags & 0b00011111) != 0 ) return 0;
@@ -3337,7 +3305,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
                     else // сюда, если поле id неверное -> оно либо реально неверное, либо это lyrics-концовка, уточняем :
                     {
                         //qInfo() << "contains not ok at:" << last_index;
-                        LyricsEnding *lyrics_ending = (LyricsEnding*)lyrics_field;
+                        auto lyrics_ending = (LyricsEnding*)lyrics_field;
                         // проверка на допустимые символы
                         for (u8i idx = 0; idx < sizeof(LyricsField::as_bytes.id); ++idx) // проверка на допустимость символов
                         {
@@ -3371,7 +3339,7 @@ mp3_id3v1:
     QString info;
     if ( file_size - last_index >= sizeof(ID3v1) ) // может осталось место под ID3v1 в конце ресурса?
     {
-        ID3v1 *id3v1 = (ID3v1*)&buffer[last_index];
+        auto id3v1 = (ID3v1*)&buffer[last_index];
         if ( ( id3v1->signature1 == 0x4154 ) and ( id3v1->signature2 == 0x47 ) )
         {
             info = "song : '";
@@ -3385,7 +3353,6 @@ mp3_id3v1:
         }
     }
     resource_size = last_index - base_index; // коррекция resource_size с учётом Lyrics или ID3v1
-    //Q_EMIT e->txResourceFound("mp3", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("mp3", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -3410,7 +3377,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     static constexpr u64i min_room_need = sizeof(PageHeader);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
+    auto buffer = e->mmf_scanbuf;
     PageHeader *page_header;
     u64i last_index = base_index;
     s64i file_size = e->file_size;
@@ -3432,7 +3399,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     }
     if ( pages < 2 ) return 0;
     u64i resource_size = last_index - base_index;
-    //Q_EMIT e->txResourceFound("ogg", e->file.fileName(), base_index, resource_size, "");
     Q_EMIT e->txResourceFound("ogg", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -3468,8 +3434,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
     static constexpr u64i min_room_need = sizeof(MED_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
-    MED_Header *info_header = (MED_Header*)&buffer[base_index];
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (MED_Header*)&buffer[base_index];
     u64i resource_size = be2le(info_header->mod_len);
     s64i file_size = e->file_size;
     if ( file_size - base_index < resource_size ) return 0; // не помещается
@@ -3489,7 +3455,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
     {
         if ( base_index + be2le(info_header->expdata_ptr) + sizeof(ExpData) <= file_size ) // есть ли место для ExpData?
         {
-            ExpData *exp_data = (ExpData*)&buffer[base_index + be2le(info_header->expdata_ptr)];
+            auto exp_data = (ExpData*)&buffer[base_index + be2le(info_header->expdata_ptr)];
             if ( be2le(exp_data->songname_ptr) >= sizeof(MED_Header) )
             {
                 if ( base_index + be2le(exp_data->songname_ptr) + be2le(exp_data->songname_len) <= file_size ) // есть ли место для строки?
@@ -3507,7 +3473,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
             }
         }
     }
-    //Q_EMIT e->txResourceFound("med", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("med", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -3536,8 +3501,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
                                                 0x45505344 /*'DSPE'*/, 0x4D414E50 /*'PNAM'*/};
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
-    uchar *buffer = e->mmf_scanbuf;
-    DBM0_Header *info_header = (DBM0_Header*)&buffer[base_index];
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (DBM0_Header*)&buffer[base_index];
     if ( info_header->reserved != 0 ) return 0;
     s64i file_size = e->file_size;
     u64i last_index = base_index + sizeof(DBM0_Header); // ставимся на первый Chunk
@@ -3567,7 +3532,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
     }
     if ( !at_least_one_chunk ) return 0; // модуль без единого чанка не имеет смысла
     u64i resource_size = last_index - base_index;
-    //Q_EMIT e->txResourceFound("dbm0", e->file.fileName(), base_index, resource_size, info);
     Q_EMIT e->txResourceFound("dbm0", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;

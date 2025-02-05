@@ -232,15 +232,16 @@ const QString unit_names[int(Langs::MAX)][5]
 
 QString human_readable_bytes(u64i value)
 {
-    int exponent {0};
+    int power {0}; // степень
     double new_value = double(value);
     while( (value / 1024) != 0)
     {
         value /= 1024;
-        ++exponent;
+        if ( power == 4 ) break; // дальше Терабайтов(ТиБ) не будем округлять
+        ++power;
     }
-    new_value = new_value / pow(1024, exponent);
-    return QString("%1 %2").arg(QString::number(new_value, 'g', 3), unit_names[curr_lang()][exponent]);
+    new_value = new_value / pow(1024, power);
+    return QString("%1 %2").arg(QString::number(new_value, 'g', 3), unit_names[curr_lang()][power]);
 }
 
 void FormatTile::update_counter(u64i value)

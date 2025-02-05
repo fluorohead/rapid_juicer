@@ -39,13 +39,13 @@ void OneStateButton::mouseMoveEvent(QMouseEvent *event) {
 void OneStateButton::enterEvent(QEnterEvent *event) {
     event->accept();
     this->setPixmap(hover_pixmap);
-    this->setMask(hover_pixmap.mask());
+    //this->setMask(hover_pixmap.mask());
 }
 
 void OneStateButton::leaveEvent(QEvent *event) {
     event->accept();
     this->setPixmap(main_pixmap);
-    this->setMask(main_pixmap.mask());
+    //this->setMask(main_pixmap.mask());
 }
 
 DynamicInfoButton::DynamicInfoButton(QWidget *parent,   const QString &main_resource,
@@ -144,7 +144,7 @@ void TwoStatesButton::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
         *state_flag = !(*state_flag);
-        this->setPixmap(hover_pixmap[*state_flag]);
+        //this->setPixmap(hover_pixmap[*state_flag]);
         event->accept();
     }
 }
@@ -157,7 +157,7 @@ void TwoStatesButton::mouseMoveEvent(QMouseEvent *event)
 void TwoStatesButton::enterEvent(QEnterEvent *event)
 {
     this->setPixmap(hover_pixmap[*state_flag]);
-    this->setMask(hover_pixmap[*state_flag].mask());
+    //this->setMask(hover_pixmap[*state_flag].mask());
     event->accept();
 }
 
@@ -176,12 +176,11 @@ ModalInfoWindow::ModalInfoWindow(QWidget *parent, const QString &title_text, con
     this->setAttribute(Qt::WA_DeleteOnClose);
     this->setWindowModality(Qt::WindowModal);
 
-    QPixmap bg_pixmap {":/gui/modal/mdliw.png"}; // background pixmap
-    this->setFixedSize(bg_pixmap.size());
+    this->setFixedSize(362, 160);
 
     auto background = new QLabel;
-    background->setFixedSize(bg_pixmap.size());
-    background->setPixmap(bg_pixmap);
+    background->setFixedSize(this->width(), this->height());
+    background->setStyleSheet("background-color: #5c8685; border-width: 3px; border-style: solid; border-radius: 24px; border-color: #b6c7c7;");
     background->setParent(this);
     background->move(0, 0);
 
@@ -212,7 +211,7 @@ ModalInfoWindow::ModalInfoWindow(QWidget *parent, const QString &title_text, con
     tmpFont.setPixelSize(14);
     auto title = new QLabel;
     title->setFixedSize(background->width(), 32);
-    title->setStyleSheet("color: #e7551a");
+    title->setStyleSheet("color: #e3b672");
     title->setFont(tmpFont);
     title->setAlignment(Qt::AlignCenter);
     title->setText(title_text);
@@ -228,24 +227,18 @@ ModalInfoWindow::ModalInfoWindow(QWidget *parent, const QString &title_text, con
     info->setParent(this);
     info->move(96, 44);
 
-    static const QString buttons_style {    "QPushButton:enabled {color: #fffef9; background-color: #b38642; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                                            "QPushButton:hover   {color: #fffef9; background-color: #e3b672; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
-                                            "QPushButton:pressed {color: #fffef9; background-color: #e3b672; border-width: 0px;}"
-    };
-
     tmpFont.setPixelSize(12);
     auto ok_button = new QPushButton(this);
     ok_button->setAttribute(Qt::WA_NoMousePropagation);
     ok_button->setFixedSize(72, 28);
-    ok_button->setStyleSheet(buttons_style);
+    ok_button->setStyleSheet(   "QPushButton:enabled {color: #fffef9; background-color: #b38642; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                "QPushButton:hover   {color: #fffef9; background-color: #e3b672; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+                                "QPushButton:pressed {color: #fffef9; background-color: #e3b672; border-width: 0px;}");
     ok_button->setFont(tmpFont);
     ok_button->setText(ok_txt[curr_lang()]);
     ok_button->move(background->width() - 84, background->height() - 38);
 
-    connect(ok_button, &QPushButton::clicked, [this](){
-        this->close(); // после вызова close() модальное окно уничтожается автоматически
-    });
-
+    connect(ok_button, &QPushButton::clicked, [this](){ this->close(); }); // после вызова close() модальное окно уничтожается автоматически
 }
 
 ModalInfoWindow::~ModalInfoWindow()

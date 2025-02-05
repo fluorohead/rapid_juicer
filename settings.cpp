@@ -109,8 +109,6 @@ const Skin default_skin
 
 Settings::Settings()
 {
-    threads_num = QThread::idealThreadCount();
-    if (threads_num < 2) threads_num = 2;
     for (auto it = fformats.cbegin(); it != fformats.cend(); ++it) // сразу наполняем список выбранных форматов всеми форматами
     {
         selected_formats.insert(it.key());
@@ -275,12 +273,6 @@ u64i Settings::getBufferSizeByIndex(int idx)
 {
     return permitted_buffers[idx];
 }
-
-u32i Settings::getThreadsNum()
-{
-    return threads_num;
-}
-
 
 QValidator::State mask_validator(const QString &input)
 {

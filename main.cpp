@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     //auto sim = QImageReader::supportedImageFormats();
     //qInfo() << sim;
 
-    task.delAllTaskPaths();
+    //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
@@ -55,7 +55,7 @@ int main(int argc, char **argv)
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mus_669)", "*.*", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\different formats)", "*.*", false});
     //task.addTaskPath(TaskPath {R"(C:/Games/Horizon Forbidden West Complete Edition/LocalCacheWinGame/package/package.00.04.core)", "", false});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\au\o2_722.au)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\au\o2_722.au)", "", false});
 
     settings = new Settings;
     settings->initSkin();

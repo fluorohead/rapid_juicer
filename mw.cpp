@@ -13,6 +13,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QApplication>
+#include <QMimeData>
 
 extern QHash <u32i, QString> categories;
 extern QMap <QString, FileFormat> fformats;
@@ -366,6 +367,7 @@ MainWindow::MainWindow()
 {
     this->setAttribute(Qt::WA_TranslucentBackground);
     this->setAttribute(Qt::WA_NoSystemBackground);
+    this->setAcceptDrops(true); // для работы Drag-and-Drop
 
     QPixmap background {":/gui/main/cw.png"};
     auto central_widget = new QLabel(this);
@@ -515,10 +517,58 @@ void MainWindow::closeEvent(QCloseEvent *event)
     dirlist.close();
 }
 
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    //qInfo() << " drag enter event" << event->proposedAction();
+    if ( event->proposedAction() == Qt::CopyAction )
+    {
+        event->acceptProposedAction();
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent *event)
+{
+    auto mime_obj = event->mimeData();
+    if ( mime_obj->hasUrls() )
+    {
+        QStringList filenames;
+        QStringList dirnames;
+        for(auto &&one_url: mime_obj->urls())
+        {
+            if ( one_url.isLocalFile() and one_url.isValid() and !one_url.isRelative() )
+            {
+                auto path = one_url.path();
+#ifdef _WIN64
+                if ( path.startsWith('/') ) path.removeFirst(); // потому что метод path() возвращает строку вида "/C:/Downloads/rj_research/battlefield/1_non_rle.bmp"
+#endif
+                QFile file(path);
+                if ( file.exists() )
+                {
+                    if ( file.open(QIODeviceBase::ReadOnly) ) // если можно открыть, то это файл, иначе директория
+                    {
+                        filenames.append(path);
+                    }
+                    else
+                    {
+                        dirnames.append(path);
+                    }
+                }
+            }
+        }
+        Q_EMIT txFilenames(filenames);
+        for (auto &&one_dir: dirnames)
+        {
+            Q_EMIT txDirname(one_dir);
+        }
+        paths_button->updateText();
+    }
+}
+
 void MainWindow::addFiles()
 {
     QStringList filenames = QFileDialog::getOpenFileNames(this);
-    if (!filenames.isEmpty()) {
+    if (!filenames.isEmpty())
+    {
         Q_EMIT txFilenames(filenames);
         paths_button->updateText();
     }

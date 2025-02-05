@@ -73,7 +73,6 @@
         <file>gui/logo.png</file>
         <file>gui/session/scanning.gif</file>
         <file>gui/session/done.png</file>
-        <file>gui/modal/mdliw.png</file>
         <file>gui/modal/warning.png</file>
     </qresource>
 </RCC>

@@ -113,6 +113,8 @@ class MainWindow: public QWidget
     void mousePressEvent(QMouseEvent *event);
     void changeEvent(QEvent *event);
     void closeEvent(QCloseEvent *event);
+    void dragEnterEvent(QDragEnterEvent *event);
+    void dropEvent(QDropEvent *event);
 public:
     MainWindow();
     ~MainWindow();

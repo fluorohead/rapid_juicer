@@ -4,9 +4,9 @@
 extern const QMap <u16i, QString> wave_codecs
 {
     { 0x0000, "Unknown" },
-    { 0x0001, "Microsoft PCM" },
-    { 0x0002, "Microsoft ADPCM" },
-    { 0x0003, "Microsoft IEEE float" },
+    { 0x0001, "PCM" },
+    { 0x0002, "ADPCM" },
+    { 0x0003, "IEEE float" },
     { 0x0004, "Compaq VSELP" },
     { 0x0005, "IBM CVSD" },
     { 0x0006, "ITU G.711 a-law" },

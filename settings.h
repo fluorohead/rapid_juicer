@@ -30,32 +30,23 @@ struct Skin
 };
 
 
-extern const Config default_config;
-
-
 class Settings
 {
-    int     threads_num; // 2 by default
-    QFile   file;
+    QFile file;
     QString file_path;
 public:
     Settings();
     ~Settings();
 
-    void dump_to_file();
-
     Config config;
     Config cand_config;
-    Skin   skin;
-
+    Skin skin;
     QSet<QString> selected_formats;
 
     void initSkin();
-
+    void dump_to_file();
     u64i getBufferSizeInBytes();
     static u64i getBufferSizeByIndex(int idx);
-
-    u32i getThreadsNum();
 };
 
 
