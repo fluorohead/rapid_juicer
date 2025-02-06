@@ -70,9 +70,9 @@
         <file>gui/session/cat_image_big.png</file>
         <file>gui/session/cat_music_big.png</file>
         <file>gui/session/cat_video_big.png</file>
-        <file>gui/logo.png</file>
         <file>gui/session/scanning.gif</file>
         <file>gui/session/done.png</file>
         <file>gui/modal/warning.png</file>
+        <file>gui/logo.png</file>
     </qresource>
 </RCC>

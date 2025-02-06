@@ -83,6 +83,6 @@ struct FileFormat
 
 //extern QMap <QString, FileFormat> fformats;
 
-void indexFileFormats();
+void index_file_formats();
 
 #endif // FORMATS_H

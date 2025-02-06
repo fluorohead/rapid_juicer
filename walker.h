@@ -12,7 +12,6 @@ class SessionWindow;
 class WalkerThread: public QThread
 {
     Q_OBJECT
-
     Task walker_task;              // собственные копии, не зависящие от глобальных
     Config walker_config;          // ..
     QSet<QString> my_formats;      // ..
@@ -25,7 +24,7 @@ class WalkerThread: public QThread
     bool *selected_formats_fast; // массив будет построен в prepare_struct..(), для последующего быстрого lookup'а внутри recognizer'ов
     void prepare_structures_before_engine(); // подготавливает selected_formats_fast
     void clean_structures_after_engine();    // освобождает selected_formats_fast
-
+    bool is_excluded_extension(const QString &path);
 public:
     WalkerThread(SessionWindow* window_receiver, QMutex* control_mtx, const Task &task, const Config &config, const QSet<QString> &formats_to_scan);
     ~WalkerThread();

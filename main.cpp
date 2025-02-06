@@ -21,7 +21,7 @@ int main(int argc, char **argv)
     //qInfo() << "Main process id (uint64):" << app.applicationPid();
     // qInfo() << "Main thread id:" << QThread::currentThreadId();
 
-    indexFileFormats();
+    index_file_formats();
 
     auto args = QCoreApplication::arguments();
     if ( args.count() >= 5 )

@@ -114,29 +114,34 @@ FilterButton::FilterButton(QWidget *parent, FilterAction action, u64i categories
     this->move(position);
 }
 
-void FilterButton::mousePressEvent(QMouseEvent *event) {
+void FilterButton::mousePressEvent(QMouseEvent *event)
+{
     if (event->buttons() == Qt::LeftButton) {
         event->accept();
     }
 }
 
-void FilterButton::mouseReleaseEvent(QMouseEvent *event) {
+void FilterButton::mouseReleaseEvent(QMouseEvent *event)
+{
     if (event->button() == Qt::LeftButton) {
         Q_EMIT imReleased(my_action, my_categories);
         event->accept();
     }
 }
 
-void FilterButton::mouseMoveEvent(QMouseEvent *event) {
+void FilterButton::mouseMoveEvent(QMouseEvent *event)
+{
     event->accept();
 }
 
-void FilterButton::enterEvent(QEnterEvent *event) {
+void FilterButton::enterEvent(QEnterEvent *event)
+{
     event->accept();
     this->setPixmap(*my_hover_pixmap);
 }
 
-void FilterButton::leaveEvent(QEvent *event) {
+void FilterButton::leaveEvent(QEvent *event)
+{
     event->accept();
     this->setPixmap(*my_main_pixmap);
 }
@@ -544,14 +549,7 @@ void MainWindow::dropEvent(QDropEvent *event)
                 QFile file(path);
                 if ( file.exists() )
                 {
-                    if ( file.open(QIODeviceBase::ReadOnly) ) // если можно открыть, то это файл, иначе директория
-                    {
-                        filenames.append(path);
-                    }
-                    else
-                    {
-                        dirnames.append(path);
-                    }
+                    file.open(QIODeviceBase::ReadOnly) ? filenames.append(path) : dirnames.append(path); // если открывается, то это файл, иначе директория
                 }
             }
         }

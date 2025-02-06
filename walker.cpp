@@ -51,13 +51,25 @@ void WalkerThread::clean_structures_after_engine()
     delete [] selected_formats_fast;
 }
 
+bool WalkerThread::is_excluded_extension(const QString &path)
+{
+    auto last_sep_idx = path.lastIndexOf('/');
+    QString file_name; // имя файла без пути
+    file_name = (last_sep_idx == -1) ? path : path.last(path.length() - last_sep_idx - 1);
+    auto last_dot_idx = file_name.lastIndexOf('.');
+    if ( last_dot_idx != -1 ) // если точка есть в названии файла, значит есть и расширение
+    {
+        return walker_config.excluding.contains(file_name.last(file_name.length() - last_dot_idx - 1));
+    }
+    return false;
+}
+
 void WalkerThread::run()
 {
     prepare_structures_before_engine();
 
     engine = new Engine(this);
     connect(engine, &Engine::txResourceFound, my_receiver, &SessionWindow::rxResourceFound, Qt::QueuedConnection); // исполнение слота в основном потоке
-    //connect(this, &WalkerThread::txGeneralProgress, my_receiver, &SessionWindow::rxGeneralProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
     connect(engine, &Engine::txFileChange, my_receiver, &SessionWindow::rxFileChange, Qt::QueuedConnection); // слот будет исполняться в основном потоке
     connect(engine, &Engine::txFileProgress, my_receiver, &SessionWindow::rxFileProgress, Qt::QueuedConnection); // слот будет исполняться в основном потоке
 
@@ -73,21 +85,21 @@ void WalkerThread::run()
         if ( walker_task.task_paths[tp_idx].file_mask.isEmpty() )  // если .filter пуст, значит это файл
         {
             //qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : main \"for\" : scanning file \""<< walker_task.task_paths[tp_idx].path;
-
-            /////  запуск поискового движка
-            //s64i fix_msecs = QDateTime::currentMSecsSinceEpoch();
-            engine->scan_file_win64(walker_task.task_paths[tp_idx].path);
-            //qInfo() << "scan_file worked for:" << (QDateTime::currentMSecsSinceEpoch() - fix_msecs) << "msecs";
-            if ( engine->done_cause_skip ) Q_EMIT txFileWasSkipped(); // обновляем current_status
-            /////
-
-            ///// анализ причин завершения функции scan_file()
-            if ( command == WalkerCommand::Stop ) // функция scan_file завершилась по команде Stop => выходим из главного for
+            if ( !is_excluded_extension(walker_task.task_paths[tp_idx].path) ) // не является ли расширение файла исключаемым ?
             {
-                //qInfo() << " >>>> WalkerThread : received Stop command, when Engine was running!";
-                tp_idx = tp_count; // чтобы выйти из главного for
+                /////  запуск поискового движка
+                engine->scan_file_win64(walker_task.task_paths[tp_idx].path);
+                if ( engine->done_cause_skip ) Q_EMIT txFileWasSkipped(); // обновляем current_status
+                /////
+
+                ///// анализ причин завершения функции scan_file()
+                if ( command == WalkerCommand::Stop ) // функция scan_file завершилась по команде Stop => выходим из главного for
+                {
+                    //qInfo() << " >>>> WalkerThread : received Stop command, when Engine was running!";
+                    tp_idx = tp_count; // чтобы выйти из главного for
+                }
+                ////////////////////////////////////////////////
             }
-            ////////////////////////////////////////////////
         }
         else // если .filter не пуст, значит это каталог
         {
@@ -111,22 +123,23 @@ void WalkerThread::run()
                     {
                         //qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : \"for\" in lambda : scanning file \""<< file_infolist[idx].absoluteFilePath();
 
-                        /////  запуск поискового движка
-                        //  s64i fix_msecs = QDateTime::currentMSecsSinceEpoch();
-                        engine->scan_file_win64(file_infolist[idx].absoluteFilePath());
-                        //qInfo() << "scan_file worked for:" << (QDateTime::currentMSecsSinceEpoch() - fix_msecs) << "msecs";
-                        if ( engine->done_cause_skip ) Q_EMIT txFileWasSkipped(); // обновляем current_status
-                        /////
-
-                        if ( command == WalkerCommand::Stop ) // функция scan_file завершилась по команде Stop => выходим из while (и потом сразу из lambda for, а потом сразу из главного for)
+                        if ( !is_excluded_extension(walker_task.task_paths[tp_idx].path) ) // не является ли расширение файла исключаемым ?
                         {
-                            //qInfo() << " >>>> WalkerThread : received Stop command, when Engine was running! (in lambda)";
-                            tp_idx = tp_count; // а потому сразу и из главного for
-                            return;
-                        }
-                        ////////////////////////////////////////////////
-                    }
+                            /////  запуск поискового движка
+                            engine->scan_file_win64(file_infolist[idx].absoluteFilePath());
+                            if ( engine->done_cause_skip ) Q_EMIT txFileWasSkipped(); // обновляем current_status
+                            /////
 
+                            ///// анализ причин завершения функции scan_file()
+                            if ( command == WalkerCommand::Stop ) // функция scan_file завершилась по команде Stop => выходим из while (и потом сразу из lambda for, а потом сразу из главного for)
+                            {
+                                //qInfo() << " >>>> WalkerThread : received Stop command, when Engine was running! (in lambda)";
+                                tp_idx = tp_count; // а потому сразу и из главного for
+                                return;
+                            }
+                            ////////////////////////////////////////////////
+                        }
+                    }
                     if ( walker_task.task_paths[tp_idx].recursion )
                     {
                         current_dir.setNameFilters({"*"}); // для каталогов применяем маску * вместо маски файлов *.*
@@ -177,8 +190,6 @@ void WalkerThread::run()
             dir_walking(walker_task.task_paths[tp_idx].path, "");
             /////
         }
-        // обновляем графику для general progress
-        //update_general_progress(tp_count, tp_idx);
     }
 
     // финальный аккорд, обнуляем графику для file progress

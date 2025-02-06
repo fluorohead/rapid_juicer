@@ -130,7 +130,7 @@ QMap <QString, FileFormat> fformats {  // QMap -> АВТОМАТИЧЕСКОЕ �
     /// и при необходимости откорректировать макрос RESULTS_TABLE_ROWS в session.cpp ( RESULTS_TABLE_ROWS * RESULTS_TABLE_COLUMNS всегда должно быть >= кол-ва форматов).
 };
 
-void indexFileFormats() {
+void index_file_formats() {
     u32i cnt = 0;
     for (auto it = fformats.begin(); it != fformats.end(); ++it)
     {
