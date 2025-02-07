@@ -1,4 +1,4 @@
-// WALKER WINDOW
+// SESSION WINDOW
 #ifndef SESSION_H
 #define SESSION_H
 

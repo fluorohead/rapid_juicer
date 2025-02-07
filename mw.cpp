@@ -462,24 +462,17 @@ MainWindow::MainWindow()
     tasks_label->setText(QString("%1%2").arg(tasks_label_txt[curr_lang()], QString::number(sessions_pool.get_active_count())));
 
     paths_list = new PathsWindow;
-    paths_list->show();
 
     connect(add_file_button, &OneStateButton::imReleased, this, &MainWindow::addFiles);
     connect(add_dir_button, &OneStateButton::imReleased, this, &MainWindow::addDir);
-    //connect(this, &MainWindow::txFilenames, &dirlist, &DirlistWindow::rxAddFilenames);
-    //connect(this, &MainWindow::txDirname, &dirlist, &DirlistWindow::rxAddDirname);
     connect(this, &MainWindow::txFilenames, paths_list, &PathsWindow::rxAddFilenames);
     connect(this, &MainWindow::txDirname, paths_list, &PathsWindow::rxAddDirname);
-
     connect(minimize_button, &OneStateButton::imReleased, this, &MainWindow::showMinimized);
     connect(close_button, &OneStateButton::imReleased, this, &MainWindow::close);
-    //connect(&dirlist.dirtable, &PathsTable::txUpdatePathsButton, paths_button, &DynamicInfoButton::updateText);
     connect(paths_list->paths_table, &PathsTable::txUpdatePathsButton, paths_button, &DynamicInfoButton::updateText);
-    //connect(paths_button, &DynamicInfoButton::imReleased, &dirlist, &DirlistWindow::show);
-    connect(paths_button, &DynamicInfoButton::imReleased, paths_list, &DirlistWindow::show);
+    connect(paths_button, &DynamicInfoButton::imReleased, paths_list, &PathsWindow::show);
     connect(settings_button, &OneStateButton::imReleased, this, &MainWindow::showSettings);
     connect(play_button, &OneStateButton::imReleased, this, &MainWindow::showNewSessionWindow);
-
 }
 
 MainWindow::~MainWindow()
@@ -489,7 +482,8 @@ MainWindow::~MainWindow()
 
 void MainWindow::mouseMoveEvent(QMouseEvent *event)
 {
-    if (event->buttons() == Qt::LeftButton) {
+    if ( event->buttons() == Qt::LeftButton )
+    {
         this->move(this->pos() + (event->globalPosition() - prev_cursor_pos).toPoint());
         prev_cursor_pos = event->globalPosition();
     }
@@ -497,7 +491,8 @@ void MainWindow::mouseMoveEvent(QMouseEvent *event)
 
 void MainWindow::mousePressEvent(QMouseEvent *event)
 {
-    if (event->buttons() == Qt::LeftButton) {
+    if ( event->buttons() == Qt::LeftButton )
+    {
         prev_cursor_pos = event->globalPosition();
     }
 }

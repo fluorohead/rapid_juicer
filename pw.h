@@ -1,3 +1,4 @@
+//PATHS WINDOW
 #ifndef PW_H
 #define PW_H
 
@@ -16,7 +17,6 @@
 #define DIRTABLE_COL1_W 59
 
 class MainWindow;
-class DirlistWindow;
 class PathsWindow;
 
 class YesNoMicroButton: public QLabel
@@ -76,8 +76,6 @@ Q_SIGNALS:
 public Q_SLOTS:
     void rxRemoveRow(u32i row_index);
     void rxRemoveAll();
-
-    friend DirlistWindow;
     friend PathsWindow;
 };
 
@@ -92,61 +90,6 @@ public:
 Q_SIGNALS:
     void txDiffXY(int x_diff, int y_diff);
 };
-
-class DirlistWindow: public QWidget
-{
-    Q_OBJECT
-    int header_height;
-    int body_height;   // эти два изменяются при таскании за уголок //
-    int hfiller_width; //                                           //
-    int footer_height;
-    int header_left_width;
-    int header_right_width;
-    int footer_left_width;
-    int footer_right_width;
-    int body_vfiller_left_width;
-    int body_vfiller_right_width;
-    int dirtable_width;
-    int dirtable_height;
-    int tclWidthHalf;
-    QLabel header_left {this};
-    QLabel header_hfiller {this}; // horizontal header filler
-    QLabel header_right {this};
-    QLabel body_vfiller_left {this};
-    QLabel body_vfiller_right {this};
-    QLabel footer_left {this};
-    QLabel footer_hfiller {this};
-    QLabel footer_right {this};
-    QLabel info_label {this};
-    QLabel trashcan_label {this};
-    QLabel trashcan_text {&trashcan_label};
-    OneStateButton cleanAll {&trashcan_label, ":/gui/dirlist/tc_btn.png", ":/gui/dirlist/tc_btn_h.png"};
-    OneStateButton close_button {this, ":/gui/dirlist/dlw_close.png", ":/gui/dirlist/dlw_close_h.png"};
-    OneStateButton minimize_button {this, ":/gui/dirlist/dlw_min.png", ":/gui/dirlist/dlw_min_h.png"};
-    CornerGrip grip {&footer_right};
-    int current_width {DIRLIST_MIN_WIDTH};    // эти два изменяются при таскании за уголок //
-    int current_height {DIRLIST_MIN_HEIGHT};  //                                           //
-    int *paths_count {nullptr};
-    QPixmap no_pixmap {":/gui/dirlist/rcrs_no.png"}, yes_pixmap {":/gui/dirlist/rcrs_yes.png"};
-    QPixmap no_hover_pixmap {":/gui/dirlist/rcrs_no_h.png"}, yes_hover_pixmap {":/gui/dirlist/rcrs_yes_h.png"};
-    QPixmap delete_pixmap {":/gui/dirlist/dt_del.png"}, delete_hover_pixmap {":/gui/dirlist/dt_del_h.png"};
-    QPointF prev_cursor_pos;
-    void mouseMoveEvent(QMouseEvent *event);
-    void mousePressEvent(QMouseEvent *event);
-    void paintEvent(QPaintEvent *event);
-    void changeEvent(QEvent *event);
-    PathsTable dirtable {this};
-    void remove_all();
-public:
-    DirlistWindow(QWidget *parent);
-public Q_SLOTS:
-    void rxAddFilenames(QStringList filenames);
-    void rxAddDirname(QString dirname);
-    void rxDiffXY(int x_diff, int y_diff);
-
-    friend MainWindow;
-};
-
 
 class PathsWindow: public QWidget
 {
