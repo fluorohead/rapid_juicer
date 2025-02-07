@@ -379,6 +379,8 @@ MainWindow::MainWindow()
     central_widget->setFixedSize(background.size());
     central_widget->move(0, 0);
     central_widget->setPixmap(background);
+    // central_widget->setAcceptDrops(false);
+    // central_widget->setAcceptDrops(true);
 
     this->resize(central_widget->size()); // размер окна по размеру центрального QLabel
 
@@ -459,21 +461,30 @@ MainWindow::MainWindow()
     tasks_label->move(624, 504);
     tasks_label->setText(QString("%1%2").arg(tasks_label_txt[curr_lang()], QString::number(sessions_pool.get_active_count())));
 
+    paths_list = new PathsWindow;
+    paths_list->show();
+
     connect(add_file_button, &OneStateButton::imReleased, this, &MainWindow::addFiles);
     connect(add_dir_button, &OneStateButton::imReleased, this, &MainWindow::addDir);
-    connect(this, &MainWindow::txFilenames, &dirlist, &DirlistWindow::rxAddFilenames);
-    connect(this, &MainWindow::txDirname, &dirlist, &DirlistWindow::rxAddDirname);
+    //connect(this, &MainWindow::txFilenames, &dirlist, &DirlistWindow::rxAddFilenames);
+    //connect(this, &MainWindow::txDirname, &dirlist, &DirlistWindow::rxAddDirname);
+    connect(this, &MainWindow::txFilenames, paths_list, &PathsWindow::rxAddFilenames);
+    connect(this, &MainWindow::txDirname, paths_list, &PathsWindow::rxAddDirname);
+
     connect(minimize_button, &OneStateButton::imReleased, this, &MainWindow::showMinimized);
     connect(close_button, &OneStateButton::imReleased, this, &MainWindow::close);
-    connect(&dirlist.dirtable, &DirlistTable::txUpdatePathsButton, paths_button, &DynamicInfoButton::updateText);
-    connect(paths_button, &DynamicInfoButton::imReleased, &dirlist, &DirlistWindow::show);
+    //connect(&dirlist.dirtable, &PathsTable::txUpdatePathsButton, paths_button, &DynamicInfoButton::updateText);
+    connect(paths_list->paths_table, &PathsTable::txUpdatePathsButton, paths_button, &DynamicInfoButton::updateText);
+    //connect(paths_button, &DynamicInfoButton::imReleased, &dirlist, &DirlistWindow::show);
+    connect(paths_button, &DynamicInfoButton::imReleased, paths_list, &DirlistWindow::show);
     connect(settings_button, &OneStateButton::imReleased, this, &MainWindow::showSettings);
     connect(play_button, &OneStateButton::imReleased, this, &MainWindow::showNewSessionWindow);
+
 }
 
 MainWindow::~MainWindow()
 {
-
+    delete paths_list;
 }
 
 void MainWindow::mouseMoveEvent(QMouseEvent *event)
@@ -505,7 +516,8 @@ void MainWindow::changeEvent(QEvent *event)
         ((QLabel*)formats_table->cellWidget(0, 0))->setText(header_txt[curr_lang()][0]);
         ((QLabel*)formats_table->cellWidget(0, 1))->setText(header_txt[curr_lang()][1]);
         ((QLabel*)formats_table->cellWidget(0, 2))->setText(header_txt[curr_lang()][2]);
-        QApplication::postEvent(&dirlist, new QEvent(QEvent::LanguageChange)); // отсылаем в DirlistWindow
+        //QApplication::postEvent(&dirlist, new QEvent(QEvent::LanguageChange)); // отсылаем в DirlistWindow
+        QApplication::postEvent(paths_list, new QEvent(QEvent::LanguageChange)); // отсылаем в PathsWindow
     }
     event->accept();
 }
@@ -519,14 +531,19 @@ void MainWindow::closeEvent(QCloseEvent *event)
             sessions_pool.pool[idx]->close();
         }
     }
-    dirlist.close();
+    //dirlist.close();
+    paths_list->close();
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *event)
 {
-    //qInfo() << " drag enter event" << event->proposedAction();
     if ( event->proposedAction() == Qt::CopyAction )
     {
+        auto mime_obj = event->mimeData();
+        for(auto &&one_url: mime_obj->urls())
+        {
+            if ( !one_url.isLocalFile() ) return; // если есть что-то отличное от файлового пути, то не одобряем
+        }
         event->acceptProposedAction();
     }
 }
@@ -540,16 +557,14 @@ void MainWindow::dropEvent(QDropEvent *event)
         QStringList dirnames;
         for(auto &&one_url: mime_obj->urls())
         {
-            if ( one_url.isLocalFile() and one_url.isValid() and !one_url.isRelative() )
+            if ( one_url.isValid() and !one_url.isRelative() )
             {
-                auto path = one_url.path();
-#ifdef _WIN64
-                if ( path.startsWith('/') ) path.removeFirst(); // потому что метод path() возвращает строку вида "/C:/Downloads/rj_research/battlefield/1_non_rle.bmp"
-#endif
-                QFile file(path);
-                if ( file.exists() )
+                auto path = one_url.toLocalFile();
+                QFileInfo file_info(path);
+                if ( file_info.exists() )
                 {
-                    file.open(QIODeviceBase::ReadOnly) ? filenames.append(path) : dirnames.append(path); // если открывается, то это файл, иначе директория
+                    if ( file_info.isFile() ) filenames.append(path);
+                    if ( file_info.isDir() ) dirnames.append(path);
                 }
             }
         }
@@ -618,7 +633,8 @@ void MainWindow::showNewSessionWindow()
             new_session_window->show();
         }
         updateSessionsCounter();
-        dirlist.remove_all(); // очищаем список путей в task и в DirlistWindow
+        //dirlist.remove_all(); // очищаем список путей в task и в DirlistWindow
+        paths_list->remove_all(); // очищаем список путей в task и в PathsWindow
     }
     else
     {

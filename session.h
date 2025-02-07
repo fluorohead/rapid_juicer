@@ -109,7 +109,6 @@ class SessionWindow: public QWidget
     QPushButton *select_all_button;
     QPushButton *unselect_all_button;
     QProgressBar *file_progress_bar;
-    //QProgressBar *general_progress_bar;
     QLabel *current_file_lbl;
     QLabel *scanned_files_lbl;
     QLabel *total_amount_lbl;

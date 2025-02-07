@@ -20,17 +20,15 @@ class WalkerThread: public QThread
     Engine *engine;
     WalkerCommand command {WalkerCommand::Run};
     s64i previous_msecs; // должно быть инициализировано значением QDateTime::currentMSecsSinceEpoch(); до первого вызова update_general_progress()
-    //void update_general_progress(int paths_total, int current_path_index);
     bool *selected_formats_fast; // массив будет построен в prepare_struct..(), для последующего быстрого lookup'а внутри recognizer'ов
     void prepare_structures_before_engine(); // подготавливает selected_formats_fast
     void clean_structures_after_engine();    // освобождает selected_formats_fast
-    bool is_excluded_extension(const QString &path);
+    bool is_excluded_extension(const QString &path); // расширение файла в списке исключаемых?
 public:
     WalkerThread(SessionWindow* window_receiver, QMutex* control_mtx, const Task &task, const Config &config, const QSet<QString> &formats_to_scan);
     ~WalkerThread();
     void run();
 Q_SIGNALS:
-    //void txGeneralProgress(QString remaining, u64i percents);
     void txImPaused();
     void txImResumed();
     void txFileWasSkipped();

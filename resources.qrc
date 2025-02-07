@@ -1,27 +1,5 @@
 <RCC>
     <qresource prefix="/">
-        <file>gui/dirlist/dlw_close.png</file>
-        <file>gui/dirlist/dlw_close_h.png</file>
-        <file>gui/dirlist/dlw_min.png</file>
-        <file>gui/dirlist/dlw_min_h.png</file>
-        <file>gui/dirlist/dlwb_vfl.png</file>
-        <file>gui/dirlist/dlwb_vfr.png</file>
-        <file>gui/dirlist/dlwf_hf.png</file>
-        <file>gui/dirlist/dlwf_l.png</file>
-        <file>gui/dirlist/dlwf_r.png</file>
-        <file>gui/dirlist/dlwh_hf.png</file>
-        <file>gui/dirlist/dlwh_l.png</file>
-        <file>gui/dirlist/dlwh_r.png</file>
-        <file>gui/dirlist/dt_del.png</file>
-        <file>gui/dirlist/dt_del_h.png</file>
-        <file>gui/dirlist/grip.png</file>
-        <file>gui/dirlist/rcrs_no.png</file>
-        <file>gui/dirlist/rcrs_no_h.png</file>
-        <file>gui/dirlist/rcrs_yes.png</file>
-        <file>gui/dirlist/rcrs_yes_h.png</file>
-        <file>gui/dirlist/tc_btn.png</file>
-        <file>gui/dirlist/tc_btn_h.png</file>
-        <file>gui/dirlist/tc_lbl.png</file>
         <file>gui/main/adir.png</file>
         <file>gui/main/adir_h.png</file>
         <file>gui/main/afile.png</file>
@@ -74,5 +52,19 @@
         <file>gui/session/done.png</file>
         <file>gui/modal/warning.png</file>
         <file>gui/logo.png</file>
+        <file>gui/paths/dlw_close.png</file>
+        <file>gui/paths/dlw_close_h.png</file>
+        <file>gui/paths/dlw_min.png</file>
+        <file>gui/paths/dlw_min_h.png</file>
+        <file>gui/paths/dt_del.png</file>
+        <file>gui/paths/dt_del_h.png</file>
+        <file>gui/paths/grip.png</file>
+        <file>gui/paths/rcrs_no.png</file>
+        <file>gui/paths/rcrs_no_h.png</file>
+        <file>gui/paths/rcrs_yes.png</file>
+        <file>gui/paths/rcrs_yes_h.png</file>
+        <file>gui/paths/tc_btn.png</file>
+        <file>gui/paths/tc_btn_h.png</file>
+        <file>gui/paths/tc_lbl.png</file>
     </qresource>
 </RCC>

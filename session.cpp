@@ -868,6 +868,8 @@ void SessionWindow::create_and_start_walker()
             }
             scan_movie->stop();
             movie_zone_lbl->setPixmap(QPixmap(":/gui/session/done.png"));
+            QApplication::beep(); // звуковое оповещение
+            QApplication::alert(this, 3000); // и поморгать иконкой в панели задач
         }, Qt::QueuedConnection);
 
     connect(walker, &WalkerThread::finished, walker, &QObject::deleteLater); // WalkerThread будет уничтожен в главном потоке после завершения работы метода .run()

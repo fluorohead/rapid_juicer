@@ -22,18 +22,6 @@ WalkerThread::~WalkerThread()
 //    qInfo() << "WalkerThread object was destroyed in thread id:" << currentThreadId();
 }
 
-// inline void WalkerThread::update_general_progress(int paths_total, int current_path_index)
-// {
-//     s64i current_msecs = QDateTime::currentMSecsSinceEpoch();
-//     u64i general_progress = ( current_path_index == paths_total ) ? 100 : ((current_path_index + 1) * 100) / paths_total; // там, где current_path_index+1 - т.к. это индекс и он начинается с 0
-//     if ( ( current_msecs < previous_msecs ) or ( current_msecs - previous_msecs >= MIN_SIGNAL_INTERVAL_MSECS ) )
-//     {
-//         previous_msecs = current_msecs;
-//         Q_EMIT txGeneralProgress("", general_progress);
-//         return;
-//     }
-// }
-
 void WalkerThread::prepare_structures_before_engine()
 {
     selected_formats_fast = new bool[fformats.size()];
@@ -54,8 +42,7 @@ void WalkerThread::clean_structures_after_engine()
 bool WalkerThread::is_excluded_extension(const QString &path)
 {
     auto last_sep_idx = path.lastIndexOf('/');
-    QString file_name; // имя файла без пути
-    file_name = (last_sep_idx == -1) ? path : path.last(path.length() - last_sep_idx - 1);
+    QString file_name = (last_sep_idx == -1) ? path : path.last(path.length() - last_sep_idx - 1); // получаем имя файла без пути
     auto last_dot_idx = file_name.lastIndexOf('.');
     if ( last_dot_idx != -1 ) // если точка есть в названии файла, значит есть и расширение
     {

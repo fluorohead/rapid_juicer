@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 
     index_file_formats();
 
-    auto args = QCoreApplication::arguments();
+    auto args = app.arguments();
     if ( args.count() >= 5 )
     {
        if ( args[1] == "-save" )
@@ -49,13 +49,6 @@ int main(int argc, char **argv)
 
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\gif\3pics_in_one.gif)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\~разобраться\PARIS-1939.MOD)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\~разобраться\jpeg_exif_invalid_data_back_pointers.jpg)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mus_669)", "*.*", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\different formats)", "*.*", false});
-    //task.addTaskPath(TaskPath {R"(C:/Games/Horizon Forbidden West Complete Edition/LocalCacheWinGame/package/package.00.04.core)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\au\o2_722.au)", "", false});
 
     settings = new Settings;
     settings->initSkin();

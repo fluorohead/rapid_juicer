@@ -20,7 +20,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(rapid_juicer
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        dlw.cpp dlw.h
+        pw.cpp pw.h
         elements.cpp elements.h
         engine.cpp engine.h
         formats.h formats.cpp

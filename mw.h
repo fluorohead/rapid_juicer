@@ -4,7 +4,7 @@
 
 #include "formats.h"
 #include "elements.h"
-#include "dlw.h"
+#include "pw.h"
 #include <QWidget>
 #include <QPixmap>
 #include <QLabel>
@@ -100,7 +100,8 @@ public Q_SLOTS:
 class MainWindow: public QWidget
 {
     Q_OBJECT
-    DirlistWindow dirlist {nullptr};
+    //DirlistWindow dirlist {nullptr};
+    PathsWindow *paths_list;
     QPixmap filter_main_pixmaps  [2];
     QPixmap filter_hover_pixmaps [2];
     QPointF prev_cursor_pos;

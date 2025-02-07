@@ -144,7 +144,7 @@ void TwoStatesButton::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
         *state_flag = !(*state_flag);
-        //this->setPixmap(hover_pixmap[*state_flag]);
+        this->setPixmap(hover_pixmap[*state_flag]);
         event->accept();
     }
 }
@@ -164,7 +164,7 @@ void TwoStatesButton::enterEvent(QEnterEvent *event)
 void TwoStatesButton::leaveEvent(QEvent *event)
 {
     this->setPixmap(main_pixmap[*state_flag]);
-    this->setMask(main_pixmap[*state_flag].mask());
+    //this->setMask(main_pixmap[*state_flag].mask());
     event->accept();
 }
 
