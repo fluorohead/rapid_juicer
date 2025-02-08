@@ -379,8 +379,6 @@ MainWindow::MainWindow()
     central_widget->setFixedSize(background.size());
     central_widget->move(0, 0);
     central_widget->setPixmap(background);
-    // central_widget->setAcceptDrops(false);
-    // central_widget->setAcceptDrops(true);
 
     this->resize(central_widget->size()); // размер окна по размеру центрального QLabel
 
@@ -575,7 +573,7 @@ void MainWindow::dropEvent(QDropEvent *event)
 void MainWindow::addFiles()
 {
     QStringList filenames = QFileDialog::getOpenFileNames(this);
-    if (!filenames.isEmpty())
+    if ( !filenames.isEmpty() )
     {
         Q_EMIT txFilenames(filenames);
         paths_button->updateText();
@@ -585,7 +583,8 @@ void MainWindow::addFiles()
 void MainWindow::addDir()
 {
     QString dirname = QFileDialog::getExistingDirectory(this);
-    if (!dirname.isEmpty()) {
+    if ( !dirname.isEmpty() )
+    {
         Q_EMIT txDirname(dirname);
         paths_button->updateText();
     }

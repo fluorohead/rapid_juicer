@@ -1,36 +1,255 @@
 #include "saving.h"
 #include "formats.h"
-#include <QTextEdit>
 #include <QApplication>
+#include <QFileDialog>
+#include <QMouseEvent>
+#include <QScrollBar>
+#include "settings.h"
+#include <QFont>
+#include <QDesktopServices>
 
-SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, const QString &ssem_key)
+extern Settings *settings;
+
+extern QString reduce_file_path(const QString&, int);
+
+const QString saving_to_txt[int(Langs::MAX)]
+{
+    "Saving to directory",
+    "Сохранение в каталог"
+};
+
+const QString saved_txt[int(Langs::MAX)]
+{
+    "resources saved    :",
+    "сохранено ресурсов :"
+};
+
+const QString remains_txt[int(Langs::MAX)]
+{
+    "left to  :",
+    "осталось :"
+};
+
+const QString minimize_button_txt[int(Langs::MAX)]
+{
+    "minimize",
+    "свернуть"
+};
+
+const QString abort_button_txt[int(Langs::MAX)]
+{
+    "abort",
+    "отмена"
+};
+
+SaveDBGWindow::SaveDBGWindow()
     : QWidget(nullptr)
 {
+    this->setAttribute(Qt::WA_DeleteOnClose); // само удалится при закрытии
     this->setFixedSize(800, 600);
-    auto info_text = new QTextEdit(this);
-    info_text->setFixedSize(800 - 16, 600 - 16);
+
+    info_text = new QTextEdit(this);
     info_text->move(8, 8);
-    info_text->append("My process Id: " + QString::number(QApplication::applicationPid()));
-    info_text->append("Shared memory key: " + shm_key);
-    info_text->append("Shared memory size: " + shm_size);
-    info_text->append("System semaphore key: " + ssem_key);
+    info_text->setFixedSize(this->width() - 16, this->height() - 16);
+}
+
+SavingWindow::SavingWindow(const QString &dir, const QString &shm_key, const QString &shm_size, const QString &ssem_key, bool is_debug, const QString &language_id)
+    : QWidget(nullptr, Qt::FramelessWindowHint)
+    , saving_dir(dir)
+    , lang_id(language_id.toInt())
+{
+    this->setAttribute(Qt::WA_TranslucentBackground);
+    this->setAttribute(Qt::WA_NoSystemBackground);
+    this->setAttribute(Qt::WA_DeleteOnClose); // само удалится при закрытии
+    this->setFixedSize(372, 164);
+
+    auto central_widget = new QLabel(this);
+    central_widget->move(0, 0);
+    central_widget->setFixedSize(this->width(), this->height());
+    central_widget->setObjectName("swcw");
+    central_widget->setStyleSheet("QLabel#swcw {background-color: #929167; border-width: 4px; border-style: solid; border-radius: 36px; border-color: #665f75;}");
+
+    auto background = new QLabel(central_widget);
+    background->move(8, 8);
+    background->setFixedSize(central_widget->width() - 16, central_widget->height() - 16);
+    background->setObjectName("swbg");
+    background->setStyleSheet("QLabel#swbg {background-color: #555763; border-width: 0px; border-radius: 30px;}");
+
+    QFont common_font {*skin_font()};
+    common_font.setItalic(false);
+    common_font.setBold(true);
+    common_font.setPixelSize(13);
+
+    auto saving_to_label = new QLabel(background); // надпись "Сохранение в"
+    saving_to_label->setFixedSize(164, 24);
+    saving_to_label->move(background->width() / 2 - saving_to_label->width() / 2, 8);
+    saving_to_label->setStyleSheet("color: #f1c596");
+    saving_to_label->setFont(common_font);
+    saving_to_label->setAlignment(Qt::AlignCenter);
+    saving_to_label->setText(saving_to_txt[lang_id]);
+
+    common_font.setItalic(true);
+    common_font.setPixelSize(11);
+
+    auto path_label = new QTextEdit(background); // путь для сохранения
+    path_label->setFixedSize(340, 40);
+    path_label->move(background->width() / 2 - path_label->width() / 2, 32);
+    path_label->setReadOnly(true);
+    path_label->setStyleSheet("background-color: #555763; color: #f9e885;");
+    path_label->setFont(common_font);
+    path_label->setFrameShape(QFrame::NoFrame); // background-color сработал только после отключения рамки
+    path_label->verticalScrollBar()->hide();
+    path_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    path_label->setLineWrapMode(QTextEdit::WidgetWidth);
+
+    if ( saving_dir[saving_dir.length() - 1] != '/' ) saving_dir.append('/');
+    saving_dir += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss");
+    path_label->setPlainText(reduce_file_path(QDir::toNativeSeparators(saving_dir + "/a.a"), 86).chopped(3));
+
+    common_font.setItalic(false);
+    common_font.setPixelSize(12);
+
+    progress_bar = new QProgressBar(background);
+    progress_bar->setFixedSize(332, 16);
+    progress_bar->move(background->width() / 2 - progress_bar->width() / 2, 64);
+    progress_bar->setFont(common_font);
+    progress_bar->setMinimum(0);
+    progress_bar->setMaximum(100);
+    progress_bar->setAlignment(Qt::AlignCenter);
+    progress_bar->setStyleSheet("QProgressBar {color: #2f2e29; background-color: #b6c7c7; border-width: 2px; border-style: solid; border-radius: 6px; border-color: #b6c7c7;}"
+                                "QProgressBar:chunk {background-color: #42982f; border-width: 0px; border-style: solid; border-radius: 6px;}");
+    progress_bar->setFormat("%v%");
+    progress_bar->setValue(0);
+
+    common_font.setBold(false);
+    common_font.setPixelSize(12);
+
+    auto saved_text_label = new QLabel(background); // надпись "сохранено ресурсов :"
+    saved_text_label->setFixedSize(140, 16);
+    saved_text_label->move(16, 88);
+    saved_text_label->setStyleSheet("color: #d4e9e9");
+    saved_text_label->setFont(common_font);
+    saved_text_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    saved_text_label->setText(saved_txt[lang_id]);
+
+    auto remains_text_label = new QLabel(background); // надпись "осталось :"
+    remains_text_label->setFixedSize(72, 16);
+    remains_text_label->move(16, 108);
+    remains_text_label->setStyleSheet("color: #d4e9e9");
+    remains_text_label->setFont(common_font);
+    remains_text_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    remains_text_label->setText(remains_txt[lang_id]);
+
+    common_font.setPixelSize(13);
+
+    saved_label = new QLabel(background); // количество сохранённых ресурсов
+    saved_label->move(164, 88);
+    saved_label->setFixedSize(196, 16);
+    saved_label->setStyleSheet("color: #d9b855");
+    saved_label->setFont(common_font);
+    saved_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    //saved_label->setText("4296123456");
+
+    remains_label = new QLabel(background); // количество оставшихся ресурсов
+    remains_label->move(96, 108);
+    remains_label->setFixedSize(196, 16);
+    remains_label->setStyleSheet("color: #d9b855");
+    remains_label->setFont(common_font);
+    remains_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    //remains_label->setText("4296123456");
+
+    common_font.setPixelSize(12);
+
+    auto minimize_button = new QPushButton(background);
+    minimize_button->move(196, 116);
+    minimize_button->setFixedSize(72, 24);
+    minimize_button->setAttribute(Qt::WA_NoMousePropagation);
+    minimize_button->setStyleSheet( "QPushButton:enabled  {color: #fffef9; background-color: #9ca14e; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+                                    "QPushButton:hover    {color: #fffef9; background-color: #7c812e; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+                                    "QPushButton:pressed  {color: #fffef9; background-color: #7c812e; border-width: 0px;}"
+                                    "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 12px;}");
+
+    minimize_button->setFont(common_font);
+    minimize_button->setText(minimize_button_txt[lang_id]);
+
+    abort_button = new QPushButton(background);
+    abort_button->move(276, 116);
+    abort_button->setFixedSize(64, 24);
+    abort_button->setAttribute(Qt::WA_NoMousePropagation);
+    abort_button->setStyleSheet("QPushButton:enabled  {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+                                "QPushButton:hover    {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 12px; border-color: #b6c7c7;}"
+                                "QPushButton:pressed  {color: #fffef9; background-color: #8b4132; border-width: 0px;}"
+                                "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 12px;}");
+
+    abort_button->setFont(common_font);
+    abort_button->setText(abort_button_txt[lang_id]);
+
+    connect(minimize_button, &QPushButton::clicked, this, &QWidget::showMinimized);
+    connect(abort_button, &QPushButton::clicked, this, &QWidget::close);
+
+    load_data_from_shm(shm_key, shm_size, ssem_key, is_debug);
+
+    auto saver = new SaverThread(this, &resources_db, &src_files);
+
+    connect(saver, &SaverThread::txNextWasSaved, [this](){
+        ++resources_saved;
+        saved_label->setText(QString::number(resources_saved));
+        remains_label->setText(QString::number(total_resources_found - resources_saved));
+        progress_bar->setValue(resources_saved * 100 / total_resources_found);
+    });
+
+    connect(saver, &SaverThread::txDebugInfo, [this](const QString &info){
+        debug_window->info_text->append(info);
+    });
+
+    connect(saver, &SaverThread::finished, [this](){
+        QDesktopServices::openUrl(QUrl("file:///c:/Downloads/", QUrl::TolerantMode));
+        //this->close();
+    });
+
+    saver->start(QThread::InheritPriority);
+}
+
+SavingWindow::~SavingWindow()
+{
+    if ( debug_window != nullptr ) debug_window->close();
+}
+
+void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm_size, const QString &ssem_key, bool is_debug)
+{
+    if ( is_debug )
+    {
+        debug_window = new SaveDBGWindow;
+        debug_window->setWindowTitle("debug");
+        debug_window->move(0, 0);
+        debug_window->show();
+        debug_window->info_text->append("Save to: " + saving_dir);
+        debug_window->info_text->append("My process Id: " + QString::number(QApplication::applicationPid()));
+        debug_window->info_text->append("Shared memory key: " + shm_key);
+        debug_window->info_text->append("Shared memory size: " + shm_size);
+        debug_window->info_text->append("System semaphore key: " + ssem_key);
+    }
 
     sys_semaphore = new QSystemSemaphore(ssem_key, 1, QSystemSemaphore::Open);
     if ( sys_semaphore->error() != QSystemSemaphore::NoError )
     {
-        info_text->append("System semaphore opening error? -> : " + sys_semaphore->errorString());
+        if ( is_debug) debug_window->info_text->append("System semaphore opening error? -> : " + sys_semaphore->errorString());
+        delete sys_semaphore;
+        return;
     }
 
     shared_memory.setKey(shm_key);
     shared_memory.attach(QSharedMemory::ReadOnly);
-    sys_semaphore->release();
+    sys_semaphore->release(); // говорим родительскому процессу, что он может отключиться от shm
     if ( shared_memory.error() != QSharedMemory::NoError )
     {
-        info_text->append("Shared memory attach error? -> : " + shared_memory.errorString());
+        if ( is_debug) debug_window->info_text->append("Shared memory attach error? -> : " + shared_memory.errorString());
+        delete sys_semaphore;
+        return;
     }
-    info_text->append("Shared memory real size: " + QString::number(shared_memory.size()));
+    if ( is_debug) debug_window->info_text->append("Shared memory real size: " + QString::number(shared_memory.size()));
 
-    u8i *shm_buffer = (u8i*)shared_memory.data();
+    auto shm_buffer = (u8i*)shared_memory.data();
     TLV_Header *tlv_header;
     QString current_format;
     QString src_file;
@@ -42,20 +261,20 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     do
     {
         tlv_header = (TLV_Header*)&shm_buffer[next_header_offset];
-        info_text->append("\ntype:" + QString::number(int(tlv_header->type)) + " length:" + QString::number(int(tlv_header->length)));
+        if ( is_debug) debug_window->info_text->append("\ntype:" + QString::number(int(tlv_header->type)) + " length:" + QString::number(int(tlv_header->length)));
         switch(tlv_header->type)
         {
         case TLV_Type::SrcFile: // эти TLV всегда идут первыми, один за одним
         {
             src_file = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
             src_files.append(src_file);
-            info_text->append("-> SrcFile: '" + src_file + "'");
+            if ( is_debug) debug_window->info_text->append("-> SrcFile: '" + src_file + "'");
             break;
         }
         case TLV_Type::FmtChange:
         {
             current_format = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            info_text->append("-> FmtChange: '" + current_format + "'");
+            if ( is_debug) debug_window->info_text->append("-> FmtChange: '" + current_format + "'");
             if ( !resources_db.contains(current_format) ) // формат встретился первый раз?
             {
                 formats_counters[current_format] = 0;
@@ -70,35 +289,72 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
             current_rr.src_fname_idx = current_pod_ptr->src_fname_idx;
             current_rr.offset = current_pod_ptr->offset;
             current_rr.size = current_pod_ptr->size;
-            info_text->append("-> POD : order_number: " + QString::number(current_rr.order_number) + "; src_fname_idx: " + QString::number(current_rr.src_fname_idx) + "; offset: " + QString::number(current_rr.offset) + "; size: " + QString::number(current_rr.size));
-            info_text->append("-> POD : src_file by idx: " + src_files[current_rr.src_fname_idx]);
+            if ( is_debug) debug_window->info_text->append("-> POD : order_number: " + QString::number(current_rr.order_number) + "; src_fname_idx: " + QString::number(current_rr.src_fname_idx) + "; offset: " + QString::number(current_rr.offset) + "; size: " + QString::number(current_rr.size));
+            if ( is_debug) debug_window->info_text->append("-> POD : src_file by idx: " + src_files[current_rr.src_fname_idx]);
             break;
         }
         case TLV_Type::DstExtension:
         {
             current_dest_ext = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            info_text->append("-> DstExtension: '" + current_dest_ext + "'");
+            if ( is_debug) debug_window->info_text->append("-> DstExtension: '" + current_dest_ext + "'");
             current_rr.dest_extension = current_dest_ext;
             break;
         }
         case TLV_Type::Info:
         {
             current_info = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            info_text->append("-> Info: '" + current_info + "'");
+            if ( is_debug) debug_window->info_text->append("-> Info: '" + current_info + "'");
             current_rr.info = current_info;
-            // TLV "Info" всегда идёт завершающей, значит можно сделать запись в БД
-            //resources_db[current_format][current_source][current_rr.order_number] = current_rr;
+            /// TLV "Info" всегда идёт завершающей, значит можно сделать запись в БД
             resources_db[current_format].append(current_rr);
+            ++total_resources_found;
+            ///
             break;
         }
         case TLV_Type::Terminator:
         {
-            info_text->append("-> Terminator:");
+            if ( is_debug) debug_window->info_text->append("-> Terminator:");
             break;
         }
         }
         next_header_offset += (sizeof(TLV_Header) + tlv_header->length);
     } while(tlv_header->type != TLV_Type::Terminator);
 
+    if ( is_debug) debug_window->info_text->append("\nTOTAL RESOURCES FOUND: " + QString::number(total_resources_found));
+
+    shared_memory.detach();
     delete sys_semaphore;
+}
+
+void SavingWindow::mouseMoveEvent(QMouseEvent *event)
+{
+    if ( event->buttons() == Qt::LeftButton )
+    {
+        this->move(this->pos() + (event->globalPosition() - prev_cursor_pos).toPoint());
+        prev_cursor_pos = event->globalPosition();
+    }
+}
+
+void SavingWindow::mousePressEvent(QMouseEvent *event)
+{
+    if ( event->buttons() == Qt::LeftButton )
+    {
+        prev_cursor_pos = event->globalPosition();
+    }
+}
+
+SaverThread::SaverThread(SavingWindow *parent, RR_Map *resources_db_ptr, QStringList *src_files_ptr)
+    : resources_db(resources_db_ptr)
+    , src_files(src_files_ptr)
+{
+
+}
+
+void SaverThread::run()
+{
+    for(int idx = 0; idx < 32; ++idx)
+    {
+        QThread::msleep(200);
+        Q_EMIT txNextWasSaved();
+    }
 }

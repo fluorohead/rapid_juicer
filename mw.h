@@ -100,7 +100,6 @@ public Q_SLOTS:
 class MainWindow: public QWidget
 {
     Q_OBJECT
-    //DirlistWindow dirlist {nullptr};
     PathsWindow *paths_list;
     QPixmap filter_main_pixmaps  [2];
     QPixmap filter_hover_pixmaps [2];

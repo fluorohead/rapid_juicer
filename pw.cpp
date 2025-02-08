@@ -8,7 +8,7 @@
 #include <QFileDialog>
 
 extern Settings *settings;
-extern Task     task;
+extern Task task;
 
 const QString paths_list_info_txt[int(Langs::MAX)]
 {
@@ -158,9 +158,9 @@ PathsTable::PathsTable(QWidget *parent)
     this->horizontalHeader()->hide();
     this->setColumnCount(3);
     this->setStyleSheet("color: #dfdfdf; gridline-color: #b4b4b4; background-color: #929167");
-    this->setColumnWidth(0, DIRTABLE_COL0_W);
-    this->setColumnWidth(1, DIRTABLE_COL1_W);
-    this->setRowCount(DIRTABLE_MAX_PATHS + 1); // где "+1" это строка №0, которая будет нести функцию заголовка
+    this->setColumnWidth(0, PATHS_TABLE_COL0_W);
+    this->setColumnWidth(1, PATHS_TABLE_COL1_W);
+    this->setRowCount(PATHS_TABLE_MAX_PATHS + 1); // где "+1" это строка №0, которая будет нести функцию заголовка
     this->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     this->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     this->setSelectionMode(QAbstractItemView::NoSelection);
@@ -189,9 +189,9 @@ PathsTable::PathsTable(QWidget *parent)
     tmpFont.setPixelSize(13); // выставляем размер шрифта для всего, кроме строки 0 (для неё шрифт выставляется в методе drawZeroRowHeader)
     this->setFont(tmpFont);
 
-    for (u32i row_idx = 0; row_idx < (DIRTABLE_MAX_PATHS + 1); ++row_idx) // выставляем высоту всех строк, включая "заголовок" в строке 0
+    for (u32i row_idx = 0; row_idx < (PATHS_TABLE_MAX_PATHS + 1); ++row_idx) // выставляем высоту всех строк, включая "заголовок" в строке 0
     {
-        this->setRowHeight(row_idx, DIRTABLE_ROW_H);
+        this->setRowHeight(row_idx, PATHS_TABLE_ROW_H);
     }
 }
 
@@ -229,7 +229,7 @@ void PathsTable::rxRemoveRow(u32i row_index)
     task.delTaskPath(row_index - 1);
     this->setUpdatesEnabled(false); // чтобы виджет не перерисовывался, пока идёт изменение количества строк
     this->setRowCount(this->rowCount() + 1);
-    this->setRowHeight(this->rowCount() - 1, DIRTABLE_ROW_H);
+    this->setRowHeight(this->rowCount() - 1, PATHS_TABLE_ROW_H);
     this->removeRow(row_index);
     Q_EMIT txUpdateYourRowIndexes(row_index);
     Q_EMIT txUpdatePathsButton();
@@ -279,12 +279,12 @@ PathsWindow::PathsWindow()
 {
     this->setAttribute(Qt::WA_TranslucentBackground);
     this->setAttribute(Qt::WA_NoSystemBackground);
-    this->setMinimumSize(DIRLIST_MIN_WIDTH, DIRLIST_MIN_HEIGHT);
-    this->resize(DIRLIST_MIN_WIDTH, DIRLIST_MIN_HEIGHT);
+    this->setMinimumSize(PATHS_WINDOW_MIN_WIDTH, PATHS_WINDOW_MIN_HEIGHT);
+    this->resize(PATHS_WINDOW_MIN_WIDTH, PATHS_WINDOW_MIN_HEIGHT);
 
     central_widget = new QLabel(this);
     central_widget->move(0, 0);
-    central_widget->resize(DIRLIST_MIN_WIDTH, DIRLIST_MIN_HEIGHT);
+    central_widget->resize(PATHS_WINDOW_MIN_WIDTH, PATHS_WINDOW_MIN_HEIGHT);
     central_widget->setObjectName("pwcw");
     central_widget->setStyleSheet("QLabel#pwcw {background-color: #929167; border-width: 4px; border-style: solid; border-radius: 36px; border-color: #665f75;}");
 
@@ -391,8 +391,8 @@ void PathsWindow::rxDiffXY(int x_diff, int y_diff)
 {
     int new_width  = current_width  + x_diff;
     int new_height = current_height + y_diff;
-    if ( new_width < DIRLIST_MIN_WIDTH ) new_width = current_width;
-    if ( new_height < DIRLIST_MIN_HEIGHT ) new_height = current_height;
+    if ( new_width < PATHS_WINDOW_MIN_WIDTH ) new_width = current_width;
+    if ( new_height < PATHS_WINDOW_MIN_HEIGHT ) new_height = current_height;
     if ( ( new_width != current_width ) or ( new_height != current_height ) )
     {
         current_width = new_width;
@@ -404,7 +404,7 @@ void PathsWindow::rxDiffXY(int x_diff, int y_diff)
 void PathsWindow::rxAddFilenames(QStringList filenames)
 {
     for (auto && one : filenames) {
-        if ( *paths_count < DIRTABLE_MAX_PATHS )
+        if ( *paths_count < PATHS_TABLE_MAX_PATHS )
         {
             if ( !task.isTaskPathPresent(one) )
             {
@@ -425,7 +425,7 @@ void PathsWindow::rxAddFilenames(QStringList filenames)
 void PathsWindow::rxAddDirname(QString dirname)
 {
     // в dirname путь с перевёрнутыми слэшами a'la linux
-    if ( ( *paths_count < DIRTABLE_MAX_PATHS ) and ( !task.isTaskPathPresent(dirname) ) )
+    if ( ( *paths_count < PATHS_TABLE_MAX_PATHS ) and ( !task.isTaskPathPresent(dirname) ) )
     {
         if ( ( dirname.length() > 1 ) and ( dirname.endsWith('/') ) ) // чтобы исключить добавление пути "C:/", к которому потом прицепится второй '/' : поэтому удаляем '/', если он есть и если это не linux (len > 1)
         {

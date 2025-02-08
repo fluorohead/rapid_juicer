@@ -49,7 +49,8 @@ Q_SIGNALS:
 };
 
 // Two States Button Without Text
-class TwoStatesButton: public QLabel {
+class TwoStatesButton: public QLabel
+{
     Q_OBJECT
     QPixmap main_pixmap[2];
     QPixmap hover_pixmap[2];

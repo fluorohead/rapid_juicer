@@ -1002,7 +1002,6 @@ void Engine::scan_file_win64(const QString &file_name)
 {
     file.setFileName(file_name);
     file_size = file.size();
-    //qInfo() << "file_size:" << file_size;
     if ( !file.open(QIODeviceBase::ReadOnly) or ( file.size() < MIN_RESOURCE_SIZE ) )
     {
         file.close();

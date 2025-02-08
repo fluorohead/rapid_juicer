@@ -429,28 +429,28 @@ SessionWindow::SessionWindow(u32i session_id)
     close_button->move(10, 8);
     minimize_button->move(10, 56);
 
-    QFont tmpFont {*skin_font()};
-    tmpFont.setPixelSize(13);
-    tmpFont.setBold(true);
+    QFont common_font {*skin_font()};
+    common_font.setPixelSize(13);
+    common_font.setBold(true);
 
     auto properties_label = new QLabel; // "Session properties" label
     properties_label->setFixedSize(144, 24);
     properties_label->setStyleSheet("color: #c18556");
-    properties_label->setFont(tmpFont);
+    properties_label->setFont(common_font);
     properties_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     properties_label->setParent(central_widget);
     properties_label->move(70, 36);
     properties_label->setText(properties_header_txt[curr_lang()]);
 
     QLabel *tmp_label;
-    tmpFont.setBold(false);
+    common_font.setBold(false);
     const int y_offset {64};
     for (int idx = 0; idx < 4; ++idx) // рисуем лейблы с наименованиями свойств
     {
         tmp_label = new QLabel;
         tmp_label->setFixedSize(144, 16);
         tmp_label->setStyleSheet("color: #d4e9e9");
-        tmp_label->setFont(tmpFont);
+        tmp_label->setFont(common_font);
         tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         tmp_label->setParent(central_widget);
         tmp_label->move(88, y_offset + 22 * idx);
@@ -463,22 +463,22 @@ SessionWindow::SessionWindow(u32i session_id)
                                         QString::number(permitted_buffers[settings->config.bfr_size_idx]) + mebibytes_txt[curr_lang()]
                                     };
 
-    tmpFont.setBold(true);
-    tmpFont.setItalic(true);
-    tmpFont.setPixelSize(14);
+    common_font.setBold(true);
+    common_font.setItalic(true);
+    common_font.setPixelSize(14);
     for (int idx = 0; idx < 4; ++idx) // рисуем лейблы значений свойств
     {
         tmp_label = new QLabel;
         tmp_label->setFixedSize(72, 16);
         tmp_label->setStyleSheet("color: #d9b855");
-        tmp_label->setFont(tmpFont);
+        tmp_label->setFont(common_font);
         tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         tmp_label->setParent(central_widget);
         tmp_label->move(208, y_offset + 22 * idx);
         tmp_label->setText(session_label_texts[idx]);
     }
 
-    tmpFont.setItalic(false);
+    common_font.setItalic(false);
     stop_button = new QPushButton;
     stop_button->setAttribute(Qt::WA_NoMousePropagation);
     stop_button->setFixedSize(64, 32);
@@ -487,7 +487,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                 "QPushButton:pressed  {color: #fffef9; background-color: #8b4132; border-width: 0px;}"
                                 "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
 
-    stop_button->setFont(tmpFont);
+    stop_button->setFont(common_font);
     stop_button->setDisabled(true);
     stop_button->setText(stop_button_txt[curr_lang()]);
     stop_button->setParent(central_widget);
@@ -500,7 +500,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                         "QPushButton:hover    {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                         "QPushButton:pressed  {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
                                         "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
-    pause_resume_button->setFont(tmpFont);
+    pause_resume_button->setFont(common_font);
     pause_resume_button->setDisabled(true);
     pause_resume_button->setText(pause_button_txt[curr_lang()]);
     pause_resume_button->setParent(central_widget);
@@ -513,7 +513,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                 "QPushButton:hover    {color: #fffef9; background-color: #7c812e; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                 "QPushButton:pressed  {color: #fffef9; background-color: #7c812e; border-width: 0px;}"
                                 "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
-    skip_button->setFont(tmpFont);
+    skip_button->setFont(common_font);
     skip_button->setDisabled(true);
     skip_button->setText(skip_button_txt[curr_lang()]);
     skip_button->setParent(central_widget);
@@ -526,7 +526,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                     "QPushButton:hover   {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                     "QPushButton:pressed {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
                                     "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
-    save_all_button->setFont(tmpFont);
+    save_all_button->setFont(common_font);
     save_all_button->setDisabled(true);
     save_all_button->setText(save_all_button_txt[curr_lang()]);
     save_all_button->setDisabled(true);
@@ -542,7 +542,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                     "QPushButton:hover   {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                     "QPushButton:pressed {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
                                     "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
-    report_button->setFont(tmpFont);
+    report_button->setFont(common_font);
     report_button->setDisabled(true);
     report_button->setText(report_button_txt[curr_lang()]);
     report_button->setDisabled(true);
@@ -552,11 +552,11 @@ SessionWindow::SessionWindow(u32i session_id)
     static const QString progress_bar_style_sheet {  "QProgressBar {color: #2f2e29; background-color: #b6c7c7; border-width: 2px; border-style: solid; border-radius: 6px; border-color: #b6c7c7;}"
                                                      "QProgressBar:chunk {background-color: #42982f; border-width: 0px; border-style: solid; border-radius: 6px;}"};
 
-    tmpFont.setPixelSize(12);
+    common_font.setPixelSize(12);
     auto progress_label = new QLabel; // "Current progress" label
     progress_label->setFixedSize(144, 24);
     progress_label->setStyleSheet("color: #e1a576");
-    progress_label->setFont(tmpFont);
+    progress_label->setFont(common_font);
     progress_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     progress_label->setParent(central_widget);
     progress_label->move(320, 36);
@@ -564,7 +564,7 @@ SessionWindow::SessionWindow(u32i session_id)
 
     file_progress_bar = new QProgressBar;
     file_progress_bar->setFixedSize(512, 16);
-    file_progress_bar->setFont(tmpFont);
+    file_progress_bar->setFont(common_font);
     file_progress_bar->setMinimum(0);
     file_progress_bar->setMaximum(100);
     file_progress_bar->setAlignment(Qt::AlignCenter);
@@ -574,12 +574,12 @@ SessionWindow::SessionWindow(u32i session_id)
     file_progress_bar->move(344, 86);
     file_progress_bar->setValue(0);
 
-    tmpFont.setBold(false);
-    tmpFont.setPixelSize(13);
+    common_font.setBold(false);
+    common_font.setPixelSize(13);
     tmp_label = new QLabel; // надпись "Scanned files"
     tmp_label->setFixedSize(112, 16);
     tmp_label->setStyleSheet("color: #d4e9e9");
-    tmp_label->setFont(tmpFont);
+    tmp_label->setFont(common_font);
     tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     tmp_label->setParent(central_widget);
     tmp_label->move(344, y_offset + 48);
@@ -588,7 +588,7 @@ SessionWindow::SessionWindow(u32i session_id)
     tmp_label = new QLabel; // надпись "Total bytes"
     tmp_label->setFixedSize(112, 16);
     tmp_label->setStyleSheet("color: #d4e9e9");
-    tmp_label->setFont(tmpFont);
+    tmp_label->setFont(common_font);
     tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     tmp_label->setParent(central_widget);
     tmp_label->move(344, y_offset + 48 + 22);
@@ -597,29 +597,29 @@ SessionWindow::SessionWindow(u32i session_id)
     tmp_label = new QLabel; // надпись "running time"
     tmp_label->setFixedSize(112, 16);
     tmp_label->setStyleSheet("color: #d4e9e9");
-    tmp_label->setFont(tmpFont);
+    tmp_label->setFont(common_font);
     tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     tmp_label->setParent(central_widget);
     tmp_label->move(638, y_offset + 48 + 11);
     tmp_label->setText(running_time_txt[curr_lang()]);
 
-    tmpFont.setBold(true);
-    tmpFont.setItalic(true);
-    tmpFont.setPixelSize(11);
+    common_font.setBold(true);
+    common_font.setItalic(true);
+    common_font.setPixelSize(11);
     current_file_lbl = new QLabel; // имя текущего файла
     current_file_lbl->setFixedSize(512, 16);
     current_file_lbl->setStyleSheet("color: #d9b855");
-    current_file_lbl->setFont(tmpFont);
+    current_file_lbl->setFont(common_font);
     current_file_lbl->setAlignment(Qt::AlignCenter);
     current_file_lbl->setParent(central_widget);
     current_file_lbl->move(344, y_offset);
 
-    tmpFont.setItalic(false);
-    tmpFont.setPixelSize(13);
+    common_font.setItalic(false);
+    common_font.setPixelSize(13);
     scanned_files_lbl = new QLabel; // количество просканированных файлов
     scanned_files_lbl->setFixedSize(196, 16);
     scanned_files_lbl->setStyleSheet("color: #d9b855");
-    scanned_files_lbl->setFont(tmpFont);
+    scanned_files_lbl->setFont(common_font);
     scanned_files_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     scanned_files_lbl->setParent(central_widget);
     scanned_files_lbl->move(464, y_offset + 48);
@@ -627,7 +627,7 @@ SessionWindow::SessionWindow(u32i session_id)
     total_amount_lbl = new QLabel; // количество просканированных байт
     total_amount_lbl->setFixedSize(256, 16);
     total_amount_lbl->setStyleSheet("color: #d9b855");
-    total_amount_lbl->setFont(tmpFont);
+    total_amount_lbl->setFont(common_font);
     total_amount_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     total_amount_lbl->setParent(central_widget);
     total_amount_lbl->move(464, y_offset + 48 + 22);
@@ -635,7 +635,7 @@ SessionWindow::SessionWindow(u32i session_id)
     total_time_lbl = new QLabel; // количество просканированных байт
     total_time_lbl->setFixedSize(98, 16);
     total_time_lbl->setStyleSheet("color: #d9b855");
-    total_time_lbl->setFont(tmpFont);
+    total_time_lbl->setFont(common_font);
     total_time_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     total_time_lbl->setParent(central_widget);
     total_time_lbl->move(758, y_offset + 48 + 11);
@@ -644,33 +644,33 @@ SessionWindow::SessionWindow(u32i session_id)
     connect(close_button, &OneStateButton::imReleased, this, &SessionWindow::close);
     connect(minimize_button, &OneStateButton::imReleased, this, &SessionWindow::showMinimized);
 
-    tmpFont.setPixelSize(15);
+    common_font.setPixelSize(15);
     current_status_lbl = new QLabel; // текущий статус
     current_status_lbl->setFixedSize(224, 16);
     current_status_lbl->setStyleSheet("color: #f9d875");
-    current_status_lbl->setFont(tmpFont);
+    current_status_lbl->setFont(common_font);
     current_status_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     current_status_lbl->setText(scan_in_progress_txt[curr_lang()]);
     current_status_lbl->setParent(central_widget);
     current_status_lbl->move(364, y_offset + 125);
 
-    tmpFont.setPixelSize(14);
-    tmpFont.setBold(false);
+    common_font.setPixelSize(14);
+    common_font.setBold(false);
     tmp_label = new QLabel; // надпись "Resources:"
     tmp_label->setFixedSize(80, 16);
     tmp_label->setStyleSheet("color: #d4e9e9");
-    tmp_label->setFont(tmpFont);
+    tmp_label->setFont(common_font);
     tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     tmp_label->setParent(central_widget);
     tmp_label->move(92, central_widget->height() - 36);
     tmp_label->setText(total_resources_txt[curr_lang()]);
 
-    tmpFont.setPixelSize(15);
-    tmpFont.setBold(true);
+    common_font.setPixelSize(15);
+    common_font.setBold(true);
     total_resources_lbl = new QLabel; // счётчик ресурсов
     total_resources_lbl->setFixedSize(196, 16);
     total_resources_lbl->setStyleSheet("color: #d4e9e9");
-    total_resources_lbl->setFont(tmpFont);
+    total_resources_lbl->setFont(common_font);
     total_resources_lbl->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     total_resources_lbl->setText("0");
     total_resources_lbl->setParent(central_widget);
@@ -726,9 +726,9 @@ SessionWindow::SessionWindow(u32i session_id)
         pages->addWidget(by_fmt_widget);
     };
 
-    tmpFont.setBold(true);
-    tmpFont.setItalic(false);
-    tmpFont.setPixelSize(16);
+    common_font.setBold(true);
+    common_font.setItalic(false);
+    common_font.setPixelSize(16);
 
     // завершающей страницей будет информационный виджет (с анимацией и текстом)
     auto info_widget = new QLabel;
@@ -736,12 +736,12 @@ SessionWindow::SessionWindow(u32i session_id)
     info_widget->setStyleSheet("QLabel {color: #fffef9;}");
     info_widget->setAlignment(Qt::AlignCenter);
     info_widget->setText(results_displayed_txt[curr_lang()]);
-    info_widget->setFont(tmpFont);
+    info_widget->setFont(common_font);
     pages->addWidget(info_widget);
 
     pages->setCurrentIndex(pages->count() - 1);
 
-    tmpFont.setPixelSize(12);
+    common_font.setPixelSize(12);
 
     back_button = new QPushButton;
     back_button->setAttribute(Qt::WA_NoMousePropagation);
@@ -751,7 +751,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                 "QPushButton:hover    {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                 "QPushButton:pressed  {color: #fffef9; background-color: #8b4132; border-width: 0px;}"
                                 "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
-    back_button->setFont(tmpFont);
+    back_button->setFont(common_font);
     back_button->setText(back_txt[curr_lang()]);
     back_button->setParent(central_widget);
     back_button->move(364, 715);
@@ -772,7 +772,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                 "QPushButton:hover    {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                 "QPushButton:pressed  {color: #fffef9; background-color: #ab6152; border-width: 0px;}"
                                 "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
-    save_button->setFont(tmpFont);
+    save_button->setFont(common_font);
     save_button->setText(save_txt[curr_lang()]);
     save_button->setParent(central_widget);
     save_button->move(454, 715);
@@ -799,7 +799,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                         "QPushButton:hover   {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
                                         "QPushButton:pressed {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
                                         "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 10px;}");
-    select_all_button->setFont(tmpFont);
+    select_all_button->setFont(common_font);
     select_all_button->setText(select_all_txt[curr_lang()]);
     select_all_button->setParent(central_widget);
     select_all_button->move(650, 719);
@@ -817,7 +817,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                         "QPushButton:hover    {color: #fffef9; background-color: #7c812e; border-width: 2px; border-style: solid; border-radius: 10px; border-color: #b6c7c7;}"
                                         "QPushButton:pressed  {color: #fffef9; background-color: #7c812e; border-width: 0px;}"
                                         "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 10px;}");
-    unselect_all_button->setFont(tmpFont);
+    unselect_all_button->setFont(common_font);
     unselect_all_button->setText(unselect_all_txt[curr_lang()]);
     unselect_all_button->setParent(central_widget);
     unselect_all_button->move(764, 719);
@@ -1098,10 +1098,9 @@ void SessionWindow::rxSerializeAndSaveAll()
     resources_db.clear();  // на всякий случай ещё раз обнуляем (хотя после обхода, бд уже должна быть пустой).
 
     QSharedMemory shared_memory {QString("/shm/rj/%1/%2/%3").arg(  //создаём максимально уникальный key для shared memory
-        QString::number(QApplication::applicationPid()),
-        QString::number(u64i(QThread::currentThreadId())),
-        QString::number(QDateTime::currentMSecsSinceEpoch())
-        ) };
+                                                                    QString::number(QApplication::applicationPid()),
+                                                                    QString::number(u64i(QThread::currentThreadId())),
+                                                                    QString::number(QDateTime::currentMSecsSinceEpoch()))};
     if ( !shared_memory.create(data_buffer.size(), QSharedMemory::ReadWrite) )
     {
         qInfo() << "shm error:" << shared_memory.error();
@@ -1109,12 +1108,11 @@ void SessionWindow::rxSerializeAndSaveAll()
     }
 
     QSystemSemaphore sys_semaphore {QString("/ssem/rj/%1/%2/%3").arg(  //создаём максимально уникальный key для system semaphore
-            QString::number(QApplication::applicationPid()),
-            QString::number(u64i(QThread::currentThreadId())),
-            QString::number(QDateTime::currentMSecsSinceEpoch())),
-        1,
-        QSystemSemaphore::Create
-    };
+                                                                        QString::number(QApplication::applicationPid()),
+                                                                        QString::number(u64i(QThread::currentThreadId())),
+                                                                        QString::number(QDateTime::currentMSecsSinceEpoch())),
+                                                                        1,
+                                                                        QSystemSemaphore::Create};
     if ( sys_semaphore.error() != QSystemSemaphore::NoError )
     {
         qInfo() << "ssem error:" << sys_semaphore.error();
@@ -1129,7 +1127,7 @@ void SessionWindow::rxSerializeAndSaveAll()
     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
-    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key() }, "");
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save_dbg", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key(), QString::number(curr_lang()) }, "");
 
     data_buffer.clear();   // обнуляем и буфер, т.к. теперь все данные в shared_memory
     data_buffer.squeeze(); //
@@ -1218,11 +1216,10 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
     ///
 
     QSharedMemory shared_memory {QString("/shm/rj/%1/%2/%3/%4").arg(  //создаём максимально уникальный key для shared memory
-        QString::number(QApplication::applicationPid()),
-        QString::number(u64i(QThread::currentThreadId())),
-        QString::number(QDateTime::currentMSecsSinceEpoch()),
-        format_name
-        ) };
+                                                                    QString::number(QApplication::applicationPid()),
+                                                                    QString::number(u64i(QThread::currentThreadId())),
+                                                                    QString::number(QDateTime::currentMSecsSinceEpoch()),
+                                                                    format_name)};
     if ( !shared_memory.create(data_buffer.size(), QSharedMemory::ReadWrite) )
     {
         qInfo() << "shm error:" << shared_memory.error();
@@ -1231,13 +1228,12 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
     }
 
     QSystemSemaphore sys_semaphore {QString("/ssem/rj/%1/%2/%3/%4").arg(  //создаём максимально уникальный key для system semaphore
-            QString::number(QApplication::applicationPid()),
-            QString::number(u64i(QThread::currentThreadId())),
-            QString::number(QDateTime::currentMSecsSinceEpoch()),
-            format_name),
-        1,
-        QSystemSemaphore::Create
-    };
+                                                                        QString::number(QApplication::applicationPid()),
+                                                                        QString::number(u64i(QThread::currentThreadId())),
+                                                                        QString::number(QDateTime::currentMSecsSinceEpoch()),
+                                                                        format_name),
+                                                                        1,
+                                                                        QSystemSemaphore::Create};
     if ( sys_semaphore.error() != QSystemSemaphore::NoError )
     {
         qInfo() << "ssem error:" << sys_semaphore.error();
@@ -1253,7 +1249,7 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
-    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key() }, "");
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save_dbg", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key(), QString::number(curr_lang()) }, "");
 
     data_buffer.clear();   // обнуляем и буфер, т.к. теперь все данные в shared_memory
     data_buffer.squeeze(); //

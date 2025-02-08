@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QTextEdit>
+#include <QFileDialog>
 
 Settings *settings; // объект должен существовать до создания любых окон.
 Task task; // объект должен существовать до создания любых окон.
@@ -24,18 +25,22 @@ int main(int argc, char **argv)
     index_file_formats();
 
     auto args = app.arguments();
-    if ( args.count() >= 5 )
+    // [0] - имя файла процесса
+    // [1] - команда "-save" или "-save_dbg"
+    // [2] - ключ shm
+    // [3] - размер блока shm в байтах
+    // [4] - ключ system semaphore
+    // [5] - индекс языка (0 - eng, 1 - rus)
+    if ( args.count() >= 6 )
     {
-       if ( args[1] == "-save" )
+        if ( args[1].first(5) == "-save" )
         {
             settings = new Settings;
             settings->initSkin();
-
-            auto saving_window = new SavingWindow(args[2], args[3], args[4]);
+            //auto saving_window = new SavingWindow(QFileDialog::getExistingDirectory(), args[2], args[3], args[4], false, 0);
+            auto saving_window = new SavingWindow("c:/Downloads/rj_research", args[2], args[3], args[4], (args[1] == "-save_dbg"), args[5]);
             saving_window->show();
             app.exec();
-            delete saving_window;
-
             delete settings;
             return 0;
         }
@@ -44,11 +49,11 @@ int main(int argc, char **argv)
     //auto sim = QImageReader::supportedImageFormats();
     //qInfo() << sim;
 
-    //task.delAllTaskPaths();
+    task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
+    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
 
     settings = new Settings;
     settings->initSkin();
@@ -64,7 +69,7 @@ int main(int argc, char **argv)
     return 0;
 }
 
-QString reduce_file_path(const QString &path, int max_len)
+QString reduce_file_path(const QString &path, int max_len) // передаваемый path должен быть с нативными сепараторами
 {
     static const QChar separator = QDir::separator();
     static const QString filler_part = QString(separator) + "..."; //  filler_part = "\..." or "/..."

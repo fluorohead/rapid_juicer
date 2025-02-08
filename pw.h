@@ -7,14 +7,12 @@
 #include <QTableWidget>
 #include <QCommonStyle>
 
-#define DIRLIST_MIN_WIDTH 1043
-#define DIRLIST_MIN_HEIGHT 361
-#define DIRTABLE_X 28
-#define DIRTABLE_Y 70
-#define DIRTABLE_ROW_H 26
-#define DIRTABLE_MAX_PATHS 100
-#define DIRTABLE_COL0_W 32
-#define DIRTABLE_COL1_W 59
+#define PATHS_WINDOW_MIN_WIDTH 1043
+#define PATHS_WINDOW_MIN_HEIGHT 361
+#define PATHS_TABLE_ROW_H 26
+#define PATHS_TABLE_MAX_PATHS 100
+#define PATHS_TABLE_COL0_W 32
+#define PATHS_TABLE_COL1_W 59
 
 class MainWindow;
 class PathsWindow;
@@ -94,8 +92,8 @@ Q_SIGNALS:
 class PathsWindow: public QWidget
 {
     Q_OBJECT
-    int current_width {DIRLIST_MIN_WIDTH};    // эти два изменяются при таскании за уголок //
-    int current_height {DIRLIST_MIN_HEIGHT};  //                                           //
+    int current_width {PATHS_WINDOW_MIN_WIDTH};    // эти два изменяются при таскании за уголок //
+    int current_height {PATHS_WINDOW_MIN_HEIGHT};  //                                           //
     int paths_table_width;
     int paths_table_height;
     QPointF prev_cursor_pos;
