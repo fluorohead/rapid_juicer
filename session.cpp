@@ -1127,12 +1127,12 @@ void SessionWindow::rxSerializeAndSaveAll()
     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
-    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save_dbg", // arg1
-                                                                                shared_memory.key(), // arg2
-                                                                                QString::number(data_buffer.size()), //arg3
-                                                                                sys_semaphore.key(), // arg4
-                                                                                QString::number(curr_lang()), // arg5
-                                                                                QApplication::screenAt(this->pos())->name() // arg6
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", // arg[1]
+                                                                                shared_memory.key(), // arg[2]
+                                                                                QString::number(data_buffer.size()), //arg[3]
+                                                                                sys_semaphore.key(), // arg[4]
+                                                                                QString::number(curr_lang()), // arg[5]
+                                                                                QApplication::screenAt(this->pos())->name() // arg[6]
                                                                                 },
                                                                                 "");
 
@@ -1257,12 +1257,14 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
-    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", shared_memory.key(),
-                                                                                QString::number(data_buffer.size()),
-                                                                                sys_semaphore.key(),
-                                                                                QString::number(curr_lang())
-
-  }, "");
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", // arg[1]
+                                                                                shared_memory.key(), // arg[2]
+                                                                                QString::number(data_buffer.size()), // arg[3]
+                                                                                sys_semaphore.key(), // arg[4]
+                                                                                QString::number(curr_lang()), // arg[5]
+                                                                                QApplication::screenAt(this->pos())->name() // arg[6]
+                                                                                },
+                                                                                 "");
 
     data_buffer.clear();   // обнуляем и буфер, т.к. теперь все данные в shared_memory
     data_buffer.squeeze(); //

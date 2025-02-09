@@ -39,8 +39,8 @@ int main(int argc, char **argv)
             settings = new Settings;
             settings->initSkin();
             auto saving_window = new SavingWindow(args[2], args[3], args[4], (args[1] == "-save_dbg"), args[5], args[6]);
-            //QString save_path = QFileDialog::getExistingDirectory();
-            QString save_path = "c:/Downloads";
+            QString save_path = QFileDialog::getExistingDirectory();
+            //QString save_path = "c:/Downloads";
             if ( save_path[save_path.length() - 1] != '/' ) save_path.append('/');
             save_path += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss/");
             QDir save_dir;
