@@ -8,6 +8,7 @@
 #include <QFont>
 #include <QDesktopServices>
 #include <QScreen>
+#include <QWindow>
 
 extern Settings *settings;
 
@@ -54,17 +55,18 @@ SaveDBGWindow::SaveDBGWindow()
     info_text->setFixedSize(this->width() - 16, this->height() - 16);
 }
 
-SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, const QString &ssem_key, bool is_debug, const QString &language_id)
+SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, const QString &ssem_key, bool is_debug, const QString &language_id, const QString &screen)
     : QWidget(nullptr, Qt::FramelessWindowHint)
     , debug_mode(is_debug)
     , lang_id(language_id.toInt())
+    , screen_name(screen)
 {
     this->setAttribute(Qt::WA_TranslucentBackground);
     this->setAttribute(Qt::WA_NoSystemBackground);
     this->setAttribute(Qt::WA_DeleteOnClose); // само удалится при закрытии
     this->setFixedSize(372, 164);
 
-    this->move(this->screen()->availableSize().width() - this->width() - 16, this->screen()->availableSize().height() - this->height() - 16); // двигаем в угол экрана
+    //this->move(this->screen()->availableSize().width() - this->width() - 16, this->screen()->availableSize().height() - this->height() - 16); // двигаем в угол экрана
 
     auto central_widget = new QLabel(this);
     central_widget->move(0, 0);
@@ -187,6 +189,25 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     connect(minimize_button, &QPushButton::clicked, this, &QWidget::showMinimized);
     connect(abort_button, &QPushButton::clicked, this, &QWidget::close);
 
+    if ( debug_mode) debug_window = new SaveDBGWindow;
+
+    /// поиск экрана по переданному имени
+    for(auto screen_ptr: QApplication::screens())
+    {
+        if ( screen_ptr->name() == screen_name )
+        {
+            /// перемещение относительно TopLeft-точки текущего экрана
+            this->move(screen_ptr->availableGeometry().topLeft().x() + screen_ptr->availableSize().width() - this->width() - 16, screen_ptr->availableGeometry().topLeft().y() + screen_ptr->availableSize().height() - this->height() - 16);
+            if ( debug_mode)
+            {
+                debug_window->setScreen(screen_ptr);
+                debug_window->move(screen_ptr->availableGeometry().topLeft().x(), screen_ptr->availableGeometry().topLeft().y());
+            }
+            break;
+        }
+    }
+    ///
+
     load_data_from_shm(shm_key, shm_size, ssem_key);
 }
 
@@ -223,20 +244,19 @@ void SavingWindow::rxDebugInfo(QString info)
 
 void SavingWindow::rxSaverFinished()
 {
-    this->close();
+    //this->close();
 }
 
 void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm_size, const QString &ssem_key)
 {
     if ( debug_mode )
     {
-        debug_window = new SaveDBGWindow;
+        // debug_window = new SaveDBGWindow;
         debug_window->setWindowTitle("debug");
-        debug_window->move(0, 0);
         debug_window->show();
 
-        // debug_window->info_text->append(QString::number(this->screen()->availableSize().width()));
-        // debug_window->info_text->append(QString::number(this->screen()->availableSize().height()));
+        debug_window->info_text->append("Screen name (from args): " + screen_name);
+        debug_window->info_text->append("Current screen name: " + this->screen()->name());
         debug_window->info_text->append("My process Id: " + QString::number(QApplication::applicationPid()));
         debug_window->info_text->append("Shared memory key: " + shm_key);
         debug_window->info_text->append("Shared memory size: " + shm_size);
@@ -421,7 +441,7 @@ void SaverThread::run()
             src_file.close();
 
             Q_EMIT txNextWasSaved();
-            if ( debug_mode) QThread::msleep(100);
+            if ( debug_mode) QThread::msleep(1000);
         }
     }
 }

@@ -31,15 +31,16 @@ int main(int argc, char **argv)
     // [3] - размер блока shm в байтах
     // [4] - ключ system semaphore
     // [5] - индекс языка (0 - eng, 1 - rus)
-    if ( args.count() >= 6 )
+    // [6] - имя экрана для отображения
+    if ( args.count() >= 7 )
     {
         if ( args[1].first(5) == "-save" )
         {
             settings = new Settings;
             settings->initSkin();
-            auto saving_window = new SavingWindow(args[2], args[3], args[4], (args[1] == "-save_dbg"), args[5]);
-            QString save_path = QFileDialog::getExistingDirectory();
-            //QString save_path = "c:/Downloads";
+            auto saving_window = new SavingWindow(args[2], args[3], args[4], (args[1] == "-save_dbg"), args[5], args[6]);
+            //QString save_path = QFileDialog::getExistingDirectory();
+            QString save_path = "c:/Downloads";
             if ( save_path[save_path.length() - 1] != '/' ) save_path.append('/');
             save_path += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss/");
             QDir save_dir;
@@ -55,11 +56,11 @@ int main(int argc, char **argv)
     //auto sim = QImageReader::supportedImageFormats();
     //qInfo() << sim;
 
-    //task.delAllTaskPaths();
+    task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
+    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield)", "*.*", true});
 
     settings = new Settings;

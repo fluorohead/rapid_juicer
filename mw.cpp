@@ -471,6 +471,10 @@ MainWindow::MainWindow()
     connect(paths_button, &DynamicInfoButton::imReleased, paths_list, &PathsWindow::show);
     connect(settings_button, &OneStateButton::imReleased, this, &MainWindow::showSettings);
     connect(play_button, &OneStateButton::imReleased, this, &MainWindow::showNewSessionWindow);
+
+    // qInfo() << QApplication::screenAt(this->pos());
+    // qInfo() << QApplication::screens();
+    // qInfo() << this->screen();
 }
 
 MainWindow::~MainWindow()
@@ -484,6 +488,8 @@ void MainWindow::mouseMoveEvent(QMouseEvent *event)
     {
         this->move(this->pos() + (event->globalPosition() - prev_cursor_pos).toPoint());
         prev_cursor_pos = event->globalPosition();
+
+//        qInfo() << QApplication::screenAt(this->pos()) << this->screen() << this->screen()->manufacturer();
     }
 }
 
@@ -509,7 +515,6 @@ void MainWindow::changeEvent(QEvent *event)
         ((QLabel*)formats_table->cellWidget(0, 0))->setText(header_txt[curr_lang()][0]);
         ((QLabel*)formats_table->cellWidget(0, 1))->setText(header_txt[curr_lang()][1]);
         ((QLabel*)formats_table->cellWidget(0, 2))->setText(header_txt[curr_lang()][2]);
-        //QApplication::postEvent(&dirlist, new QEvent(QEvent::LanguageChange)); // отсылаем в DirlistWindow
         QApplication::postEvent(paths_list, new QEvent(QEvent::LanguageChange)); // отсылаем в PathsWindow
     }
     event->accept();
@@ -524,7 +529,6 @@ void MainWindow::closeEvent(QCloseEvent *event)
             sessions_pool.pool[idx]->close();
         }
     }
-    //dirlist.close();
     paths_list->close();
 }
 
@@ -627,7 +631,6 @@ void MainWindow::showNewSessionWindow()
             new_session_window->show();
         }
         updateSessionsCounter();
-        //dirlist.remove_all(); // очищаем список путей в task и в DirlistWindow
         paths_list->remove_all(); // очищаем список путей в task и в PathsWindow
     }
     else

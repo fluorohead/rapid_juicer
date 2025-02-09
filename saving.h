@@ -56,13 +56,14 @@ class SavingWindow: public QWidget
     QPointF prev_cursor_pos;
     int lang_id;
     bool debug_mode;
+    QString screen_name;
 
     void mouseMoveEvent(QMouseEvent *event);
     void mousePressEvent(QMouseEvent *event);
 
     void load_data_from_shm(const QString &shm_key, const QString &shm_size, const QString &ssem_key);
 public:
-    SavingWindow(const QString &shm_key, const QString &shm_size, const QString &ssem_key, bool is_debug, const QString &language_id);
+    SavingWindow(const QString &shm_key, const QString &shm_size, const QString &ssem_key, bool is_debug, const QString &language_id, const QString &screen);
     ~SavingWindow();
     void start_saver(const QString &path);
 public Q_SLOTS:
