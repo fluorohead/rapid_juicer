@@ -1127,7 +1127,7 @@ void SessionWindow::rxSerializeAndSaveAll()
     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
-    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save_dbg", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key(), QString::number(curr_lang()) }, "");
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key(), QString::number(curr_lang()) }, "");
 
     data_buffer.clear();   // обнуляем и буфер, т.к. теперь все данные в shared_memory
     data_buffer.squeeze(); //
@@ -1242,14 +1242,15 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
         return;
     }
 
-    // копирование из буфера в shared_memory
+    /// копирование из буфера в shared_memory
     char *from_buffer = (char*)data_buffer.data();
     char *to_shm = (char*)shared_memory.data();
     memcpy(to_shm, from_buffer, data_buffer.size());
+    ///
     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
-    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save_dbg", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key(), QString::number(curr_lang()) }, "");
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", shared_memory.key(), QString::number(data_buffer.size()), sys_semaphore.key(), QString::number(curr_lang()) }, "");
 
     data_buffer.clear();   // обнуляем и буфер, т.к. теперь все данные в shared_memory
     data_buffer.squeeze(); //
@@ -1269,7 +1270,8 @@ void SessionWindow::rxChangePageTo(int page)
 
 void SessionWindow::mouseMoveEvent(QMouseEvent *event)
 {
-    if (event->buttons() == Qt::LeftButton) {
+    if ( event->buttons() == Qt::LeftButton )
+    {
         this->move(this->pos() + (event->globalPosition() - prev_cursor_pos).toPoint());
         prev_cursor_pos = event->globalPosition();
     }
@@ -1277,7 +1279,8 @@ void SessionWindow::mouseMoveEvent(QMouseEvent *event)
 
 void SessionWindow::mousePressEvent(QMouseEvent *event)
 {
-    if (event->buttons() == Qt::LeftButton) {
+    if ( event->buttons() == Qt::LeftButton )
+    {
         prev_cursor_pos = event->globalPosition();
     }
 }

@@ -26,7 +26,7 @@ int main(int argc, char **argv)
 
     auto args = app.arguments();
     // [0] - имя файла процесса
-    // [1] - команда "-save" или "-save_dbg"
+    // [1] - команды : "-save" или "-save_dbg"
     // [2] - ключ shm
     // [3] - размер блока shm в байтах
     // [4] - ключ system semaphore
@@ -37,8 +37,14 @@ int main(int argc, char **argv)
         {
             settings = new Settings;
             settings->initSkin();
-            //auto saving_window = new SavingWindow(QFileDialog::getExistingDirectory(), args[2], args[3], args[4], false, 0);
-            auto saving_window = new SavingWindow("c:/Downloads/rj_research", args[2], args[3], args[4], (args[1] == "-save_dbg"), args[5]);
+            auto saving_window = new SavingWindow(args[2], args[3], args[4], (args[1] == "-save_dbg"), args[5]);
+            QString save_path = QFileDialog::getExistingDirectory();
+            //QString save_path = "c:/Downloads";
+            if ( save_path[save_path.length() - 1] != '/' ) save_path.append('/');
+            save_path += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss/");
+            QDir save_dir;
+            save_dir.mkpath(save_path);
+            saving_window->start_saver(save_path);
             saving_window->show();
             app.exec();
             delete settings;
@@ -49,11 +55,12 @@ int main(int argc, char **argv)
     //auto sim = QImageReader::supportedImageFormats();
     //qInfo() << sim;
 
-    task.delAllTaskPaths();
+    //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield)", "*.*", true});
 
     settings = new Settings;
     settings->initSkin();

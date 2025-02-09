@@ -2411,6 +2411,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
     auto info_header = (SMK_Header*)(&buffer[base_index]);
+    if ( ( info_header->width == 0 ) or ( info_header->height == 0 ) ) return 0;
     if ( ( info_header->width > 6000 ) or ( info_header->height > 6000 ) ) return 0;
     s64i file_size = e->file_size;
     if ( base_index + sizeof(SMK_Header) + info_header->frames_num * 4 + info_header->frames_num * 1 > file_size ) return 0; // нет места для таблицы размеров кадров
