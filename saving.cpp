@@ -244,7 +244,7 @@ void SavingWindow::rxDebugInfo(QString info)
 
 void SavingWindow::rxSaverFinished()
 {
-    //this->close();
+    this->close();
 }
 
 void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm_size, const QString &ssem_key)

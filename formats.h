@@ -15,12 +15,6 @@ using s32i = qint32;
 using u16i = quint16;
 using u8i  = quint8;
 
-#define RECOGNIZE_FUNC_HEADER (Engine *e)
-#define RECOGNIZE_FUNC_DECL_RETURN static u64i
-#define RECOGNIZE_FUNC_RETURN u64i
-
-#define MIN_RESOURCE_SIZE 16 // по факту минимальный размер исходного файла, иначе пропускаем
-
 // Все возможные категории ресурсов
 extern const u64i CAT_NONE;
 

@@ -13,13 +13,17 @@
 #define RECOGNIZE_FUNC_DECL_RETURN static u64i
 #define RECOGNIZE_FUNC_RETURN u64i
 
+#define MIN_RESOURCE_SIZE 14 // минимальный размер исходного файла, иначе пропускаем
+
 class WalkerThread;
 class Engine;
 
 enum class WalkerCommand: int {Run = 0, Stop, Pause, Skip};
 
-struct Signature {
-    union {
+struct Signature
+{
+    union
+    {
         u64i as_u64i;
         u8i  as_u8i[8];
     };
@@ -29,7 +33,8 @@ struct Signature {
 
 extern QMap <QString, Signature> signatures;
 
-struct TreeNode {
+struct TreeNode
+{
     Signature signature;
     TreeNode  *left;
     TreeNode  *right;

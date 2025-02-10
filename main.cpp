@@ -59,8 +59,8 @@ int main(int argc, char **argv)
     task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
-    //task.addTaskPath(TaskPath {R"(c:\Games\Remnant2\Remnant2\Content)", "*.*", true});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
+    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff\)", "*.*", true});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield)", "*.*", true});
 
     settings = new Settings;

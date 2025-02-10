@@ -2469,7 +2469,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     s64i ifd_strip_counts_table; // смещение таблицы размеров "отрезков" изображения
     u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
     s64i ifd_exif_offset; // смещение exif ifd
-    //qInfo() << ": Next TIFF_II scan iteration! Signature found at offset:" << base_index;
+    u64i total_tags_counter = 0;
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
         ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
@@ -2516,10 +2516,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
                 if ( tag_pointer[tag_idx].tag_id == 34665 ) ifd_exif_offset = tag_pointer[tag_idx].data_offset; // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
             }
             // qInfo() << "   tag#"<< tag_idx << " tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
+            ++total_tags_counter; // если прошли все if'ы, значит тег легитимный
         }
         if ( ( ifd_image_offset > 0 ) and ( ifd_image_size > 0 ) ) ifds_and_tags_db[ifd_image_offset] = ifd_image_size; // если у тегов 273 и 279 количество данных data_count < 4;
         // в ином случае проверяем таблицы ifd_strip_offsets_table и ifd_strip_counts_table
-        if ( ( ifd_strip_num > 0 ) and ( ifd_strip_counts_table > 0 ) and ( ifd_strip_counts_table > 0 ) ) // добавляем кусочки (strips) в бд
+        if ( ( ifd_strip_num > 0 ) and ( ifd_strip_counts_table > 0 ) ) // добавляем кусочки (strips) в бд
         {
             auto strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
             auto strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
@@ -2555,11 +2556,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
             }
         }
         next_ifd_offset = *((u32i*)&buffer[last_index + 2 + num_of_tags * 12]); // считываем смещение следующего IFD из конца предыдущего IFD
-        //qInfo() << "   next_ifd_offset:" << next_ifd_offset;
+        //qInfo() << ": next_ifd_offset:" << next_ifd_offset;
         if ( next_ifd_offset == 0 ) break;
         last_index = base_index + next_ifd_offset;
     }
     // на выходе из цикла переменная last_index не будет иметь значения (она будет указывать на последний IFD), т.к. нужно проанализировать бд
+    if ( total_tags_counter == 0 ) return 0; // файл без тегов не имеет смысла
     if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
@@ -2606,7 +2608,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     s64i ifd_strip_counts_table; // смещение таблицы размеров "отрезков" изображения
     u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
     s64i ifd_exif_offset; // смещение exif ifd
-    // qInfo() << ": Next TIFF_MM scan iteration! Signature found at offset:" << base_index;
+    u64i total_tags_counter = 0;
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
         ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
@@ -2655,10 +2657,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
             // qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
             //         << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
             //         << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
+            ++total_tags_counter;
         }
         if ( ( ifd_image_offset > 0 ) and ( ifd_image_size > 0 ) ) ifds_and_tags_db[ifd_image_offset] = ifd_image_size; // если у тегов 273 и 279 количество данных data_count < 4;
         // в ином случае проверяем таблицы ifd_strip_offsets_table и ifd_strip_counts_table
-        if ( ( ifd_strip_num > 0 ) and ( ifd_strip_counts_table > 0 ) and ( ifd_strip_counts_table > 0 ) ) // добавляем кусочки (strips) в бд
+        if ( ( ifd_strip_num > 0 ) and ( ifd_strip_counts_table > 0 ) ) // добавляем кусочки (strips) в бд
         {
             auto strip_offsets = (u32i*)&buffer[base_index + ifd_strip_offsets_table];
             auto strip_counts = (u32i*)&buffer[base_index + ifd_strip_counts_table];
@@ -2700,6 +2703,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         last_index = base_index + next_ifd_offset;
     }
     // на выходе из цикла переменная last_index не будет иметь значения (она будет указывать на последний IFD), т.к. нужно проанализировать бд
+    if ( total_tags_counter == 0 ) return 0; // файл без тегов не имеет смысла
     if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
