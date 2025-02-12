@@ -203,6 +203,7 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
                 debug_window->setScreen(screen_ptr);
                 debug_window->move(screen_ptr->availableGeometry().topLeft().x(), screen_ptr->availableGeometry().topLeft().y());
             }
+            ///
             break;
         }
     }

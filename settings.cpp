@@ -90,7 +90,7 @@ const Config default_config
     true,             // scrupulous
     u32i(Langs::Eng), // English language
     2,                // index 2 is 50Mbytes
-    false,            // recursion
+    true,             // recursion
     "*.*",            // any files to search for
 #ifdef _WIN64
     {"zip", "7z", "rar", "arj", "lzh", "ace"}

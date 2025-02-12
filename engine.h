@@ -13,7 +13,7 @@
 #define RECOGNIZE_FUNC_DECL_RETURN static u64i
 #define RECOGNIZE_FUNC_RETURN u64i
 
-#define MIN_RESOURCE_SIZE 14 // минимальный размер исходного файла, иначе пропускаем
+#define MIN_RESOURCE_SIZE 16 // минимальный размер исходного файла, иначе пропускаем
 
 class WalkerThread;
 class Engine;
@@ -28,7 +28,7 @@ struct Signature
         u8i  as_u8i[8];
     };
     u64i signature_size;
-    RECOGNIZE_FUNC_RETURN (*recognizer_ptr) RECOGNIZE_FUNC_HEADER; // указатель на функцию-обработчик
+    RECOGNIZE_FUNC_RETURN (*recognizer_ptr) RECOGNIZE_FUNC_HEADER; // указатель на функцию-распознаватель
 };
 
 extern QMap <QString, Signature> signatures;
@@ -102,7 +102,6 @@ public:
 Q_SIGNALS:
     void txFileChange(const QString &file_name, u64i bytes_amount);
     void txFileProgress(s64i percentage_value);
-    //void txResourceFound(const QString &format_name, const QString &file_name, s64i file_offset, u64i size, const QString &info);
     void txResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);
 
     friend WalkerThread;

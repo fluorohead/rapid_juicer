@@ -66,5 +66,6 @@
         <file>gui/paths/tc_btn.png</file>
         <file>gui/paths/tc_btn_h.png</file>
         <file>gui/paths/tc_lbl.png</file>
+        <file>gui/RobotoMono-Regular.ttf</file>
     </qresource>
 </RCC>
