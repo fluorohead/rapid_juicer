@@ -65,7 +65,9 @@ DynamicInfoButton::DynamicInfoButton(QWidget *parent,   const QString &main_reso
     main_font->setPixelSize(main_font_size);
     hover_font->setPixelSize(hover_font_size);
     main_font->setItalic(true);
+    main_font->setBold(true);
     hover_font->setItalic(true);
+    hover_font->setBold(true);
 
     text_label.move(0, 0);
     text_label.setFixedSize(this->size());

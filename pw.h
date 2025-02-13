@@ -10,7 +10,7 @@
 #define PATHS_WINDOW_MIN_WIDTH 1043
 #define PATHS_WINDOW_MIN_HEIGHT 361
 #define PATHS_TABLE_ROW_H 26
-#define PATHS_TABLE_MAX_PATHS 100
+#define PATHS_TABLE_MAX_PATHS 1024
 #define PATHS_TABLE_COL0_W 32
 #define PATHS_TABLE_COL1_W 59
 
@@ -101,6 +101,7 @@ class PathsWindow: public QWidget
     void mousePressEvent(QMouseEvent *event);
     void paintEvent(QPaintEvent *event);
     void changeEvent(QEvent *event);
+    bool event(QEvent *event);
     QLabel *central_widget;
     PathsTable *paths_table;
     CornerGrip *grip;

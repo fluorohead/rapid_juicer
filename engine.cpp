@@ -1952,7 +1952,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    auto info = QString("%1-chan. song : '%2'").arg(QString::number(channels),
+    auto info = QString("%1-chan. song '%2'").arg(QString::number(channels),
                                                     QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     Q_EMIT e->txResourceFound("mod", base_index, resource_size, info);
     e->resource_offset = base_index;
@@ -2092,7 +2092,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->module_name[song_name_len] == 0 ) break;
     }
-    auto info = QString("%1-chan. song : '%2'").arg(QString::number(info_header->channels_number),
+    auto info = QString("%1-chan. song '%2'").arg(QString::number(info_header->channels_number),
                                                     QString(QByteArray((char*)(info_header->module_name), song_name_len)));
     Q_EMIT e->txResourceFound("xm", base_index, resource_size, info);
     e->resource_offset = base_index;
@@ -2197,7 +2197,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    auto info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    auto info = QString("song '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     Q_EMIT e->txResourceFound("s3m", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2311,7 +2311,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    auto info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    auto info = QString("song '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     Q_EMIT e->txResourceFound("it", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2819,7 +2819,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    auto info = QString("song : '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    auto info = QString("song '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
     Q_EMIT e->txResourceFound("669", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -3346,7 +3346,7 @@ mp3_id3v1:
         auto id3v1 = (ID3v1*)&buffer[last_index];
         if ( ( id3v1->signature1 == 0x4154 ) and ( id3v1->signature2 == 0x47 ) )
         {
-            info = "song : '";
+            info = "song '";
             for (u8i song_name_len = 0; song_name_len < 30; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [29]
             {
                 if ( id3v1->title[song_name_len] == 0 ) break;
@@ -3466,7 +3466,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
                 {
                     u32i songname_len = be2le(exp_data->songname_len);
                     u8i *songname_ptr = &buffer[base_index + be2le(exp_data->songname_ptr)];
-                    info = "song : '";
+                    info = "song '";
                     if (songname_len > 32) songname_len = 32;
                     for (u32i s_idx = 0; s_idx < (songname_len - 1); ++s_idx)
                     {
@@ -3524,7 +3524,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
         if ( chunk->id == 0x454D414E /*'NAME'*/ )
         {
             u8i *songname_ptr = &buffer[last_index + sizeof(Chunk)];
-            info = "song : '";
+            info = "song '";
             for (u32i s_idx = 0; s_idx < 44; ++s_idx)
             {
                 if ( songname_ptr[s_idx] == 0 ) break;

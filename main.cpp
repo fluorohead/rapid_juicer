@@ -18,9 +18,8 @@ int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
     app.setApplicationName(":: Rapid Juicer :: resource extractor ::");
-    app.setWindowIcon(QIcon(":/gui/logo.png"));
-
-    qInfo() << QFontDatabase::addApplicationFont(":/gui/RobotoMono-Regular.ttf");
+    //app.setWindowIcon(QIcon(":/gui/logo_tiny.png"));
+    QFontDatabase::addApplicationFont(":/gui/RobotoMono-Regular.ttf");
 
     //qInfo() << "Main process id (uint64):" << app.applicationPid();
     // qInfo() << "Main thread id:" << QThread::currentThreadId();
@@ -35,20 +34,21 @@ int main(int argc, char **argv)
     // [4] - ключ system semaphore
     // [5] - индекс языка (0 - eng, 1 - rus)
     // [6] - имя экрана для отображения
-    if ( args.count() >= 7 )
+    // [7] - путь сохранения (без подкаталога даты)
+    if ( args.count() >= 8 )
     {
         if ( args[1].first(5) == "-save" )
         {
             settings = new Settings;
             settings->initSkin();
-            auto saving_window = new SavingWindow(args[2], args[3], args[4], (args[1] == "-save_dbg"), args[5], args[6]);
-            QString save_path = QFileDialog::getExistingDirectory();
-            //QString save_path = "c:/Downloads";
+            bool is_report = ( args[1] == "-save_report" );
+            auto saving_window = new SavingWindow(args[2], args[3], args[4], ( args[1] == "-save_dbg" ) /*is_debug*/, args[5], args[6], is_report);
+            QString save_path = args[7];
             if ( save_path[save_path.length() - 1] != '/' ) save_path.append('/');
             save_path += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss/");
             QDir save_dir;
-            save_dir.mkpath(save_path);
-            saving_window->start_saver(save_path);
+            save_dir.mkpath(save_path); // создаём каталог на диске
+            is_report ? saving_window->start_reporter(save_path) : saving_window->start_saver(save_path);
             saving_window->show();
             app.exec();
             delete settings;
@@ -62,9 +62,9 @@ int main(int argc, char **argv)
     //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff)", "*.*", true});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff)", "*", true});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield)", "*.*", true});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield)", "*", true});
 
     settings = new Settings;
     settings->initSkin();

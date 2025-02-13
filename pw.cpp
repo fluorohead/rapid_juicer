@@ -166,7 +166,7 @@ PathsTable::PathsTable(QWidget *parent)
     this->setSelectionMode(QAbstractItemView::NoSelection);
     this->setFocusPolicy(Qt::NoFocus); // отключаем прямоугольник фокуса при клике на ячейке
     this->setEditTriggers(QAbstractItemView::NoEditTriggers); // отключаем редактирование ячеек
-    this->setFocusPolicy(Qt::NoFocus);
+    this->setWordWrap(false);
     this->setFrameShape(QFrame::NoFrame);
     this->setSortingEnabled(false);
     this->horizontalHeader()->setHighlightSections(false);
@@ -174,11 +174,10 @@ PathsTable::PathsTable(QWidget *parent)
     this->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     this->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
     this->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
-    //this->horizontalScrollBar()->hide();
     my_style = new QCommonStyle;
     this->verticalScrollBar()->setStyle(my_style);
     this->verticalScrollBar()->setStyleSheet(   ":vertical {background-color: #7e7b5f; width: 10px}"
-                                                "::handle:vertical {background-color: #6e6b4f; border-radius: 5px; min-height: 48px}"
+                                                "::handle:vertical {background-color: #6e6b4f; border-radius: 5px; min-height: 48px;}"
                                                 "::sub-line:vertical {height: 0px}"
                                                 "::add-line:vertical {height: 0px}");
 
@@ -385,6 +384,19 @@ void PathsWindow::changeEvent(QEvent *event)
         paths_table->update_header();
     }
     event->accept();
+}
+
+bool PathsWindow::event(QEvent *event)
+{
+    if ( event->type() == QEvent::Show )
+    {
+        paths_table->verticalScrollBar()->setSliderPosition(0); // перемотка таблицы в начало при каждом появлении окна
+        return true;
+    }
+    else
+    {
+        return QWidget::event(event);
+    }
 }
 
 void PathsWindow::rxDiffXY(int x_diff, int y_diff)

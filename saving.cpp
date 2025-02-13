@@ -11,6 +11,7 @@
 #include <QWindow>
 
 extern Settings *settings;
+extern QMap <QString, FileFormat> fformats;
 
 extern QString reduce_file_path(const QString&, int);
 
@@ -18,6 +19,12 @@ const QString saving_to_txt[int(Langs::MAX)]
 {
     "Saving to directory",
     "Сохранение в каталог"
+};
+
+const QString saving_report_to_txt[int(Langs::MAX)]
+{
+    "Saving report to",
+    "Сохранение отчёта в"
 };
 
 const QString saved_txt[int(Langs::MAX)]
@@ -44,6 +51,12 @@ const QString abort_button_txt[int(Langs::MAX)]
     "отмена"
 };
 
+const QString html_report_txt[int(Langs::MAX)]
+{
+    "Report",
+    "Отчёт",
+};
+
 SaveDBGWindow::SaveDBGWindow()
     : QWidget(nullptr)
 {
@@ -55,9 +68,10 @@ SaveDBGWindow::SaveDBGWindow()
     info_text->setFixedSize(this->width() - 16, this->height() - 16);
 }
 
-SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, const QString &ssem_key, bool is_debug, const QString &language_id, const QString &screen)
+SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, const QString &ssem_key, bool is_debug, const QString &language_id, const QString &screen, bool is_report)
     : QWidget(nullptr, Qt::FramelessWindowHint)
     , debug_mode(is_debug)
+    , report_mode(is_report)
     , lang_id(language_id.toInt())
     , screen_name(screen)
 {
@@ -91,7 +105,7 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     saving_to_label->setStyleSheet("color: #f1c596");
     saving_to_label->setFont(common_font);
     saving_to_label->setAlignment(Qt::AlignCenter);
-    saving_to_label->setText(saving_to_txt[lang_id]);
+    saving_to_label->setText(report_mode ? saving_report_to_txt[lang_id] : saving_to_txt[lang_id]);
 
     common_font.setItalic(true);
     common_font.setPixelSize(11);
@@ -209,7 +223,7 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     }
     ///
 
-    load_data_from_shm(shm_key, shm_size, ssem_key);
+    report_mode ? load_data_from_file() : load_data_from_shm(shm_key, shm_size, ssem_key);
 }
 
 SavingWindow::~SavingWindow()
@@ -227,7 +241,19 @@ void SavingWindow::start_saver(const QString &path)
     connect(saver, &SaverThread::txDebugInfo, this, &SavingWindow::rxDebugInfo, Qt::QueuedConnection);
     connect(saver, &SaverThread::txNextWasSaved, this, &SavingWindow::rxNextWasSaved, Qt::QueuedConnection);
     connect(saver, &SaverThread::finished, this, &SavingWindow::rxSaverFinished, Qt::QueuedConnection);
-    saver->start(QThread::InheritPriority);
+    saver->start();
+}
+
+void SavingWindow::start_reporter(const QString &path)
+{
+    saving_path = path;
+    QString report_file_path = saving_path + "report.html";
+    path_label->setPlainText(reduce_file_path(QDir::toNativeSeparators(report_file_path), 86));
+    qInfo() << "report_file_path:" << report_file_path;
+    auto reporter = new ReporterThread(this, &resources_db, &src_files, debug_mode, report_file_path, lang_id);
+    connect(reporter, &ReporterThread::txNextWasReported, this, &SavingWindow::rxNextWasReported, Qt::QueuedConnection);
+    connect(reporter, &ReporterThread::finished, this, &SavingWindow::rxReporterFinished, Qt::QueuedConnection);
+    reporter->start();
 }
 
 void SavingWindow::rxNextWasSaved()
@@ -238,6 +264,15 @@ void SavingWindow::rxNextWasSaved()
     progress_bar->setValue(resources_saved * 100 / total_resources_found);
 }
 
+void SavingWindow::rxNextWasReported()
+{
+    ++resources_reported;
+    saved_label->setText(QString::number(resources_reported));
+    remains_label->setText(QString::number(total_resources_found - resources_reported));
+    progress_bar->setValue(resources_reported * 100 / total_resources_found);
+}
+
+
 void SavingWindow::rxDebugInfo(QString info)
 {
     debug_window->info_text->append(info);
@@ -246,6 +281,12 @@ void SavingWindow::rxDebugInfo(QString info)
 void SavingWindow::rxSaverFinished()
 {
     this->close();
+}
+
+void SavingWindow::rxReporterFinished()
+{
+    qInfo() << "reporter finished";
+    //this->close();
 }
 
 void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm_size, const QString &ssem_key)
@@ -282,6 +323,18 @@ void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm
         return;
     }
     if ( debug_mode) debug_window->info_text->append("Shared memory real size: " + QString::number(shared_memory.size()));
+
+    /// запись дампа shm на диск
+    // QFile shm_dump_file("./" + QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss") + ".dmp"); // в каталог запуска
+    // shm_dump_file.open(QIODeviceBase::ReadWrite);
+    // int dump_size = shm_size.toUInt();
+    // shm_dump_file.resize(dump_size);
+    // auto mmf_shm_dump = shm_dump_file.map(0, dump_size);
+    // memcpy(mmf_shm_dump, shared_memory.data(), dump_size);
+    // shm_dump_file.flush();
+    // shm_dump_file.unmap(mmf_shm_dump);
+    // shm_dump_file.close();
+    ///
 
     auto shm_buffer = (u8i*)shared_memory.data();
     TLV_Header *tlv_header;
@@ -347,7 +400,7 @@ void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm
         }
         case TLV_Type::Terminator:
         {
-            if ( debug_mode) debug_window->info_text->append("-> Terminator:");
+            if ( debug_mode) debug_window->info_text->append("-> Terminator.");
             break;
         }
         }
@@ -356,8 +409,93 @@ void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm
 
     if ( debug_mode) debug_window->info_text->append("\nTOTAL RESOURCES FOUND: " + QString::number(total_resources_found));
 
-    shared_memory.detach();
+    shared_memory.detach(); // отсоединяемся от shm, чтобы ОС могла освободить занимаемую память
     delete sys_semaphore;
+}
+
+void SavingWindow::load_data_from_file()
+{
+    QFile dump_file("c:/Downloads/2025-02-12-17-46-54.dmp");
+    if ( !dump_file.open(QIODeviceBase::ReadWrite) )
+    {
+        qInfo() << "error opening dump file";
+        return;
+    }
+    auto mmf = dump_file.map(0, dump_file.size());
+    if ( mmf == nullptr )
+    {
+        qInfo() << "error memory mapping dump file";
+        return;
+    }
+    TLV_Header *tlv_header;
+    QString current_format;
+    QString src_file;
+    POD_ResourceRecord *current_pod_ptr;
+    ResourceRecord current_rr;
+    QString current_dest_ext;
+    QString current_info;
+    u64i next_header_offset = 0; // =0 - важно!
+    do
+    {
+        tlv_header = (TLV_Header*)&mmf[next_header_offset];
+        ///qInfo() << "\ntype:" << QString::number(int(tlv_header->type)) << "length:" << QString::number(int(tlv_header->length));
+        switch(tlv_header->type)
+        {
+        case TLV_Type::SrcFile: // эти TLV всегда идут первыми, один за одним
+        {
+            src_file = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
+            src_files.append(src_file);
+            //qInfo() << "-> SrcFile: '" << src_file << "'";
+            break;
+        }
+        case TLV_Type::FmtChange:
+        {
+            current_format = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
+           //qInfo() << "-> FmtChange: '" << current_format << "'";
+            if ( !resources_db.contains(current_format) ) // формат встретился первый раз?
+            {
+                formats_counters[current_format] = 0;
+            }
+            ++formats_counters[current_format];
+            break;
+        }
+        case TLV_Type::POD:
+        {
+            current_pod_ptr = (POD_ResourceRecord*)((char*)tlv_header + sizeof(TLV_Header));
+            current_rr.order_number = current_pod_ptr->order_number;
+            current_rr.src_fname_idx = current_pod_ptr->src_fname_idx;
+            current_rr.offset = current_pod_ptr->offset;
+            current_rr.size = current_pod_ptr->size;
+           // qInfo() << "-> POD : order_number:" << QString::number(current_rr.order_number) << "; src_fname_idx: " << QString::number(current_rr.src_fname_idx) << "; offset: " << QString::number(current_rr.offset) << "; size: " << QString::number(current_rr.size);
+            //qInfo() << "-> POD : src_file by idx:" << src_files[current_rr.src_fname_idx];
+            break;
+        }
+        case TLV_Type::DstExtension:
+        {
+            current_dest_ext = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
+            //qInfo() << "-> DstExtension: '" << current_dest_ext << "'";
+            current_rr.dest_extension = current_dest_ext;
+            break;
+        }
+        case TLV_Type::Info:
+        {
+            current_info = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
+           // qInfo() << "-> Info: '" << current_info << "'";
+            current_rr.info = current_info;
+            /// TLV "Info" всегда идёт завершающей, значит можно сделать запись в БД
+            resources_db[current_format].append(current_rr);
+            ++total_resources_found;
+            ///
+            break;
+        }
+        case TLV_Type::Terminator:
+        {
+            qInfo() << "-> Terminator.";
+            break;
+        }
+        }
+        next_header_offset += (sizeof(TLV_Header) + tlv_header->length);
+    } while(tlv_header->type != TLV_Type::Terminator);
 }
 
 void SavingWindow::mouseMoveEvent(QMouseEvent *event)
@@ -445,4 +583,170 @@ void SaverThread::run()
             if ( debug_mode) QThread::msleep(1000);
         }
     }
+}
+
+ReporterThread::ReporterThread(SavingWindow *parent, RR_Map *resources_db_ptr, QStringList *src_files_ptr, bool is_debug, const QString &path, int language)
+    : my_parent(parent)
+    , resources_db(resources_db_ptr)
+    , src_files(src_files_ptr)
+    , debug_mode(is_debug)
+    , report_path(path)
+    , lang_id(language)
+{
+
+}
+
+const QString html_report_created_txt[int(Langs::MAX)]
+{
+    "Report created : ",
+    "Отчёт создан : "
+};
+
+void ReporterThread::run()
+{
+    QFile report_file(report_path);
+    if ( !report_file.open(QIODeviceBase::WriteOnly) )
+    {
+        qInfo() << "error creating report file";
+        report_file.close();
+        return;
+    }
+    QTextStream text_stream(&report_file);
+    text_stream <<
+R"(<!DOCTYPE html>
+<html>
+<head>
+<meta charset=\"utf-8\">
+<title>Rapid Juicer :: )" << html_report_txt[lang_id] << "</title>\n";
+    text_stream <<
+R"(
+<style>
+body {
+    background-color: #6d8186;
+    color: #d6e7e7;
+    font-family: 'Courier New', 'monospace';
+}
+
+table {
+    width: 1472px;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+table tbody tr:nth-child(odd){
+    background: #8d6858;
+    color: #d6e7e7;
+    height: 32px;
+}
+
+table tbody tr:nth-child(even){
+    background: #7d5848;
+    color: #d6e7e7;
+    height: 32px;
+}
+
+td {
+    border: 3px solid #6d8186;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+td:nth-child(4) {
+    font-size: 11px;
+    word-wrap: break-word;
+}
+
+th {
+    border: 3px solid #6d8186;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: #555763
+}
+
+th:nth-child(1) {
+    width: 160px;
+}
+th:nth-child(2) {
+    width: 196px;
+}
+th:nth-child(3) {
+    width: 160px;
+}
+th:nth-child(4) {
+    width: 300px;
+}
+th:nth-child(5) {
+    width: 256px;
+}
+th:nth-child(6) {
+    width: 400px;
+}
+
+p {
+    margin: 32px;
+}
+</style>
+</head>
+<body>
+<center>
+<header>)";
+
+    text_stream << "<p><h2>" << VERSION_TEXT << "</h3>\n";
+    text_stream << "<h3>" << html_report_created_txt[lang_id] << QDateTime::currentDateTime().toString("dd.MM.yyyy hh:mm:ss") << "</h3>\n";
+    text_stream << "<h4>" << "Период сканирования : 12.02.2025 20:30:15 - 12.02.2025 20:34:45" << "</h4>\n";
+    text_stream << "<h4>" << "Продолжительность : 00:04:30.000" << "</h4>\n";
+    text_stream << "</p>\n</header>\n<hr>\n";
+
+    text_stream <<
+R"(<nav>
+Быстрая навигация по форматам :
+<strong>
+)";
+
+    for(auto it = (*resources_db).cbegin(); it != (*resources_db).cend(); ++it)
+    {
+        text_stream << "<a href=\"#" << it.key() << "\">" << it.key() << "</a>\n";
+    }
+
+    text_stream <<
+R"(</strong>
+</nav>
+<hr>
+<article>
+)";
+
+    for(auto it = (*resources_db).cbegin(); it != (*resources_db).cend(); ++it)
+    {
+        int resources_count = it.value().count();
+
+        text_stream << "<section id=\"" << it.key() << "\">\n<p>\n<table>\n";
+        text_stream << "<caption><h2>Формат " << fformats[it.key()].extension << " (" << fformats[it.key()].description << ")</h2><h4>Всего найдено " << 0 << " ресурсов, общим размером 0 байт(а).</h4></caption>\n";
+        text_stream << "<tr><th>Номер ресурса</th><th>Имя для сохранения</th><th>Размер, байт</th><th>Исходный файл</th><th>Смещение в файле</th><th>Доп.информация</th></tr>\n";
+
+        for(int idx = 0; idx < resources_count; ++idx)
+        {
+            text_stream << "<tr>";
+            text_stream << "<td>" << it.value()[idx].order_number << "</td>";
+            text_stream << "<td>" << it.value()[idx].order_number << "." << it.value()[idx].dest_extension.toLower() << "</td>";
+            text_stream << "<td>" << it.value()[idx].size << "</td>";
+            text_stream << "<td>" << QDir::toNativeSeparators((*src_files)[it.value()[idx].src_fname_idx]) << "</td>";
+            text_stream << "<td>" << QString("0x%1 (%2)").arg(QString::number(it.value()[idx].offset, 16), 8, '0').arg(QString::number(it.value()[idx].offset)) << "</td>";
+            text_stream << "<td>" << it.value()[idx].info << "</td>\n";
+            Q_EMIT txNextWasReported();
+        }
+        text_stream <<"</table>\n</p>\n</section>\n";
+    }
+    text_stream <<
+R"(<hr>
+</article>
+<footer>
+Завершитель
+</footer>
+</center>
+</body>
+</html>
+)";
+    report_file.flush();
+    report_file.close();
 }

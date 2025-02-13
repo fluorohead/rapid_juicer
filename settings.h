@@ -14,19 +14,20 @@ enum class Langs: int {Eng = 0, Rus = 1, MAX};
 
 struct Config
 {
-    bool        scrupulous;
-    int         lang_idx;
-    int         bfr_size_idx;
-    bool        recursion;
-    QString     file_mask;
+    bool scrupulous;
+    int lang_idx;
+    int bfr_size_idx;
+    bool recursion;
+    QString file_mask;
     QStringList excluding;
+    QString last_src_dir;
+    QString last_dst_dir;
 };
-
 
 struct Skin
 {
     QString font_name;
-    QFont   *main_font;
+    QFont *main_font;
 };
 
 
@@ -54,21 +55,24 @@ QValidator::State mask_validator(const QString &input);
 QValidator::State excluding_validator(const QString &input);
 
 
-class MaskValidator: public QValidator {
+class MaskValidator: public QValidator
+{
 public:
     MaskValidator(QObject *parent);
     QValidator::State validate(QString &input, int &pos) const;
 };
 
 
-class ExcludingValidator: public QValidator {
+class ExcludingValidator: public QValidator
+{
 public:
     ExcludingValidator(QObject *parent);
     QValidator::State validate(QString &input, int &pos) const;
 };
 
 
-class SettingsWindow: public QWidget {
+class SettingsWindow: public QWidget
+{
     Q_OBJECT
     int previous_lang_idx;
     QLabel background {this};

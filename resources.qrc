@@ -51,7 +51,6 @@
         <file>gui/session/scanning.gif</file>
         <file>gui/session/done.png</file>
         <file>gui/modal/warning.png</file>
-        <file>gui/logo.png</file>
         <file>gui/paths/dlw_close.png</file>
         <file>gui/paths/dlw_close_h.png</file>
         <file>gui/paths/dlw_min.png</file>
@@ -67,5 +66,7 @@
         <file>gui/paths/tc_btn_h.png</file>
         <file>gui/paths/tc_lbl.png</file>
         <file>gui/RobotoMono-Regular.ttf</file>
+        <file>gui/logo_tiny.png</file>
+        <file>gui/logo_tiny_h.png</file>
     </qresource>
 </RCC>

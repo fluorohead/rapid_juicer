@@ -65,19 +65,8 @@ public:
     friend SessionWindow;
 };
 
-
-class ResultsByFormatWidget: public QWidget
-{
-    QString my_fmt;
-    RR_Map *resources_db;
-    QTableWidget *format_table;
-public:
-    ResultsByFormatWidget(const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr);
-    void InsertNewRecord(ResourceRecord *new_record, int qlist_idx);
-    friend SessionWindow;
-};
-
-class ResultsByFormatTable: public QTableWidget
+// таблица на виджете ResultsByFormatWidget
+class ResultsTable: public QTableWidget
 {
     QString my_fmt;
     RR_Map *resources_db;
@@ -85,8 +74,20 @@ class ResultsByFormatTable: public QTableWidget
     QCommonStyle *fmt_table_style;
     bool event(QEvent* ev);
 public:
-    ResultsByFormatTable(QWidget *parent, const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr);
-    ~ResultsByFormatTable();
+    ResultsTable(QWidget *parent, const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr);
+    ~ResultsTable();
+};
+
+// виджет результатов по отдельно взятому формату
+class ResultsByFormatWidget: public QWidget
+{
+    QString my_fmt;
+    RR_Map *resources_db;
+    ResultsTable *format_table;
+public:
+    ResultsByFormatWidget(const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr);
+    void InsertNewRecord(ResourceRecord *new_record, int qlist_idx);
+    friend SessionWindow;
 };
 
 class SessionWindow: public QWidget
@@ -125,7 +126,7 @@ class SessionWindow: public QWidget
     u64i scanned_files_counter {0}; // счётчик просканированных файлов
     u64i total_amount_scanned {0}; // счётчик размера обработанных данных
     QStackedWidget *pages;
-    QTableWidget *results_table; // таблица с тайлами
+    QTableWidget *tiles_table; // заглавная таблица результатов с тайлами
     QMap <QString, u64i> formats_counters;
     QMap <QString, FormatTile*> tiles_db; // ссылки на виджеты тайлов : ключ - формат
     QMap <QString, TileCoordinates> tile_coords; // координаты тайлов (строка, столбец) : ключ - формат

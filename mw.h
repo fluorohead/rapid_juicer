@@ -20,7 +20,7 @@
 
 #define MAX_FILTERS 9
 
-#define VERSION_TEXT "Rapid Juicer :: 0.0.1"
+#define VERSION_TEXT "Rapid Juicer v0.0.1"
 
 enum class FilterAction { Include = 0, Exclude = 1, MAX };
 
@@ -101,8 +101,8 @@ class MainWindow: public QWidget
 {
     Q_OBJECT
     PathsWindow *paths_list;
-    QPixmap filter_main_pixmaps  [2];
-    QPixmap filter_hover_pixmaps [2];
+    QPixmap *filter_main_pixmaps [2];
+    QPixmap *filter_hover_pixmaps [2];
     QPointF prev_cursor_pos;
     DynamicInfoButton *paths_button;
     QLabel *tasks_label;

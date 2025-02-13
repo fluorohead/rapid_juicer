@@ -14,6 +14,7 @@
 #include <QListWidget>
 #include <QApplication>
 #include <QMimeData>
+#include <QDesktopServices>
 
 extern QHash <u32i, QString> categories;
 extern QMap <QString, FileFormat> fformats;
@@ -42,8 +43,8 @@ const QString tasks_label_txt[int(Langs::MAX)]
 
 const QString paths_button_txt[int(Langs::MAX)]
 {
-    "Paths: %1 (Max.100)",
-    "Путей: %1 (Мax.100)"
+    "Paths: %1 (Max.1024)",
+    "Путей: %1 (Мax.1024)"
 };
 
 const QString header_txt[int(Langs::MAX)][3]
@@ -154,6 +155,7 @@ FormatLabel::FormatLabel(const QString &format_key, const QString &text, QPixmap
     corner_label.setFixedSize(50, 50);
     corner_label.setMask(corner_pixmap->mask());
     if ( settings->selected_formats.contains(my_format_key) ) corner_label.setPixmap(*corner_pixmap);
+    this->setCursor(Qt::PointingHandCursor);
 }
 
 void FormatLabel::rxToggle()
@@ -208,6 +210,7 @@ CategoryLabel::CategoryLabel(QString id, const QMap<u64i, QPixmap *> &pixmaps, Q
              next_x_pos += (28 + 6);
         }
     }
+    this->setCursor(Qt::PointingHandCursor);
 }
 
 void CategoryLabel::mousePressEvent(QMouseEvent *event)
@@ -241,10 +244,11 @@ FormatsTable::FormatsTable(QWidget *parent)
     this->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
     this->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
     this->verticalScrollBar()->setStyle(new QCommonStyle);
-    this->verticalScrollBar()->setStyleSheet(           ":vertical {background-color: #794642; width: 10px}"
-                                                        "::handle:vertical {background-color: #895652; border-radius: 5px;}"
-                                                        "::sub-line:vertical {height: 0px}"
-                                                        "::add-line:vertical {height: 0px}");
+    this->verticalScrollBar()->setStyleSheet(   ":vertical {background-color: #794642; width: 10px}"
+                                                "::handle:vertical {background-color: #895652; border-radius: 5px;}"
+                                                "::sub-line:vertical {height: 0px}"
+                                                "::add-line:vertical {height: 0px}"
+                                             );
 
     prepCategPixmaps();
 
@@ -272,7 +276,7 @@ FormatsTable::FormatsTable(QWidget *parent)
     for (auto it = fformats.begin(); it != fformats.end(); ++it)
     {
         this->setRowHeight(it.value().index + 1, FORMATS_TABLE_ROW_H);
-        auto fmt_label = new FormatLabel(it.key(), /*&it.value().selected,*/ it.value().extension, corner_fmt_pixmap);
+        auto fmt_label = new FormatLabel(it.key(), it.value().extension, corner_fmt_pixmap);
         fmt_label->setFixedSize(FORMATS_TABLE_COL0_W - 1, FORMATS_TABLE_ROW_H - 1);
         fmt_label->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
         fmt_label->setFont(column0_font);
@@ -285,6 +289,7 @@ FormatsTable::FormatsTable(QWidget *parent)
             descr_label->setFont(column1_font);
             descr_label->setStyleSheet("QToolTip:enabled {background : #888663; color: #ffffff; border: 0px}");
             descr_label->setToolTip(it.value().tooltip_str);
+            descr_label->setCursor(Qt::PointingHandCursor);
         }
         else
         {
@@ -292,6 +297,7 @@ FormatsTable::FormatsTable(QWidget *parent)
             descr_label->setFixedSize(FORMATS_TABLE_COL1_W - 1, FORMATS_TABLE_ROW_H - 1);
             descr_label->setStyleSheet("QToolTip:enabled {background : #888663; color: #ffffff; border: 0px}");
             descr_label->setToolTip(it.value().tooltip_str);
+            descr_label->setCursor(Qt::PointingHandCursor);
             auto child_descr_label = new QLabel(descr_label);
             child_descr_label->setFixedSize(FORMATS_TABLE_COL1_W, FORMATS_TABLE_ROW_H / 2);
             child_descr_label->setFont(column1_font);
@@ -375,20 +381,20 @@ MainWindow::MainWindow()
     this->setAcceptDrops(true); // для работы Drag-and-Drop
 
     QPixmap background {":/gui/main/cw.png"};
+    this->resize(background.size()); // размер окна по размеру png
+
     auto central_widget = new QLabel(this);
     central_widget->setFixedSize(background.size());
     central_widget->move(0, 0);
     central_widget->setPixmap(background);
 
-    this->resize(central_widget->size()); // размер окна по размеру центрального QLabel
-
-    auto play_button = new OneStateButton(this, ":/gui/main/play.png", ":/gui/main/play_h.png");
-    auto add_file_button = new OneStateButton(this, ":/gui/main/afile.png", ":/gui/main/afile_h.png");
-    auto add_dir_button = new OneStateButton(this, ":/gui/main/adir.png", ":/gui/main/adir_h.png");
-    auto settings_button = new OneStateButton(this, ":/gui/main/setts.png", ":/gui/main/setts_h.png");
-    auto minimize_button = new OneStateButton(this, ":/gui/main/min.png", ":gui/main//min_h.png");
-    auto close_button = new OneStateButton(this, ":/gui/main/close.png", ":/gui/main/close_h.png");
-    auto scrup_button = new TwoStatesButton(this, &settings->config.scrupulous, ":/gui/main/scrpm_off.png", ":/gui/main/scrpm_on.png", ":/gui/main/scrpm_off_h.png", ":/gui/main/scrpm_on_h.png");
+    auto play_button = new OneStateButton(central_widget, ":/gui/main/play.png", ":/gui/main/play_h.png");
+    auto add_file_button = new OneStateButton(central_widget, ":/gui/main/afile.png", ":/gui/main/afile_h.png");
+    auto add_dir_button = new OneStateButton(central_widget, ":/gui/main/adir.png", ":/gui/main/adir_h.png");
+    auto settings_button = new OneStateButton(central_widget, ":/gui/main/setts.png", ":/gui/main/setts_h.png");
+    auto minimize_button = new OneStateButton(central_widget, ":/gui/main/min.png", ":gui/main//min_h.png");
+    auto close_button = new OneStateButton(central_widget, ":/gui/main/close.png", ":/gui/main/close_h.png");
+    auto scrup_button = new TwoStatesButton(central_widget, &settings->config.scrupulous, ":/gui/main/scrpm_off.png", ":/gui/main/scrpm_on.png", ":/gui/main/scrpm_off_h.png", ":/gui/main/scrpm_on_h.png");
 
     play_button->move(232, 96);
     add_file_button->move(23, 32);
@@ -398,65 +404,67 @@ MainWindow::MainWindow()
     close_button->move(684, 8);
     scrup_button->move(176, 110);
 
-    formats_table = new FormatsTable(this);
+    formats_table = new FormatsTable(central_widget);
     formats_table->move(336, 42);
 
-    QFont tmpFont {*skin_font()};
-    tmpFont.setPixelSize(13);
-    tmpFont.setBold(false);
+    QFont common_font {*skin_font()};
+    common_font.setPixelSize(13);
+    common_font.setBold(false);
 
-    scrup_label = new QLabel; // надпись "Тщательный режим"
+    scrup_label = new QLabel(central_widget); // надпись "Тщательный режим"
+    scrup_label->move(32, 112);
     scrup_label->setFixedSize(140, 24);
     scrup_label->setStyleSheet("color: #b6c7c7");
-    scrup_label->setFont(tmpFont);
+    scrup_label->setFont(common_font);
     scrup_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    scrup_label->setParent(this);
-    scrup_label->move(32, 112);
     scrup_label->setText(scrup_mode_txt[curr_lang()]);
 
-    filter_main_pixmaps[0]  = QPixmap(":/gui/main/incl.png");
-    filter_main_pixmaps[1]  = QPixmap(":/gui/main/excl.png");
-    filter_hover_pixmaps[0] = QPixmap(":/gui/main/incl_h.png");
-    filter_hover_pixmaps[1] = QPixmap(":/gui/main/excl_h.png");
+    filter_main_pixmaps[0]  = new QPixmap(":/gui/main/incl.png");
+    filter_main_pixmaps[1]  = new QPixmap(":/gui/main/excl.png");
+    filter_hover_pixmaps[0] = new QPixmap(":/gui/main/incl_h.png");
+    filter_hover_pixmaps[1] = new QPixmap(":/gui/main/excl_h.png");
 
-    tmpFont.setBold(true);
+    common_font.setBold(true);
     for (int idx = 0; idx < MAX_FILTERS; ++idx) // надписи и кнопки выбора категорий
     {
-        categ_labels[idx] = new QLabel;
+        categ_labels[idx] = new QLabel(central_widget);
+        categ_labels[idx]->move(40, 175 + 35 * idx);
         categ_labels[idx]->setFixedSize(144, 24);
         categ_labels[idx]->setStyleSheet("color: #b6c7c7");
-        categ_labels[idx]->setFont(tmpFont);
+        categ_labels[idx]->setFont(common_font);
         categ_labels[idx]->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        categ_labels[idx]->setParent(this);
-        categ_labels[idx]->move(40, 175 + 35 * idx);
         categ_labels[idx]->setText(filter_labels_txt[curr_lang()][idx]);
-        auto include_button = new FilterButton(this, FilterAction::Include, filters[idx], {193, 177 + 35 * int(idx)}, &filter_main_pixmaps[0], &filter_hover_pixmaps[0]);
-        auto exclude_button = new FilterButton(this, FilterAction::Exclude, filters[idx], {242, 177 + 35 * int(idx)}, &filter_main_pixmaps[1], &filter_hover_pixmaps[1]);
+        auto include_button = new FilterButton(this, FilterAction::Include, filters[idx], {193, 177 + 35 * int(idx)}, filter_main_pixmaps[0], filter_hover_pixmaps[0]);
+        auto exclude_button = new FilterButton(this, FilterAction::Exclude, filters[idx], {242, 177 + 35 * int(idx)}, filter_main_pixmaps[1], filter_hover_pixmaps[1]);
         connect(include_button, &FilterButton::imReleased, formats_table, &FormatsTable::rxCommand);
         connect(exclude_button, &FilterButton::imReleased, formats_table, &FormatsTable::rxCommand);
     }
 
-    tmpFont.setBold(false);
-    auto version_label = new QLabel; // Лейбл с информацией о версии
+    common_font.setBold(false);
+
+    auto logo_button = new OneStateButton(central_widget, ":/gui/logo_tiny.png", ":/gui/logo_tiny_h.png");
+    logo_button->move(20, 492);
+    logo_button->setCursor(Qt::PointingHandCursor);
+
+    auto version_label = new QLabel(central_widget); // Лейбл с информацией о версии
+    version_label->move(60, 504);
     version_label->setStyleSheet("color: #fffef9");
-    version_label->setFont(tmpFont);
+    version_label->setFont(common_font);
     version_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    version_label->setParent(this);
-    version_label->move(32, 504);
     version_label->setText(VERSION_TEXT);
 
     // Кнопка с количеством добавленных путей
-    paths_button = new DynamicInfoButton(this, ":/gui/main/pth_btn.png", ":/gui/main/pth_btn_h.png", paths_button_txt, 12, 10, &task.paths_count);
+    paths_button = new DynamicInfoButton(central_widget, ":/gui/main/pth_btn.png", ":/gui/main/pth_btn_h.png", paths_button_txt, 12, 10, &task.paths_count);
     paths_button->move(424, 499);
 
-    tmpFont.setItalic(true);
-    tmpFont.setPixelSize(12);
-    tasks_label = new QLabel; // Лейбл с информацией о количестве запущенных задач
-    tasks_label->setStyleSheet("color: #fffef9");
-    tasks_label->setFont(tmpFont);
-    tasks_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    tasks_label->setParent(this);
+    common_font.setItalic(true);
+    common_font.setPixelSize(12);
+
+    tasks_label = new QLabel(central_widget); // Лейбл с информацией о количестве запущенных задач
     tasks_label->move(624, 504);
+    tasks_label->setStyleSheet("color: #fffef9");
+    tasks_label->setFont(common_font);
+    tasks_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     tasks_label->setText(QString("%1%2").arg(tasks_label_txt[curr_lang()], QString::number(sessions_pool.get_active_count())));
 
     paths_list = new PathsWindow;
@@ -471,15 +479,16 @@ MainWindow::MainWindow()
     connect(paths_button, &DynamicInfoButton::imReleased, paths_list, &PathsWindow::show);
     connect(settings_button, &OneStateButton::imReleased, this, &MainWindow::showSettings);
     connect(play_button, &OneStateButton::imReleased, this, &MainWindow::showNewSessionWindow);
-
-    // qInfo() << QApplication::screenAt(this->pos());
-    // qInfo() << QApplication::screens();
-    // qInfo() << this->screen();
+    connect(logo_button, &OneStateButton::imReleased, [](){ QDesktopServices::openUrl(QUrl("https://github.com/fluorohead/rapid_juicer", QUrl::TolerantMode)); }); // открываем в в браузере страницу проекта
 }
 
 MainWindow::~MainWindow()
 {
     delete paths_list;
+    delete filter_main_pixmaps[0];
+    delete filter_main_pixmaps[1];
+    delete filter_hover_pixmaps[0];
+    delete filter_hover_pixmaps[1];
 }
 
 void MainWindow::mouseMoveEvent(QMouseEvent *event)
@@ -488,8 +497,6 @@ void MainWindow::mouseMoveEvent(QMouseEvent *event)
     {
         this->move(this->pos() + (event->globalPosition() - prev_cursor_pos).toPoint());
         prev_cursor_pos = event->globalPosition();
-
-//        qInfo() << QApplication::screenAt(this->pos()) << this->screen() << this->screen()->manufacturer();
     }
 }
 
@@ -576,9 +583,11 @@ void MainWindow::dropEvent(QDropEvent *event)
 
 void MainWindow::addFiles()
 {
-    QStringList filenames = QFileDialog::getOpenFileNames(this);
+    QStringList filenames = QFileDialog::getOpenFileNames(this, "", settings->config.last_src_dir);
     if ( !filenames.isEmpty() )
     {
+        QFileInfo first_file(filenames[0]); // т.к. файлов может быть несколько, но все они из одного каталога
+        settings->config.last_src_dir = first_file.absolutePath(); // запоминаем последний src-каталог
         Q_EMIT txFilenames(filenames);
         paths_button->updateText();
     }
@@ -586,9 +595,10 @@ void MainWindow::addFiles()
 
 void MainWindow::addDir()
 {
-    QString dirname = QFileDialog::getExistingDirectory(this);
+    QString dirname = QFileDialog::getExistingDirectory(this, "", settings->config.last_src_dir);
     if ( !dirname.isEmpty() )
     {
+        settings->config.last_src_dir = dirname; // запоминаем последний src-каталог
         Q_EMIT txDirname(dirname);
         paths_button->updateText();
     }

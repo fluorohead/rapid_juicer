@@ -27,7 +27,7 @@ const QString settings_txt[int(Langs::MAX)][5]
 const QString languages_txt[int(Langs::MAX)][int(Langs::MAX)]
 {
     { "English", "Russian" },
-    { "Английский", "Русский"  }
+    { "Английский", "Русский" }
 };
 
 extern const QString mebibytes_txt[int(Langs::MAX)]
@@ -84,6 +84,8 @@ const QString QS_RECURSION {"recursion"};
 const QString QS_FILE_MASK {"mask"};
 const QString QS_EXCLUDING {"excluding"};
 const QString QS_SELECTED  {"selected"};
+const QString QS_LAST_SRC  {"last_src_dir"};
+const QString QS_LAST_DST  {"last_dst_dir"};
 
 const Config default_config
 {
@@ -91,14 +93,16 @@ const Config default_config
     u32i(Langs::Eng), // English language
     2,                // index 2 is 50Mbytes
     true,             // recursion
-    "*.*",            // any files to search for
+    "*",              // any files to search for
 #ifdef _WIN64
-    {"zip", "7z", "rar", "arj", "lzh", "ace"}
+    {"zip", "7z", "rar", "arj", "lzh", "ace"},
 #elif defined(__gnu_linux__) || defined(__linux__)
-    {"zip", "7z", "rar", "gz", "tgz", "tar.gz", "bz", "tbz", "tar.bz", "bz2", "tbz2", "tar.bz2", "lz", "lzo", "xz", "cpio"}
+    {"zip", "7z", "rar", "gz", "tgz", "tar.gz", "bz", "tbz", "tar.bz", "bz2", "tbz2", "tar.bz2", "lz", "lzo", "xz", "cpio"},
 #elif defined(__APPLE__) || defined(__MACH__)
-    {"zip", "7z", "rar", "gz", "tgz", "tar.gz", "bz", "tbz", "tar.bz", "bz2", "tbz2", "tar.bz2"}
+    {"zip", "7z", "rar", "gz", "tgz", "tar.gz", "bz", "tbz", "tar.bz", "bz2", "tbz2", "tar.bz2"},
 #endif
+    "", // last_src_dir
+    ""  // last_dst_dir
 };
 
 const Skin default_skin
@@ -119,28 +123,28 @@ Settings::Settings()
     file_path = QDir::homePath() + "/.rj/";
     QDir dir;
     bool ok = dir.exists(file_path);
-    if (!ok)
+    if ( !ok )
     {
         ok = dir.mkdir(file_path);
     }
-    if (ok)
+    if ( ok )
     {
         file.setFileName(file_path + "settings.json");
-        if (!file.exists())
+        if ( !file.exists() )
         {
             ok = file.open(QIODevice::ReadWrite | QIODevice::NewOnly); // создаём файл
         }
         else
         {
             ok = file.open(QIODevice::ReadWrite); // либо открываем существующий
-            if ( ok and (file.size() <= 1024 * 1024) )
+            if ( ok and ( file.size() <= 1024 * 1024 ) )
             {
                 QByteArray ba {file.readAll()};
                 QJsonParseError jspe;
                 QJsonDocument js_doc = QJsonDocument::fromJson(ba, &jspe);
-                if (!js_doc.isNull())
+                if ( !js_doc.isNull() )
                 {
-                    if ( !js_doc[QS_LANGUAGE].isUndefined() and (js_doc[QS_LANGUAGE].type() == QJsonValue::Double) )
+                    if ( !js_doc[QS_LANGUAGE].isUndefined() and ( js_doc[QS_LANGUAGE].type() == QJsonValue::Double ) )
                     {
                         cand_config.lang_idx = js_doc[QS_LANGUAGE].toInt();
                         if ( (cand_config.lang_idx < int(Langs::MAX)) and (cand_config.lang_idx >= 0) )
@@ -148,15 +152,15 @@ Settings::Settings()
                             config.lang_idx = cand_config.lang_idx;
                         }
                     }
-                    if ( !js_doc[QS_BUFF_IDX].isUndefined() and (js_doc[QS_BUFF_IDX].type() == QJsonValue::Double) )
+                    if ( !js_doc[QS_BUFF_IDX].isUndefined() and ( js_doc[QS_BUFF_IDX].type() == QJsonValue::Double ) )
                     {
                         cand_config.bfr_size_idx = js_doc[QS_BUFF_IDX].toInt();
-                        if ( (cand_config.bfr_size_idx < (permitted_buffers.count())) and (config.bfr_size_idx >= 0) )
+                        if ( ( cand_config.bfr_size_idx < (permitted_buffers.count()) ) and ( config.bfr_size_idx >= 0 ) )
                         {
                             config.bfr_size_idx = cand_config.bfr_size_idx;
                         }
                     }
-                    if ( !js_doc[QS_RECURSION].isUndefined() and (js_doc[QS_RECURSION].type() == QJsonValue::Double) )
+                    if ( !js_doc[QS_RECURSION].isUndefined() and ( js_doc[QS_RECURSION].type() == QJsonValue::Double ) )
                     {
                         int recursion = js_doc[QS_RECURSION].toInt();
                         if ( (recursion == 0) or (recursion == 1) )
@@ -164,7 +168,7 @@ Settings::Settings()
                             config.recursion = recursion;
                         }
                     }
-                    if ( (!js_doc[QS_FILE_MASK].isUndefined()) and (js_doc[QS_FILE_MASK].type() == QJsonValue::String) )
+                    if ( ( !js_doc[QS_FILE_MASK].isUndefined() ) and ( js_doc[QS_FILE_MASK].type() == QJsonValue::String ) )
                     {
                         cand_config.file_mask = js_doc[QS_FILE_MASK].toString();
                         if ( mask_validator(cand_config.file_mask) == QValidator::Acceptable )
@@ -172,7 +176,7 @@ Settings::Settings()
                             config.file_mask = cand_config.file_mask;
                         }
                     }
-                    if ( (!js_doc[QS_EXCLUDING].isUndefined()) and (js_doc[QS_EXCLUDING].type() == QJsonValue::Array) )
+                    if ( ( !js_doc[QS_EXCLUDING].isUndefined() ) and ( js_doc[QS_EXCLUDING].type() == QJsonValue::Array ) )
                     {
                         QJsonArray jsa = js_doc[QS_EXCLUDING].toArray();
                         QString tmp_str;
@@ -191,7 +195,7 @@ Settings::Settings()
                         cand_config.excluding.clear();
                         cand_config.excluding.squeeze();
                     }
-                    if ( (!js_doc[QS_SELECTED].isUndefined()) and (js_doc[QS_SELECTED].type() == QJsonValue::Array) )
+                    if ( ( !js_doc[QS_SELECTED].isUndefined() ) and ( js_doc[QS_SELECTED].type() == QJsonValue::Array ) )
                     {
                         QJsonArray jsa = js_doc[QS_SELECTED].toArray();
                         QString tmp_str;
@@ -207,6 +211,14 @@ Settings::Settings()
                                 }
                             }
                         }
+                    }
+                    if ( ( !js_doc[QS_LAST_SRC].isUndefined() ) and ( js_doc[QS_LAST_SRC].type() == QJsonValue::String ) )
+                    {
+                        config.last_src_dir = js_doc[QS_LAST_SRC].toString();
+                    }
+                    if ( ( !js_doc[QS_LAST_DST].isUndefined() ) and ( js_doc[QS_LAST_DST].type() == QJsonValue::String ) )
+                    {
+                        config.last_dst_dir = js_doc[QS_LAST_DST].toString();
                     }
                 }
                 else
@@ -230,7 +242,7 @@ Settings::~Settings()
 void Settings::dump_to_file()
 {
     delete skin.main_font;
-    if (file.isOpen())
+    if ( file.isOpen() )
     {
         file.resize(0);
         QStringList selected_formats_list;
@@ -238,20 +250,24 @@ void Settings::dump_to_file()
         {
             selected_formats_list.append(one_format);
         }
-        QString write_str = QString(    "{\r\n"
+        QString write_str = QString("{\r\n"
                                     "\"%1\": %2,\r\n"
                                     "\"%3\": %4,\r\n"
                                     "\"%5\": %6,\r\n"
                                     "\"%7\": \"%8\",\r\n"
                                     "\"%9\": [%10],\r\n"
-                                    "\"%11\": [%12]\r\n}"
+                                    "\"%11\": [%12],\r\n"
+                                    "\"%13\": \"%14\",\r\n"
+                                    "\"%15\": \"%16\"\r\n}"
                                     ).arg(
                                     QS_LANGUAGE,  QString::number(config.lang_idx),
                                     QS_BUFF_IDX,  QString::number(config.bfr_size_idx),
                                     QS_RECURSION, QString::number(config.recursion),
                                     QS_FILE_MASK, config.file_mask,
                                     QS_EXCLUDING, config.excluding.isEmpty() ? "" : "\"" + config.excluding.join(R"(", ")") + "\"",
-                                    QS_SELECTED,  selected_formats.isEmpty() ? "" : "\"" + selected_formats_list.join(R"(",")") + "\""
+                                    QS_SELECTED,  selected_formats.isEmpty() ? "" : "\"" + selected_formats_list.join(R"(",")") + "\"",
+                                    QS_LAST_SRC,  config.last_src_dir,
+                                    QS_LAST_DST,  config.last_dst_dir
                                     );
         file.write(write_str.toUtf8());
         file.flush();
@@ -261,7 +277,7 @@ void Settings::dump_to_file()
 
 void Settings::initSkin()
 {
-    skin.main_font = new QFont {skin.font_name};
+    skin.main_font = new QFont(skin.font_name);
 }
 
 u64i Settings::getBufferSizeInBytes()
@@ -277,13 +293,16 @@ u64i Settings::getBufferSizeByIndex(int idx)
 QValidator::State mask_validator(const QString &input)
 {
     static const QString forbidden_symbols {R"(&;|'"`[]()$<>{}^#\/%! )"}; // пробел тоже запрещён
-    if ( input.isEmpty() or (input == ".") )
+    if ( input.isEmpty() or ( input == "." ) )
     {
         return QValidator::Intermediate;
     }
-    for (auto && one_char : input) {
-        for (auto && forbidden_char : forbidden_symbols) {
-            if (one_char == forbidden_char) {
+    for (auto && one_char : input)
+    {
+        for (auto && forbidden_char : forbidden_symbols)
+        {
+            if ( one_char == forbidden_char )
+            {
                 return QValidator::Invalid;
             }
         }
@@ -294,15 +313,17 @@ QValidator::State mask_validator(const QString &input)
 QValidator::State excluding_validator(const QString &input)
 {
     static const QString forbidden_symbols {R"(*?&;|'"`[]()$<>{}^#\/%! )"}; // пробел тоже запрещён
-    for (auto && one_char : input) {
+    for (auto && one_char : input)
+    {
         for (auto && forbidden_char : forbidden_symbols)
         {
-            if (one_char == forbidden_char) {
+            if ( one_char == forbidden_char )
+            {
                 return QValidator::Invalid;
             }
         }
     }
-    if (input.startsWith('.'))
+    if ( input.startsWith('.') )
     {
         return QValidator::Invalid;
     }
@@ -649,15 +670,19 @@ SettingsWindow::~SettingsWindow()
     }
 }
 
-void SettingsWindow::mouseMoveEvent(QMouseEvent *event) {
-    if (event->buttons() == Qt::LeftButton) {
+void SettingsWindow::mouseMoveEvent(QMouseEvent *event)
+{
+    if ( event->buttons() == Qt::LeftButton )
+    {
         this->move(this->pos() + (event->globalPosition() - prev_cursor_pos).toPoint());
         prev_cursor_pos = event->globalPosition();
     }
 }
 
-void SettingsWindow::mousePressEvent(QMouseEvent *event) {
-    if (event->buttons() == Qt::LeftButton) {
+void SettingsWindow::mousePressEvent(QMouseEvent *event)
+{
+    if ( event->buttons() == Qt::LeftButton )
+    {
         prev_cursor_pos = event->globalPosition();
     }
 }

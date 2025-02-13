@@ -14,6 +14,7 @@
 #include <QBuffer>
 #include <QSystemSemaphore>
 #include <QToolTip>
+#include <QFileDialog>
 
 #define RESULTS_TABLE_WIDTH 785
 #define RESULTS_TABLE_HEIGHT 450
@@ -278,6 +279,7 @@ FormatTile::FormatTile(const QString &format_name)
     tmpFont.setPixelSize(14);
     tmpFont.setBold(false);
     counter->setFont(tmpFont);
+    this->setCursor(Qt::PointingHandCursor);
 }
 
 ResultsByFormatWidget::ResultsByFormatWidget(const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr)
@@ -288,7 +290,7 @@ ResultsByFormatWidget::ResultsByFormatWidget(const QString &your_fmt, RR_Map *db
     this->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
     this->setAutoFillBackground(true);
 
-    format_table = new ResultsByFormatTable(this, my_fmt, resources_db, src_files_ptr);
+    format_table = new ResultsTable(this, my_fmt, resources_db, src_files_ptr);
 
     connect(format_table->selectionModel(), &QItemSelectionModel::selectionChanged, [this](const QItemSelection &selected, const QItemSelection &deselected){
         auto sl_indexes = selected.indexes();
@@ -342,7 +344,7 @@ void ResultsByFormatWidget::InsertNewRecord(ResourceRecord *new_record, int qlis
     format_table->setItem(active_row, 3, tmp_qtwi);
 }
 
-ResultsByFormatTable::ResultsByFormatTable(QWidget *parent, const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr)
+ResultsTable::ResultsTable(QWidget *parent, const QString &your_fmt, RR_Map *db_ptr, QStringList *src_files_ptr)
     : QTableWidget(0, 4, parent)
     , my_fmt(your_fmt)
     , resources_db(db_ptr)
@@ -382,12 +384,12 @@ ResultsByFormatTable::ResultsByFormatTable(QWidget *parent, const QString &your_
     this->setFont(tmpFont);
 }
 
-ResultsByFormatTable::~ResultsByFormatTable()
+ResultsTable::~ResultsTable()
 {
     delete fmt_table_style;
 }
 
-bool ResultsByFormatTable::event(QEvent* ev)
+bool ResultsTable::event(QEvent* ev)
 {
     if ( ev->type() == QEvent::ToolTip )
     {
@@ -690,33 +692,33 @@ SessionWindow::SessionWindow(u32i session_id)
     pages->move(72, 244);
     pages->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
 
-    results_table = new QTableWidget(RESULTS_TABLE_ROWS, RESULTS_TABLE_COLUMNS);
-    results_table->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
-    pages->addWidget(results_table); // page 0
-    results_table->setStyleSheet("gridline-color: #8d6858; background-color: #8d6858;");
-    results_table->setFocusPolicy(Qt::NoFocus); // отключаем прямоугольник фокуса при клике на ячейке
-    results_table->setEditTriggers(QAbstractItemView::NoEditTriggers); // отключаем редактирование ячеек
-    results_table->setSelectionMode(QAbstractItemView::NoSelection);
-    results_table->verticalScrollBar()->setStyle(new QCommonStyle);
-    results_table->verticalScrollBar()->setStyleSheet(  ":vertical {background-color: #8d6858; width: 10px}"
+    tiles_table = new QTableWidget(RESULTS_TABLE_ROWS, RESULTS_TABLE_COLUMNS);
+    tiles_table->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
+    pages->addWidget(tiles_table); // page 0
+    tiles_table->setStyleSheet("gridline-color: #8d6858; background-color: #8d6858;");
+    tiles_table->setFocusPolicy(Qt::NoFocus); // отключаем прямоугольник фокуса при клике на ячейке
+    tiles_table->setEditTriggers(QAbstractItemView::NoEditTriggers); // отключаем редактирование ячеек
+    tiles_table->setSelectionMode(QAbstractItemView::NoSelection);
+    tiles_table->verticalScrollBar()->setStyle(new QCommonStyle);
+    tiles_table->verticalScrollBar()->setStyleSheet(  ":vertical {background-color: #8d6858; width: 10px}"
                                                         "::handle:vertical {background-color: #895652; border-radius: 5px;}"
                                                         "::sub-line:vertical {height: 0px}"
                                                         "::add-line:vertical {height: 0px}");
-    results_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-    results_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    results_table->verticalHeader()->hide();
-    results_table->horizontalHeader()->hide();
-    results_table->setFrameShape(QFrame::NoFrame);
-    results_table->setSortingEnabled(false);
-    results_table->horizontalHeader()->setHighlightSections(false);
+    tiles_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    tiles_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    tiles_table->verticalHeader()->hide();
+    tiles_table->horizontalHeader()->hide();
+    tiles_table->setFrameShape(QFrame::NoFrame);
+    tiles_table->setSortingEnabled(false);
+    tiles_table->horizontalHeader()->setHighlightSections(false);
 
     for (int column = 0; column < RESULTS_TABLE_COLUMNS; ++column)
     {
-        results_table->setColumnWidth(column, 770 / RESULTS_TABLE_COLUMNS);
+        tiles_table->setColumnWidth(column, 770 / RESULTS_TABLE_COLUMNS);
     }
     for (int row = 0; row < RESULTS_TABLE_ROWS; ++row)
     {
-        results_table->setRowHeight(row, 450 / 3);
+        tiles_table->setRowHeight(row, 450 / 3);
     }
 
     // каждому формату заранее создаём свою страницу (начиная со страницы 1)
@@ -868,7 +870,7 @@ void SessionWindow::create_and_start_walker()
             }
             scan_movie->stop();
             movie_zone_lbl->setPixmap(QPixmap(":/gui/session/done.png"));
-            //QApplication::beep(); // звуковое оповещение
+            QApplication::beep(); // звуковое оповещение
             QApplication::alert(this, 3000); // и поморгать иконкой в панели задач
         }, Qt::QueuedConnection);
 
@@ -979,7 +981,7 @@ void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset
         int row = (unique_formats_found - 1) / 7;
         int column = (unique_formats_found - 1) % 7;
         auto tile = new FormatTile(format_name);
-        results_table->setCellWidget(row, column, tile);
+        tiles_table->setCellWidget(row, column, tile);
         tiles_db[format_name] = tile;
         formats_counters[format_name] = 0;
         if ( total_resources_found == 1 ) pages->setCurrentIndex(0);
@@ -1013,6 +1015,10 @@ void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset
 
 void SessionWindow::rxSerializeAndSaveAll()
 {
+    QString save_path = QFileDialog::getExistingDirectory(this, "", settings->config.last_dst_dir);
+    if ( save_path.isEmpty() ) return;
+    settings->config.last_dst_dir = save_path;
+
     save_all_button->setDisabled(true);
     save_button->setDisabled(true);
     report_button->setDisabled(true);
@@ -1127,12 +1133,13 @@ void SessionWindow::rxSerializeAndSaveAll()
     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
-    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", // arg[1]
-                                                                                shared_memory.key(), // arg[2]
-                                                                                QString::number(data_buffer.size()), //arg[3]
-                                                                                sys_semaphore.key(), // arg[4]
-                                                                                QString::number(curr_lang()), // arg[5]
-                                                                                QApplication::screenAt(this->pos())->name() // arg[6]
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", // args[1]
+                                                                                shared_memory.key(), // args[2]
+                                                                                QString::number(data_buffer.size()), //args[3]
+                                                                                sys_semaphore.key(), // args[4]
+                                                                                QString::number(curr_lang()), // args[5]
+                                                                                QApplication::screenAt(this->pos())->name(), // args[6]
+                                                                                save_path // args[7]
                                                                                 },
                                                                                 "");
 
@@ -1150,6 +1157,10 @@ void SessionWindow::rxSerializeAndSaveAll()
 
 void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
 {
+    QString save_path = QFileDialog::getExistingDirectory(this, "", settings->config.last_dst_dir);
+    if ( save_path.isEmpty() ) return;
+    settings->config.last_dst_dir = save_path;
+
     save_button->setDisabled(true);
     QByteArray data_buffer;
     // временные переменные, используемые ниже при обходе бд
@@ -1257,12 +1268,13 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
-    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", // arg[1]
-                                                                                shared_memory.key(), // arg[2]
-                                                                                QString::number(data_buffer.size()), // arg[3]
-                                                                                sys_semaphore.key(), // arg[4]
-                                                                                QString::number(curr_lang()), // arg[5]
-                                                                                QApplication::screenAt(this->pos())->name() // arg[6]
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", // args[1]
+                                                                                shared_memory.key(), // args[2]
+                                                                                QString::number(data_buffer.size()), // args[3]
+                                                                                sys_semaphore.key(), // args[4]
+                                                                                QString::number(curr_lang()), // args[5]
+                                                                                QApplication::screenAt(this->pos())->name(), // args[6]
+                                                                                save_path // args[7]
                                                                                 },
                                                                                  "");
 
