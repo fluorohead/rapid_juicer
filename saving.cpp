@@ -1,5 +1,6 @@
 #include "saving.h"
 #include "formats.h"
+#include "session.h"
 #include <QApplication>
 #include <QFileDialog>
 #include <QMouseEvent>
@@ -60,7 +61,6 @@ const QString html_report_txt[int(Langs::MAX)]
 SaveDBGWindow::SaveDBGWindow()
     : QWidget(nullptr)
 {
-   //this->setAttribute(Qt::WA_DeleteOnClose); // само удалится при закрытии
     this->setFixedSize(800, 600);
 
     info_text = new QTextEdit(this);
@@ -79,8 +79,6 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     this->setAttribute(Qt::WA_NoSystemBackground);
     this->setAttribute(Qt::WA_DeleteOnClose); // само удалится при закрытии
     this->setFixedSize(372, 164);
-
-    //this->move(this->screen()->availableSize().width() - this->width() - 16, this->screen()->availableSize().height() - this->height() - 16); // двигаем в угол экрана
 
     auto central_widget = new QLabel(this);
     central_widget->move(0, 0);
@@ -120,7 +118,6 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     path_label->verticalScrollBar()->hide();
     path_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     path_label->setLineWrapMode(QTextEdit::WidgetWidth);
-    //path_label->setPlainText(reduce_file_path(QDir::toNativeSeparators(saving_dir + "/a.a"), 86).chopped(3));
 
     common_font.setItalic(false);
     common_font.setPixelSize(12);
@@ -164,7 +161,6 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     saved_label->setStyleSheet("color: #d9b855");
     saved_label->setFont(common_font);
     saved_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    //saved_label->setText("4296123456");
 
     remains_label = new QLabel(background); // количество оставшихся ресурсов
     remains_label->move(96, 108);
@@ -172,7 +168,6 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     remains_label->setStyleSheet("color: #d9b855");
     remains_label->setFont(common_font);
     remains_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    //remains_label->setText("4296123456");
 
     common_font.setPixelSize(12);
 
@@ -223,7 +218,8 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     }
     ///
 
-    report_mode ? load_data_from_file() : load_data_from_shm(shm_key, shm_size, ssem_key);
+    //load_data_from_file(); // для отладки, загрузка дампа shm из файла
+    load_data_from_shm(shm_key, shm_size, ssem_key);
 }
 
 SavingWindow::~SavingWindow()
@@ -249,8 +245,8 @@ void SavingWindow::start_reporter(const QString &path)
     saving_path = path;
     QString report_file_path = saving_path + "report.html";
     path_label->setPlainText(reduce_file_path(QDir::toNativeSeparators(report_file_path), 86));
-    qInfo() << "report_file_path:" << report_file_path;
-    auto reporter = new ReporterThread(this, &resources_db, &src_files, debug_mode, report_file_path, lang_id);
+    //qInfo() << "report_file_path:" << report_file_path;
+    auto reporter = new ReporterThread(this, &resources_db, &src_files, debug_mode, report_file_path, lang_id, &session_settings, &formats_counters);
     connect(reporter, &ReporterThread::txNextWasReported, this, &SavingWindow::rxNextWasReported, Qt::QueuedConnection);
     connect(reporter, &ReporterThread::finished, this, &SavingWindow::rxReporterFinished, Qt::QueuedConnection);
     reporter->start();
@@ -280,13 +276,102 @@ void SavingWindow::rxDebugInfo(QString info)
 
 void SavingWindow::rxSaverFinished()
 {
-    this->close();
+    //this->close();
 }
 
 void SavingWindow::rxReporterFinished()
 {
-    qInfo() << "reporter finished";
+    //qInfo() << "reporter finished";
     //this->close();
+}
+
+void SavingWindow::decode_data(u8i *buffer)
+{
+    TLV_Header *tlv_header;
+    QString current_format;
+    QString src_file;
+    POD_ResourceRecord *current_pod_ptr;
+    POD_SessionSettings *ss_pod_ptr;
+    ResourceRecord current_rr;
+    QString current_dest_ext;
+    QString current_info;
+    u64i next_header_offset = 0; // =0 - важно!
+    do
+    {
+        tlv_header = (TLV_Header*)&buffer[next_header_offset];
+        if ( debug_mode) debug_window->info_text->append("\ntype:" + QString::number(int(tlv_header->type)) + " length:" + QString::number(int(tlv_header->length)));
+        switch(tlv_header->type)
+        {
+        case TLV_Type::SessionSettings: // различные свойства сессии
+        {
+            ss_pod_ptr = (POD_SessionSettings*)((char*)tlv_header + sizeof(TLV_Header));
+            session_settings = *ss_pod_ptr;
+            // session_settings.start_msecs = ss_pod_ptr->start_msecs;
+            // session_settings.end_msecs = ss_pod_ptr->end_msecs;
+            if ( debug_mode) debug_window->info_text->append("-> ss_start_msecs:" + QString::number(session_settings.start_msecs) + "; ss_end_msecs:" + QString::number(session_settings.end_msecs));
+            break;
+        }
+
+        case TLV_Type::SrcFile: // эти TLV всегда идут перед POD_ResourceRecord
+        {
+            src_file = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
+            src_files.append(src_file);
+            if ( debug_mode) debug_window->info_text->append("-> SrcFile: '" + src_file + "'");
+            break;
+        }
+        case TLV_Type::FmtChange:
+        {
+            current_format = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
+            if ( debug_mode) debug_window->info_text->append("-> FmtChange: '" + current_format + "'");
+            if ( !resources_db.contains(current_format) ) // формат встретился первый раз?
+            {
+                formats_counters[current_format].total_number_of = 0;
+                formats_counters[current_format].total_size_of = 0;
+            }
+            break;
+        }
+        case TLV_Type::POD: // POD_ResourceRecord
+        {
+            current_pod_ptr = (POD_ResourceRecord*)((char*)tlv_header + sizeof(TLV_Header));
+            current_rr.order_number = current_pod_ptr->order_number;
+            current_rr.src_fname_idx = current_pod_ptr->src_fname_idx;
+            current_rr.offset = current_pod_ptr->offset;
+            current_rr.size = current_pod_ptr->size;
+            if ( debug_mode) debug_window->info_text->append("-> POD : order_number: " + QString::number(current_rr.order_number) + "; src_fname_idx: " + QString::number(current_rr.src_fname_idx) + "; offset: " + QString::number(current_rr.offset) + "; size: " + QString::number(current_rr.size));
+            if ( debug_mode) debug_window->info_text->append("-> POD : src_file by idx: " + src_files[current_rr.src_fname_idx]);
+            break;
+        }
+        case TLV_Type::DstExtension:
+        {
+            current_dest_ext = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
+            if ( debug_mode) debug_window->info_text->append("-> DstExtension: '" + current_dest_ext + "'");
+            current_rr.dest_extension = current_dest_ext;
+            break;
+        }
+        case TLV_Type::Info:
+        {
+            current_info = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
+            if ( debug_mode) debug_window->info_text->append("-> Info: '" + current_info + "'");
+            current_rr.info = current_info;
+            /// TLV "Info" всегда идёт завершающей, значит можно сделать запись в БД
+            resources_db[current_format].append(current_rr);
+            ++total_resources_found;
+            ++formats_counters[current_format].total_number_of;
+            formats_counters[current_format].total_size_of += current_rr.size;
+            ///
+            break;
+        }
+        case TLV_Type::Terminator:
+        {
+            if ( debug_mode) debug_window->info_text->append("-> Terminator.");
+            break;
+        }
+        }
+        next_header_offset += (sizeof(TLV_Header) + tlv_header->length);
+    } while(tlv_header->type != TLV_Type::Terminator);
+
+    if ( debug_mode) debug_window->info_text->append("\nTOTAL RESOURCES FOUND: " + QString::number(total_resources_found));
+
 }
 
 void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm_size, const QString &ssem_key)
@@ -336,78 +421,7 @@ void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm
     // shm_dump_file.close();
     ///
 
-    auto shm_buffer = (u8i*)shared_memory.data();
-    TLV_Header *tlv_header;
-    QString current_format;
-    QString src_file;
-    POD_ResourceRecord *current_pod_ptr;
-    ResourceRecord current_rr;
-    QString current_dest_ext;
-    QString current_info;
-    u64i next_header_offset = 0; // =0 - важно!
-    do
-    {
-        tlv_header = (TLV_Header*)&shm_buffer[next_header_offset];
-        if ( debug_mode) debug_window->info_text->append("\ntype:" + QString::number(int(tlv_header->type)) + " length:" + QString::number(int(tlv_header->length)));
-        switch(tlv_header->type)
-        {
-        case TLV_Type::SrcFile: // эти TLV всегда идут первыми, один за одним
-        {
-            src_file = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            src_files.append(src_file);
-            if ( debug_mode) debug_window->info_text->append("-> SrcFile: '" + src_file + "'");
-            break;
-        }
-        case TLV_Type::FmtChange:
-        {
-            current_format = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            if ( debug_mode) debug_window->info_text->append("-> FmtChange: '" + current_format + "'");
-            if ( !resources_db.contains(current_format) ) // формат встретился первый раз?
-            {
-                formats_counters[current_format] = 0;
-            }
-            ++formats_counters[current_format];
-            break;
-        }
-        case TLV_Type::POD:
-        {
-            current_pod_ptr = (POD_ResourceRecord*)((char*)tlv_header + sizeof(TLV_Header));
-            current_rr.order_number = current_pod_ptr->order_number;
-            current_rr.src_fname_idx = current_pod_ptr->src_fname_idx;
-            current_rr.offset = current_pod_ptr->offset;
-            current_rr.size = current_pod_ptr->size;
-            if ( debug_mode) debug_window->info_text->append("-> POD : order_number: " + QString::number(current_rr.order_number) + "; src_fname_idx: " + QString::number(current_rr.src_fname_idx) + "; offset: " + QString::number(current_rr.offset) + "; size: " + QString::number(current_rr.size));
-            if ( debug_mode) debug_window->info_text->append("-> POD : src_file by idx: " + src_files[current_rr.src_fname_idx]);
-            break;
-        }
-        case TLV_Type::DstExtension:
-        {
-            current_dest_ext = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            if ( debug_mode) debug_window->info_text->append("-> DstExtension: '" + current_dest_ext + "'");
-            current_rr.dest_extension = current_dest_ext;
-            break;
-        }
-        case TLV_Type::Info:
-        {
-            current_info = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            if ( debug_mode) debug_window->info_text->append("-> Info: '" + current_info + "'");
-            current_rr.info = current_info;
-            /// TLV "Info" всегда идёт завершающей, значит можно сделать запись в БД
-            resources_db[current_format].append(current_rr);
-            ++total_resources_found;
-            ///
-            break;
-        }
-        case TLV_Type::Terminator:
-        {
-            if ( debug_mode) debug_window->info_text->append("-> Terminator.");
-            break;
-        }
-        }
-        next_header_offset += (sizeof(TLV_Header) + tlv_header->length);
-    } while(tlv_header->type != TLV_Type::Terminator);
-
-    if ( debug_mode) debug_window->info_text->append("\nTOTAL RESOURCES FOUND: " + QString::number(total_resources_found));
+    decode_data((u8i*)shared_memory.data());
 
     shared_memory.detach(); // отсоединяемся от shm, чтобы ОС могла освободить занимаемую память
     delete sys_semaphore;
@@ -427,75 +441,8 @@ void SavingWindow::load_data_from_file()
         qInfo() << "error memory mapping dump file";
         return;
     }
-    TLV_Header *tlv_header;
-    QString current_format;
-    QString src_file;
-    POD_ResourceRecord *current_pod_ptr;
-    ResourceRecord current_rr;
-    QString current_dest_ext;
-    QString current_info;
-    u64i next_header_offset = 0; // =0 - важно!
-    do
-    {
-        tlv_header = (TLV_Header*)&mmf[next_header_offset];
-        ///qInfo() << "\ntype:" << QString::number(int(tlv_header->type)) << "length:" << QString::number(int(tlv_header->length));
-        switch(tlv_header->type)
-        {
-        case TLV_Type::SrcFile: // эти TLV всегда идут первыми, один за одним
-        {
-            src_file = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            src_files.append(src_file);
-            //qInfo() << "-> SrcFile: '" << src_file << "'";
-            break;
-        }
-        case TLV_Type::FmtChange:
-        {
-            current_format = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-           //qInfo() << "-> FmtChange: '" << current_format << "'";
-            if ( !resources_db.contains(current_format) ) // формат встретился первый раз?
-            {
-                formats_counters[current_format] = 0;
-            }
-            ++formats_counters[current_format];
-            break;
-        }
-        case TLV_Type::POD:
-        {
-            current_pod_ptr = (POD_ResourceRecord*)((char*)tlv_header + sizeof(TLV_Header));
-            current_rr.order_number = current_pod_ptr->order_number;
-            current_rr.src_fname_idx = current_pod_ptr->src_fname_idx;
-            current_rr.offset = current_pod_ptr->offset;
-            current_rr.size = current_pod_ptr->size;
-           // qInfo() << "-> POD : order_number:" << QString::number(current_rr.order_number) << "; src_fname_idx: " << QString::number(current_rr.src_fname_idx) << "; offset: " << QString::number(current_rr.offset) << "; size: " << QString::number(current_rr.size);
-            //qInfo() << "-> POD : src_file by idx:" << src_files[current_rr.src_fname_idx];
-            break;
-        }
-        case TLV_Type::DstExtension:
-        {
-            current_dest_ext = QString::fromLatin1((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-            //qInfo() << "-> DstExtension: '" << current_dest_ext << "'";
-            current_rr.dest_extension = current_dest_ext;
-            break;
-        }
-        case TLV_Type::Info:
-        {
-            current_info = QString::fromUtf8((char*)tlv_header + sizeof(TLV_Header), tlv_header->length);
-           // qInfo() << "-> Info: '" << current_info << "'";
-            current_rr.info = current_info;
-            /// TLV "Info" всегда идёт завершающей, значит можно сделать запись в БД
-            resources_db[current_format].append(current_rr);
-            ++total_resources_found;
-            ///
-            break;
-        }
-        case TLV_Type::Terminator:
-        {
-            qInfo() << "-> Terminator.";
-            break;
-        }
-        }
-        next_header_offset += (sizeof(TLV_Header) + tlv_header->length);
-    } while(tlv_header->type != TLV_Type::Terminator);
+
+    decode_data(mmf);
 }
 
 void SavingWindow::mouseMoveEvent(QMouseEvent *event)
@@ -585,13 +532,15 @@ void SaverThread::run()
     }
 }
 
-ReporterThread::ReporterThread(SavingWindow *parent, RR_Map *resources_db_ptr, QStringList *src_files_ptr, bool is_debug, const QString &path, int language)
+ReporterThread::ReporterThread(SavingWindow *parent, RR_Map *resources_db_ptr, QStringList *src_files_ptr, bool is_debug, const QString &path, int language, POD_SessionSettings *ss_ptr, QMap <QString, FormatStatistics> *fmt_counters_ptr)
     : my_parent(parent)
     , resources_db(resources_db_ptr)
     , src_files(src_files_ptr)
     , debug_mode(is_debug)
     , report_path(path)
     , lang_id(language)
+    , session_settings(ss_ptr)
+    , formats_counters(fmt_counters_ptr)
 {
 
 }
@@ -601,6 +550,108 @@ const QString html_report_created_txt[int(Langs::MAX)]
     "Report created : ",
     "Отчёт создан : "
 };
+
+const QString html_scanning_period_txt[int(Langs::MAX)]
+{
+    "Scanning period : %1 - %2",
+    "Период сканирования : %1 - %2"
+};
+
+const QString date_time_w_msecs_template
+{
+    "dd.MM.yyyy hh:mm:ss.zzz"
+};
+
+const QString html_duration_txt[int(Langs::MAX)]
+{
+    "; duration : ",
+    "; продолжительность : "
+};
+
+const QString html_msecs_txt[int(Langs::MAX)]
+{
+    " msec",
+    " мсек"
+};
+
+const QString html_quick_links_txt[int(Langs::MAX)]
+{
+    "Quick links : ",
+    "Быстрые ссылки : "
+};
+
+const QString html_total_found_txt[int(Langs::MAX)]
+{
+    "Total found ",
+    "Всего найдено "
+};
+
+const QString html_total_size_txt[int(Langs::MAX)]
+{
+    " resource(s), overall size ",
+    " ресурс(а,ов), общим размером "
+};
+
+const QString html_bytes_txt[int(Langs::MAX)]
+{
+    " byte(s)",
+    " байт(а)"
+};
+
+const QString html_resource_number_txt[int(Langs::MAX)]
+{
+    "Resource number",
+    "Номер ресурса"
+};
+
+const QString html_name_to_save_txt[int(Langs::MAX)]
+{
+    "Name to save",
+    "Имя для сохранения"
+};
+
+const QString html_size_in_bytes_txt[int(Langs::MAX)]
+{
+        "Size, bytes",
+        "Размер, байт"
+};
+
+const QString html_source_file_txt[int(Langs::MAX)]
+{
+    "Source file",
+    "Исходный файл"
+};
+
+const QString html_file_offset_txt[int(Langs::MAX)]
+{
+    "Offset in file",
+    "Смещение в файле"
+};
+
+const QString html_additional_info_txt[int(Langs::MAX)]
+{
+    "Additional info",
+    "Дополнительно"
+};
+
+const QString html_resources_found_txt[int(Langs::MAX)]
+{
+    "Resources found : ",
+    "Найдено ресурсов : "
+};
+
+const QString html_unique_fmts_found_txt[int(Langs::MAX)]
+{
+    "; unique formats : ",
+    "; уникальных форматов : "
+};
+
+const QString html_source_files_txt[int(Langs::MAX)]
+{
+    "; source files : ",
+    "; исходных файлов : "
+};
+
 
 void ReporterThread::run()
 {
@@ -619,11 +670,10 @@ R"(<!DOCTYPE html>
 <meta charset=\"utf-8\">
 <title>Rapid Juicer :: )" << html_report_txt[lang_id] << "</title>\n";
     text_stream <<
-R"(
-<style>
+R"(<style>
 body {
     background-color: #6d8186;
-    color: #d6e7e7;
+    color: #ffffff;
     font-family: 'Courier New', 'monospace';
 }
 
@@ -691,38 +741,59 @@ p {
 <body>
 <center>
 <header>)";
-
     text_stream << "<p><h2>" << VERSION_TEXT << "</h3>\n";
-    text_stream << "<h3>" << html_report_created_txt[lang_id] << QDateTime::currentDateTime().toString("dd.MM.yyyy hh:mm:ss") << "</h3>\n";
-    text_stream << "<h4>" << "Период сканирования : 12.02.2025 20:30:15 - 12.02.2025 20:34:45" << "</h4>\n";
-    text_stream << "<h4>" << "Продолжительность : 00:04:30.000" << "</h4>\n";
-    text_stream << "</p>\n</header>\n<hr>\n";
+    text_stream << "<h3>" << html_report_created_txt[lang_id] << QDateTime::currentDateTime().toString(date_time_w_msecs_template) << "</h3>\n";
+    QDateTime start_date_time;
+    start_date_time.setMSecsSinceEpoch(session_settings->start_msecs);
+    QDateTime end_date_time;
+    end_date_time.setMSecsSinceEpoch(session_settings->end_msecs);
+    text_stream << "<h4>" << QString(html_scanning_period_txt[lang_id]).arg(start_date_time.toString(date_time_w_msecs_template), end_date_time.toString(date_time_w_msecs_template));
+    s64i duration = session_settings->end_msecs - session_settings->start_msecs;
+    QTime duration_time(0, 0, 0);
+    duration_time = duration_time.addMSecs(duration);
+    text_stream << html_duration_txt[lang_id];
+    if ( duration < 1000 ) // если менее 1 секунды, то отображаем в мсек
+    {
+        text_stream << duration << html_msecs_txt[lang_id];
+    }
+    else
+    {
+        text_stream << duration_time.toString(Qt::ISODateWithMs);
+    }
+    text_stream << ".</h4>\n<h4>";
+    text_stream << html_resources_found_txt[lang_id] << session_settings->total_resources_found;
+    text_stream << html_unique_fmts_found_txt[lang_id] << resources_db->count();
+    text_stream << html_source_files_txt[lang_id] << src_files->count();
+    text_stream << ".</h4>\n</p>\n</header>\n<hr>\n";
 
-    text_stream <<
-R"(<nav>
-Быстрая навигация по форматам :
-<strong>
-)";
-
-    for(auto it = (*resources_db).cbegin(); it != (*resources_db).cend(); ++it)
+    /// раздел быстрых ссылок
+    text_stream << "<nav>" << html_quick_links_txt[lang_id] << "<strong>";
+    for(auto it = resources_db->cbegin(); it != resources_db->cend(); ++it) // формирование ссылок быстрой навигации
     {
         text_stream << "<a href=\"#" << it.key() << "\">" << it.key() << "</a>\n";
     }
-
     text_stream <<
 R"(</strong>
 </nav>
 <hr>
 <article>
 )";
+   ////
 
-    for(auto it = (*resources_db).cbegin(); it != (*resources_db).cend(); ++it)
+    for(auto it = resources_db->cbegin(); it != resources_db->cend(); ++it)
     {
         int resources_count = it.value().count();
 
         text_stream << "<section id=\"" << it.key() << "\">\n<p>\n<table>\n";
-        text_stream << "<caption><h2>Формат " << fformats[it.key()].extension << " (" << fformats[it.key()].description << ")</h2><h4>Всего найдено " << 0 << " ресурсов, общим размером 0 байт(а).</h4></caption>\n";
-        text_stream << "<tr><th>Номер ресурса</th><th>Имя для сохранения</th><th>Размер, байт</th><th>Исходный файл</th><th>Смещение в файле</th><th>Доп.информация</th></tr>\n";
+        text_stream << "<caption><h2>" << fformats[it.key()].extension << " (" << fformats[it.key()].description << ")";
+        text_stream << "</h2><h4>" << html_total_found_txt[lang_id] << (*formats_counters)[it.key()].total_number_of;
+        text_stream <<  html_total_size_txt[lang_id] << (*formats_counters)[it.key()].total_size_of << html_bytes_txt[lang_id] << " (" << human_readable_bytes((*formats_counters)[it.key()].total_size_of, lang_id) <<").</h4></caption>\n";
+        text_stream << "<tr><th>" << html_resource_number_txt[lang_id] <<"</th>";
+        text_stream << "<th>" << html_name_to_save_txt[lang_id] << "</th>";
+        text_stream << "<th>" << html_size_in_bytes_txt[lang_id] << "</th>";
+        text_stream << "<th>" << html_source_file_txt[lang_id] << "</th>";
+        text_stream << "<th>" << html_file_offset_txt[lang_id] << "</th>";
+        text_stream << "<th>" << html_additional_info_txt[lang_id] << "</th></tr>\n";
 
         for(int idx = 0; idx < resources_count; ++idx)
         {
@@ -732,7 +803,7 @@ R"(</strong>
             text_stream << "<td>" << it.value()[idx].size << "</td>";
             text_stream << "<td>" << QDir::toNativeSeparators((*src_files)[it.value()[idx].src_fname_idx]) << "</td>";
             text_stream << "<td>" << QString("0x%1 (%2)").arg(QString::number(it.value()[idx].offset, 16), 8, '0').arg(QString::number(it.value()[idx].offset)) << "</td>";
-            text_stream << "<td>" << it.value()[idx].info << "</td>\n";
+            text_stream << "<td>" << it.value()[idx].info << "</td></tr>\n";
             Q_EMIT txNextWasReported();
         }
         text_stream <<"</table>\n</p>\n</section>\n";
@@ -741,7 +812,9 @@ R"(</strong>
 R"(<hr>
 </article>
 <footer>
-Завершитель
+<p>
+
+</p>
 </footer>
 </center>
 </body>

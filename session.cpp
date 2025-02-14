@@ -231,7 +231,7 @@ const QString unit_names[int(Langs::MAX)][5]
     { "байт(а)", "КиБ", "МиБ", "ГиБ", "ТиБ" },
 };
 
-QString human_readable_bytes(u64i value)
+QString human_readable_bytes(u64i value, int lang_id)
 {
     int power {0}; // степень
     double new_value = double(value);
@@ -242,7 +242,7 @@ QString human_readable_bytes(u64i value)
         ++power;
     }
     new_value = new_value / pow(1024, power);
-    return QString("%1 %2").arg(QString::number(new_value, 'g', 3), unit_names[curr_lang()][power]);
+    return QString("%1 %2").arg(QString::number(new_value, 'g', 3), unit_names[lang_id][power]);
 }
 
 void FormatTile::update_counter(u64i value)
@@ -535,7 +535,9 @@ SessionWindow::SessionWindow(u32i session_id)
     save_all_button->setParent(central_widget);
     save_all_button->move(663, 182);
 
-    connect(save_all_button, &QPushButton::clicked, this, &SessionWindow::rxSerializeAndSaveAll);
+    connect(save_all_button, &QPushButton::clicked, this, [this](){
+        rxSerializeAndSaveAll(false /*is_report*/);
+    });
 
     report_button = new QPushButton;
     report_button->setAttribute(Qt::WA_NoMousePropagation);
@@ -551,8 +553,12 @@ SessionWindow::SessionWindow(u32i session_id)
     report_button->setParent(central_widget);
     report_button->move(771, 182);
 
-    static const QString progress_bar_style_sheet {  "QProgressBar {color: #2f2e29; background-color: #b6c7c7; border-width: 2px; border-style: solid; border-radius: 6px; border-color: #b6c7c7;}"
-                                                     "QProgressBar:chunk {background-color: #42982f; border-width: 0px; border-style: solid; border-radius: 6px;}"};
+    connect(report_button, &QPushButton::clicked, this, [this](){
+        rxSerializeAndSaveAll(true /*is_report*/);
+    });
+
+    static const QString progress_bar_style_sheet { "QProgressBar {color: #2f2e29; background-color: #b6c7c7; border-width: 2px; border-style: solid; border-radius: 6px; border-color: #b6c7c7;}"
+                                                    "QProgressBar:chunk {background-color: #42982f; border-width: 0px; border-style: solid; border-radius: 6px;}"};
 
     common_font.setPixelSize(12);
     auto progress_label = new QLabel; // "Current progress" label
@@ -700,7 +706,7 @@ SessionWindow::SessionWindow(u32i session_id)
     tiles_table->setEditTriggers(QAbstractItemView::NoEditTriggers); // отключаем редактирование ячеек
     tiles_table->setSelectionMode(QAbstractItemView::NoSelection);
     tiles_table->verticalScrollBar()->setStyle(new QCommonStyle);
-    tiles_table->verticalScrollBar()->setStyleSheet(  ":vertical {background-color: #8d6858; width: 10px}"
+    tiles_table->verticalScrollBar()->setStyleSheet(    ":vertical {background-color: #8d6858; width: 10px}"
                                                         "::handle:vertical {background-color: #895652; border-radius: 5px;}"
                                                         "::sub-line:vertical {height: 0px}"
                                                         "::add-line:vertical {height: 0px}");
@@ -748,8 +754,7 @@ SessionWindow::SessionWindow(u32i session_id)
     back_button = new QPushButton;
     back_button->setAttribute(Qt::WA_NoMousePropagation);
     back_button->setFixedSize(72, 28);
-    back_button->setStyleSheet(
-                                "QPushButton:enabled  {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
+    back_button->setStyleSheet( "QPushButton:enabled  {color: #fffef9; background-color: #ab6152; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                 "QPushButton:hover    {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                 "QPushButton:pressed  {color: #fffef9; background-color: #8b4132; border-width: 0px;}"
                                 "QPushButton:disabled {color: #a5a5a5; background-color: #828282; border-width: 0px; border-style: solid; border-radius: 14px;}");
@@ -942,7 +947,8 @@ void SessionWindow::create_and_start_walker()
     skip_button->setEnabled(true);
 
     start_msecs = QDateTime::currentMSecsSinceEpoch(); // фиксируем время запуска
-    walker->start(QThread::InheritPriority);
+
+    walker->start();
 }
 
 SessionWindow::~SessionWindow()
@@ -958,7 +964,7 @@ void SessionWindow::rxFileChange(const QString &file_name, u64i file_size)
     current_file_name = file_name;
     resources_in_current_file = 0;
     scanned_files_lbl->setText(QString(files_num_txt[curr_lang()]).arg(QString::number(scanned_files_counter)));
-    total_amount_lbl->setText(human_readable_bytes(total_amount_scanned));
+    total_amount_lbl->setText(human_readable_bytes(total_amount_scanned, curr_lang()));
     if ( !file_name.isEmpty() )
     {
         ++scanned_files_counter;
@@ -1013,7 +1019,7 @@ void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset
 
 }
 
-void SessionWindow::rxSerializeAndSaveAll()
+void SessionWindow::rxSerializeAndSaveAll(bool is_report)
 {
     QString save_path = QFileDialog::getExistingDirectory(this, "", settings->config.last_dst_dir);
     if ( save_path.isEmpty() ) return;
@@ -1033,7 +1039,16 @@ void SessionWindow::rxSerializeAndSaveAll()
     QString file_name_key;
     POD_ResourceRecord pod_rr;
     //
-    // перенос данных из resources_db в QByteArray (с одновременным обнулением resources_db)
+    /// запись TLV "SessionSettings" 'Свойства сессии'
+    tlv_header.type = TLV_Type::SessionSettings;
+    tlv_header.length = sizeof(POD_SessionSettings);
+    POD_SessionSettings pod_ss;
+    pod_ss.start_msecs = start_msecs;
+    pod_ss.end_msecs = end_msecs;
+    pod_ss.total_resources_found = total_resources_found;
+    data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+    data_buffer.append(QByteArray((char*)&pod_ss, sizeof(pod_ss)));
+    ///
     while(!src_files.isEmpty()) // сначала запихиваем имена исходных файлов по порядку их следования
     {
         /// запись TLV "SrcFile" 'имя исходного файла':
@@ -1046,8 +1061,7 @@ void SessionWindow::rxSerializeAndSaveAll()
         //qInfo() << "written 'SrcFile' for" << file_name_key << "; current size of buffer:" << data_buffer.size();
         src_files.removeFirst();
     } // здесь src_files должен стать пустым
-
-    while(!resources_db.isEmpty()) // обход ключей форматов
+    while(!resources_db.isEmpty()) // обход ключей и перенос данных из resources_db в QByteArray (с одновременным обнулением resources_db)
     {
         /// запись TLV "FmtChange" 'смена формата':
         format_name_key = resources_db.firstKey();
@@ -1133,7 +1147,7 @@ void SessionWindow::rxSerializeAndSaveAll()
     //qInfo() << "||| data_buffer.size:" << data_buffer.size() << " shared_memory.size:" << shared_memory.size();
 
     QProcess saving_process;
-    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ "-save", // args[1]
+    saving_process.startDetached(QCoreApplication::arguments()[0], QStringList{ (is_report ? "-save_report" : "-save"), // args[1]
                                                                                 shared_memory.key(), // args[2]
                                                                                 QString::number(data_buffer.size()), //args[3]
                                                                                 sys_semaphore.key(), // args[4]
@@ -1171,7 +1185,16 @@ void SessionWindow::rxSerializeAndSaveSelected(const QString &format_name)
     QByteArray qba_info;
     POD_ResourceRecord pod_rr;
     //
-    // перенос данных из resources_db в QByteArray
+    /// запись TLV "SessionSettings" 'Свойства сессии'
+    tlv_header.type = TLV_Type::SessionSettings;
+    tlv_header.length = sizeof(POD_SessionSettings);
+    POD_SessionSettings pod_ss;
+    pod_ss.start_msecs = start_msecs;
+    pod_ss.end_msecs = end_msecs;
+    pod_ss.total_resources_found = total_resources_found;
+    data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
+    data_buffer.append(QByteArray((char*)&pod_ss, sizeof(pod_ss)));
+    ///
     for (auto & one_src_file: src_files)// сначала запихиваем имена исходных файлов по порядку их следования
     {
         /// запись TLV "SrcFile" 'имя исходного файла':

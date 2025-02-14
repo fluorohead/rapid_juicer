@@ -14,7 +14,9 @@
 #define MAX_FILENAME_LEN 73  // исп-ся в SessionWindow для отображения длинных путей (усечение)
 #define MAX_SESSIONS 16
 
-enum class TLV_Type: u8i { SrcFile = 0, FmtChange = 1, POD = 2, DstExtension = 3, Info = 4, Terminator = 5 };
+enum class TLV_Type: u8i { SrcFile = 0, FmtChange = 1, POD = 2, DstExtension = 3, Info = 4, Terminator = 5, SessionSettings = 6 };
+
+QString human_readable_bytes(u64i value, int lang_id);
 
 struct ResourceRecord
 {
@@ -33,6 +35,13 @@ struct ResourceRecord
 using RR_Map = QMap<QString, QList<ResourceRecord>>;
 
 #pragma pack(push,1)
+struct POD_SessionSettings
+{
+    s64i start_msecs;
+    s64i end_msecs;
+    u64i total_resources_found;
+};
+
 struct POD_ResourceRecord
 {
     u64i order_number;
@@ -94,9 +103,6 @@ class SessionWindow: public QWidget
 {
     Q_OBJECT
     QPointF prev_cursor_pos;
-    void mouseMoveEvent(QMouseEvent *event);
-    void mousePressEvent(QMouseEvent *event);
-    void closeEvent(QCloseEvent *event);
     u32i my_session_id;
     bool is_walker_dead {true}; // начальное true; перед запуском выставляем false; после получения сигнала finished от walker'а выставляется опять true
     bool is_walker_paused {false};
@@ -120,7 +126,6 @@ class SessionWindow: public QWidget
     QMovie *scan_movie;
     QMutex *walker_mutex;
     WalkerThread *walker;
-    void create_and_start_walker(); // создание walker-потока и запуск его в работу
     u64i total_resources_found {0}; // счётчик найдённых ресурсов
     u32i unique_formats_found {0}; // счётчик уникальных форматов среди найдённых ресурсов; по нему высчитываются строка/столбец следующего тайла
     u64i scanned_files_counter {0}; // счётчик просканированных файлов
@@ -136,17 +141,21 @@ class SessionWindow: public QWidget
     RR_Map resources_db;
     s64i start_msecs;
     s64i end_msecs;
+
+    void mouseMoveEvent(QMouseEvent *event);
+    void mousePressEvent(QMouseEvent *event);
+    void closeEvent(QCloseEvent *event);
+    void create_and_start_walker(); // создание walker-потока и запуск его в работу
 public:
     SessionWindow(u32i session_id);
     ~SessionWindow();
 public Q_SLOTS:
-    //void rxGeneralProgress(QString remaining, u64i percentage_value);
     void rxFileChange(const QString &file_name, u64i file_size);
     void rxFileProgress(s64i percentage_value);
-    void rxResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);
-    void rxSerializeAndSaveAll();
-    void rxSerializeAndSaveSelected(const QString &format_name);
     void rxChangePageTo(int page);
+    void rxResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);
+    void rxSerializeAndSaveAll(bool is_report);
+    void rxSerializeAndSaveSelected(const QString &format_name);
 };
 
 
