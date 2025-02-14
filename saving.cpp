@@ -243,10 +243,8 @@ void SavingWindow::start_saver(const QString &path)
 void SavingWindow::start_reporter(const QString &path)
 {
     saving_path = path;
-    QString report_file_path = saving_path + "report.html";
-    path_label->setPlainText(reduce_file_path(QDir::toNativeSeparators(report_file_path), 86));
-    //qInfo() << "report_file_path:" << report_file_path;
-    auto reporter = new ReporterThread(this, &resources_db, &src_files, debug_mode, report_file_path, lang_id, &session_settings, &formats_counters);
+    path_label->setPlainText(reduce_file_path(QDir::toNativeSeparators(saving_path), 86));
+    auto reporter = new ReporterThread(this, &resources_db, &src_files, debug_mode, saving_path, lang_id, &session_settings, &formats_counters);
     connect(reporter, &ReporterThread::txNextWasReported, this, &SavingWindow::rxNextWasReported, Qt::QueuedConnection);
     connect(reporter, &ReporterThread::finished, this, &SavingWindow::rxReporterFinished, Qt::QueuedConnection);
     reporter->start();
@@ -276,13 +274,12 @@ void SavingWindow::rxDebugInfo(QString info)
 
 void SavingWindow::rxSaverFinished()
 {
-    //this->close();
+    this->close();
 }
 
 void SavingWindow::rxReporterFinished()
 {
-    //qInfo() << "reporter finished";
-    //this->close();
+    this->close();
 }
 
 void SavingWindow::decode_data(u8i *buffer)
@@ -409,7 +406,8 @@ void SavingWindow::load_data_from_shm(const QString &shm_key, const QString &shm
     }
     if ( debug_mode) debug_window->info_text->append("Shared memory real size: " + QString::number(shared_memory.size()));
 
-    /// запись дампа shm на диск
+    /// запись дампа shm на диск (для отладки)
+    /// параметры запуска : -save_report 2 3 4 1 ABC c:/Downloads/test
     // QFile shm_dump_file("./" + QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss") + ".dmp"); // в каталог запуска
     // shm_dump_file.open(QIODeviceBase::ReadWrite);
     // int dump_size = shm_size.toUInt();
@@ -652,6 +650,11 @@ const QString html_source_files_txt[int(Langs::MAX)]
     "; исходных файлов : "
 };
 
+const QString html_visit_site_txt[int(Langs::MAX)]
+{
+    "visit official site",
+    "посетить официальный сайт"
+};
 
 void ReporterThread::run()
 {
@@ -749,8 +752,6 @@ p {
     end_date_time.setMSecsSinceEpoch(session_settings->end_msecs);
     text_stream << "<h4>" << QString(html_scanning_period_txt[lang_id]).arg(start_date_time.toString(date_time_w_msecs_template), end_date_time.toString(date_time_w_msecs_template));
     s64i duration = session_settings->end_msecs - session_settings->start_msecs;
-    QTime duration_time(0, 0, 0);
-    duration_time = duration_time.addMSecs(duration);
     text_stream << html_duration_txt[lang_id];
     if ( duration < 1000 ) // если менее 1 секунды, то отображаем в мсек
     {
@@ -758,16 +759,18 @@ p {
     }
     else
     {
+        QTime duration_time(0, 0, 0);
+        duration_time = duration_time.addMSecs(duration);
         text_stream << duration_time.toString(Qt::ISODateWithMs);
     }
-    text_stream << ".</h4>\n<h4>";
+    text_stream << "</h4>\n<h4>";
     text_stream << html_resources_found_txt[lang_id] << session_settings->total_resources_found;
     text_stream << html_unique_fmts_found_txt[lang_id] << resources_db->count();
     text_stream << html_source_files_txt[lang_id] << src_files->count();
-    text_stream << ".</h4>\n</p>\n</header>\n<hr>\n";
+    text_stream << "</h4>\n</p>\n</header>\n<hr>\n";
 
     /// раздел быстрых ссылок
-    text_stream << "<nav>" << html_quick_links_txt[lang_id] << "<strong>";
+    text_stream << "<nav>\n" << html_quick_links_txt[lang_id] << "\n<strong>\n";
     for(auto it = resources_db->cbegin(); it != resources_db->cend(); ++it) // формирование ссылок быстрой навигации
     {
         text_stream << "<a href=\"#" << it.key() << "\">" << it.key() << "</a>\n";
@@ -779,7 +782,6 @@ R"(</strong>
 <article>
 )";
    ////
-
     for(auto it = resources_db->cbegin(); it != resources_db->cend(); ++it)
     {
         int resources_count = it.value().count();
@@ -801,9 +803,9 @@ R"(</strong>
             text_stream << "<td>" << it.value()[idx].order_number << "</td>";
             text_stream << "<td>" << it.value()[idx].order_number << "." << it.value()[idx].dest_extension.toLower() << "</td>";
             text_stream << "<td>" << it.value()[idx].size << "</td>";
-            text_stream << "<td>" << QDir::toNativeSeparators((*src_files)[it.value()[idx].src_fname_idx]) << "</td>";
+            text_stream << "<td>" << (QDir::toNativeSeparators((*src_files)[it.value()[idx].src_fname_idx])).toHtmlEscaped() << "</td>";
             text_stream << "<td>" << QString("0x%1 (%2)").arg(QString::number(it.value()[idx].offset, 16), 8, '0').arg(QString::number(it.value()[idx].offset)) << "</td>";
-            text_stream << "<td>" << it.value()[idx].info << "</td></tr>\n";
+            text_stream << "<td>" << it.value()[idx].info.toHtmlEscaped() << "</td></tr>\n";
             Q_EMIT txNextWasReported();
         }
         text_stream <<"</table>\n</p>\n</section>\n";
@@ -812,10 +814,13 @@ R"(</strong>
 R"(<hr>
 </article>
 <footer>
-<p>
-
-</p>
+<strong>
+<a href="https://github.com/fluorohead/rapid_juicer" target="_blank">)";
+    text_stream << html_visit_site_txt[lang_id] <<
+R"(</a>
+</strong>
 </footer>
+<hr>
 </center>
 </body>
 </html>

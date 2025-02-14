@@ -45,9 +45,16 @@ int main(int argc, char **argv)
             auto saving_window = new SavingWindow(args[2], args[3], args[4], ( args[1] == "-save_dbg" ) /*is_debug*/, args[5], args[6], is_report);
             QString save_path = args[7];
             if ( save_path[save_path.length() - 1] != '/' ) save_path.append('/');
-            if ( !is_report) save_path += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss/");
-            QDir save_dir;
-            save_dir.mkpath(save_path); // создаём каталог на диске
+            if ( !is_report)
+            {
+                save_path += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss/");
+                QDir save_dir;
+                save_dir.mkpath(save_path); // создаём подкаталог
+            }
+            else
+            {
+                save_path += ("report_" + QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss") + ".html");
+            }
             is_report ? saving_window->start_reporter(save_path) : saving_window->start_saver(save_path);
             saving_window->show();
             app.exec();
@@ -59,11 +66,11 @@ int main(int argc, char **argv)
     // auto sim = QImageReader::supportedImageFormats();
     // qInfo() << sim;
 
-    task.delAllTaskPaths();
+    //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff)", "*", true});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield)", "*", true});
 
     settings = new Settings;
