@@ -704,12 +704,12 @@ td {
 }
 
 td:nth-child(4) {
-    font-size: 11px;
+    font-size: 70%;
     word-wrap: break-word;
 }
 
 td:nth-child(6) {
-    font-size: 12px;
+    font-size: 80%;
     word-wrap: break-word;
 }
 
@@ -722,22 +722,22 @@ th {
 }
 
 th:nth-child(1) {
-    width: 160px;
+    width: 11%;
 }
 th:nth-child(2) {
-    width: 196px;
+    width: 13%;
 }
 th:nth-child(3) {
-    width: 160px;
+    width: 11%;
 }
 th:nth-child(4) {
-    width: 300px;
+    width: 20%;
 }
 th:nth-child(5) {
-    width: 256px;
+    width: 20%;
 }
 th:nth-child(6) {
-    width: 400px;
+    width: 25%;
 }
 
 p {

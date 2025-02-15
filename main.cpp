@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
     app.setApplicationName(":: Rapid Juicer :: resource extractor ::");
-    //app.setWindowIcon(QIcon(":/gui/logo_tiny.png"));
+    app.setWindowIcon(QIcon(":/gui/logo_tiny.png"));
     QFontDatabase::addApplicationFont(":/gui/RobotoMono-Regular.ttf");
 
     //qInfo() << "Main process id (uint64):" << app.applicationPid();
@@ -68,9 +68,9 @@ int main(int argc, char **argv)
     // auto sim = QImageReader::supportedImageFormats();
     // qInfo() << sim;
 
-    //task.delAllTaskPaths();
+    task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:/Downloads/rj_research/battlefield/~разобраться/app.jar)", "", false});
+    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\mp3\Heavy_Raid_-_Поджигатель.mp3)", "", false});
     //task.addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff)", "*", true});

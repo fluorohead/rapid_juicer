@@ -1444,6 +1444,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     if ( !VALID_FORMAT_TYPE.contains(((ChunkHeader*)(&buffer[base_index]))->format_type) ) return 0; // проверка на валидные форматы
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
+    if ( resource_size <= 8 ) return 0;
     switch (((ChunkHeader*)(&buffer[base_index]))->format_type)
     {
     case 0x204D4250 : // "PBM " picture
@@ -3255,7 +3256,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
             if ( id3v2->size_as_bytes[1] > 0x80 ) return 0;
             if ( id3v2->size_as_bytes[2] > 0x80 ) return 0;
             if ( id3v2->size_as_bytes[3] > 0x80 ) return 0;
-            u64i id3v2_size = id3v2->size_as_bytes[3] | (u64i(id3v2->size_as_bytes[2]) << 7) | (u64i(id3v2->size_as_bytes[1]) << 14) | (u64i(id3v2->size_as_bytes[0]) << 21) + sizeof(ID3v2);
+            u64i id3v2_size = u64i(id3v2->size_as_bytes[3]) + (u64i(id3v2->size_as_bytes[2]) << 7) + (u64i(id3v2->size_as_bytes[1]) << 14) + (u64i(id3v2->size_as_bytes[0]) << 21) + sizeof(ID3v2);
             //qInfo() << "id3v2_size:" << id3v2_size;
             if ( file_size - last_index < id3v2_size ) return 0; // нет места для всего ID3v2
             last_index += id3v2_size; // переставляемся сразу после ID3v2
@@ -3273,6 +3274,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
     u8i  padding;
     u8i  crc_len;
     u64i frame_number = 0;
+    u64i avg_bit_rate = 0;
+    u64i avg_sample_rate = 0;
     while(true)
     {
         ++frame_number;
@@ -3285,10 +3288,20 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
         if ( !VALID_SAMPLE_RATE.contains(sample_rate) ) break; // достигли конца потока
         bit_rate = VALID_BIT_RATE[bit_rate]; // переиспользуем переменную bit_rate
         sample_rate = VALID_SAMPLE_RATE[sample_rate]; // переиспользуем переменную sample_rate
+        avg_bit_rate += bit_rate;
+        avg_sample_rate += sample_rate;
         padding = (frame_header->EEEEFFGH >> 1) & 0b00000001;
         crc_len = 2 * (frame_header->AAABBCCD & 0b00000001);
         //qInfo() << " sample_rate:" << sample_rate << " bit_rate:" << bit_rate << " padding:" << padding << " crc_len:" << crc_len << " last_index:" << last_index << " frame_size:" << ( (1152 * bit_rate / 8) / sample_rate + padding );
         last_index += ( (1152 * bit_rate / 8) / sample_rate + padding );
+    }
+    // здесь переменная frame_number на единицу больше реального количества фреймов
+    //
+    if ( frame_number > 1 ) // проверка, чтобы не поделить на нуль
+    {
+        avg_bit_rate /= (frame_number - 1);    // высчитываем среднее значения для info
+        avg_sample_rate /= (frame_number - 1); //
+        //qInfo() << "avg_bit_rate:" << avg_bit_rate << "; avg_sample_rate:" << avg_sample_rate;
     }
     if ( last_index > file_size ) last_index = file_size;
     u64i resource_size = last_index - base_index;
@@ -3359,13 +3372,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
         }
     }
 mp3_id3v1:
-    QString info;
+    QString info = QString("%1kbps %2Hz").arg(QString::number(avg_bit_rate / 1000), QString::number(avg_sample_rate));
     if ( file_size - last_index >= sizeof(ID3v1) ) // может осталось место под ID3v1 в конце ресурса?
     {
         auto id3v1 = (ID3v1*)&buffer[last_index];
         if ( ( id3v1->signature1 == 0x4154 ) and ( id3v1->signature2 == 0x47 ) )
         {
-            info = "song '";
+            info += ", song '";
             for (u8i song_name_len = 0; song_name_len < 30; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [29]
             {
                 if ( id3v1->title[song_name_len] == 0 ) break;
