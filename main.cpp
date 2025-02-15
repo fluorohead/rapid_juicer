@@ -70,7 +70,7 @@ int main(int argc, char **argv)
 
     //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Program Files\Common Files\microsoft shared\ink\micaut.dll)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:/Downloads/rj_research/battlefield/~разобраться/app.jar)", "", false});
     //task.addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff)", "*", true});

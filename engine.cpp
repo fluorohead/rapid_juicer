@@ -2482,14 +2482,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
         //qInfo() << ": IFD at offset:" << last_index;
         if ( last_index + 6 > file_size ) return 0; // не хватает места на NumDirEntries (2) + NextIFDOffset (4)
         num_of_tags = *((u16i*)&buffer[last_index]); // место есть - считываем количество тегов
-        if ( last_index + 6 + num_of_tags * 12 > file_size ) return 0; // а вот на сами теги места уже не хватает -> капитуляция
+        if ( last_index + 6 + num_of_tags * sizeof(TIF_Tag) > file_size ) return 0; // а вот на сами теги места уже не хватает -> капитуляция
         //qInfo() << ": num_of_tags:" << num_of_tags;
         tag_pointer = (TIF_Tag*)&buffer[last_index + 2]; // ставим указатель на самый первый тег под индексом [0]
         if ( ifds_and_tags_db.contains(next_ifd_offset) ) break; // защита от зацикленных IFD (как в файле jpeg_exif_invalid_data_back_pointers.jpg)
-        ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * 12; // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
+        ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * sizeof(TIF_Tag); // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
         for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
         {
-            //qInfo() << "   pre tag_id:" << tag_pointer[tag_idx].tag_id << " pre tag_type:" << tag_pointer[tag_idx].data_type << " pre tag data_offset:" << tag_pointer[tag_idx].data_offset;
+            //qInfo() << "   pre tag_id:" << tag_pointer[tag_idx].tag_id << " pre data_type:" << tag_pointer[tag_idx].data_type << " pre tag data_offset:" << tag_pointer[tag_idx].data_offset;
             if ( !VALID_DATA_TYPE.contains(tag_pointer[tag_idx].data_type) ) return 0; // неизвестный тип данных
             result_tag_data_size = tag_pointer[tag_idx].data_count * VALID_DATA_TYPE[tag_pointer[tag_idx].data_type];
             if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
@@ -2537,7 +2537,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
         {
             if ( base_index + ifd_exif_offset + 6 > file_size ) return 0; // не хватает места
             u16i num_of_tags = *((u16i*)&buffer[base_index + ifd_exif_offset]);
-            if ( base_index + ifd_exif_offset + 6 + num_of_tags * 12 > file_size ) return 0; // не хватает места
+            if ( base_index + ifd_exif_offset + 6 + num_of_tags * sizeof(TIF_Tag) > file_size ) return 0; // не хватает места
+            ifds_and_tags_db[ifd_exif_offset] = 6 + num_of_tags * sizeof(TIF_Tag); // добавляем exif ifd в бд
             auto tag_pointer = (TIF_Tag*)&buffer[base_index + ifd_exif_offset + 2];
             u64i result_tag_data_size;
             for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
@@ -2556,13 +2557,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
                 }
             }
         }
-        next_ifd_offset = *((u32i*)&buffer[last_index + 2 + num_of_tags * 12]); // считываем смещение следующего IFD из конца предыдущего IFD
+        next_ifd_offset = *((u32i*)&buffer[last_index + 2 + num_of_tags * sizeof(TIF_Tag)]); // считываем смещение следующего IFD из конца предыдущего IFD
         //qInfo() << ": next_ifd_offset:" << next_ifd_offset;
         if ( next_ifd_offset == 0 ) break;
         last_index = base_index + next_ifd_offset;
     }
     // на выходе из цикла переменная last_index не будет иметь значения (она будет указывать на последний IFD), т.к. нужно проанализировать бд
     if ( total_tags_counter == 0 ) return 0; // файл без тегов не имеет смысла
+    if ( ( ifd_exif_offset > 0 ) and ( total_tags_counter == 1 ) ) return 0; // файл с единственным тегом exif не имеет смысла (часто встречается встронным в jpg и png)
     if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
@@ -2618,19 +2620,20 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         ifd_strip_counts_table = -1;
         ifd_strip_num = 0;
         ifd_exif_offset = -1;
-        // qInfo() << ": IFD at offset:" << last_index;
+        //qInfo() << ": IFD at offset:" << last_index;
         if ( last_index + 6 > file_size ) return 0; // не хватает места на NumDirEntries (2) + NextIFDOffset (4)
         num_of_tags = be2le(*((u16i*)&buffer[last_index])); // место есть - считываем количество тегов
         if ( last_index + 6 + num_of_tags * 12 > file_size ) return 0; // а вот на сами теги места уже не хватает -> капитуляция
-        // qInfo() << ": num_of_tags:" << num_of_tags;
+        //qInfo() << ": num_of_tags:" << num_of_tags;
         tag_pointer = (TIF_Tag*)&buffer[last_index + 2]; // ставим указатель на самый первый тег под индексом [0]
         if ( ifds_and_tags_db.contains(next_ifd_offset) ) break; // защита от зацикленных IFD (как в файле jpeg_exif_invalid_data_back_pointers.jpg)
-        ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * 12; // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
+        ifds_and_tags_db[next_ifd_offset] = 6 + num_of_tags * sizeof(TIF_Tag); // пихаем в бд сам IFD, т.к. он может быть расположен дальше данных какого-либо тега
         for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
         {
-            //qInfo() << "   pre tag_id:" << tag_pointer[tag_idx].tag_id << " pre tag_type:" << tag_pointer[tag_idx].data_type << " pre tag data_offset:" << tag_pointer[tag_idx].data_offset;
+            //qInfo() << "\n   pre tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " pre data_type:" << be2le(tag_pointer[tag_idx].data_type) << " pre tag data_offset:" << be2le(tag_pointer[tag_idx].data_offset);
             if ( !VALID_DATA_TYPE.contains(be2le(tag_pointer[tag_idx].data_type)) ) return 0; // неизвестный тип данных
             result_tag_data_size = be2le(tag_pointer[tag_idx].data_count) * VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)];
+            //if ( e->scanbuf_offset == 437086454 ) qInfo() << "   result_tag_data_size:" << result_tag_data_size;
             if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
             {
                 if ( base_index + be2le(tag_pointer[tag_idx].data_offset) + result_tag_data_size > file_size ) return 0; // данные тега не вмещаются в скан-файл
@@ -2656,8 +2659,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
                 if ( be2le(tag_pointer[tag_idx].tag_id) == 34665 ) ifd_exif_offset = be2le(tag_pointer[tag_idx].data_offset); // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
             }
             // qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
-            //         << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
-            //         << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
+            //          << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
+            //          << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
             ++total_tags_counter;
         }
         if ( ( ifd_image_offset > 0 ) and ( ifd_image_size > 0 ) ) ifds_and_tags_db[ifd_image_offset] = ifd_image_size; // если у тегов 273 и 279 количество данных data_count < 4;
@@ -2676,9 +2679,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
         // тут проходим по структуре EXIF IFD, если она есть; обычно находится в конце файла и содержит ссылки ещё куда-то дальше, ближе к концу файла, поэтому лучше её проанализировать
         if ( ifd_exif_offset > 0 )
         {
+            //qInfo() << "exif ifd present at:" << ifd_exif_offset;
             if ( base_index + ifd_exif_offset + 6 > file_size ) return 0; // не хватает места
             u16i num_of_tags = be2le(*((u16i*)&buffer[base_index + ifd_exif_offset]));
-            if ( base_index + ifd_exif_offset + 6 + num_of_tags * 12 > file_size ) return 0; // не хватает места
+            // qInfo() << "num of exif tags:" << num_of_tags;
+            if ( base_index + ifd_exif_offset + 6 + num_of_tags * sizeof(TIF_Tag) > file_size ) return 0; // не хватает места
+            ifds_and_tags_db[ifd_exif_offset] = 6 + num_of_tags * sizeof(TIF_Tag); // добавляем exif ifd в бд
             auto tag_pointer = (TIF_Tag*)&buffer[base_index + ifd_exif_offset + 2];
             u64i result_tag_data_size;
             for (u16i tag_idx = 0; tag_idx < num_of_tags; ++tag_idx) // и идём по тегам
@@ -2686,8 +2692,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
                 if ( !VALID_DATA_TYPE.contains(be2le(tag_pointer[tag_idx].data_type)) ) return 0; // неизвестный тип данных
                 result_tag_data_size = be2le(tag_pointer[tag_idx].data_count) * VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)];
                 // qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
-                //         << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
-                //         << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
+                //          << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
+                //          << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
                 if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
                 {
                     if ( base_index + be2le(tag_pointer[tag_idx].data_offset) + result_tag_data_size > file_size ) return 0; // данные тега не вмещаются в скан-файл
@@ -2699,17 +2705,19 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
             }
         }
         next_ifd_offset = be2le(*((u32i*)&buffer[last_index + 2 + num_of_tags * 12])); // считываем смещение следующего IFD из конца предыдущего IFD
-        // qInfo() << "   next_ifd_offset:" << next_ifd_offset;
+        //qInfo() << "   next_ifd_offset:" << next_ifd_offset;
         if ( next_ifd_offset == 0 ) break;
         last_index = base_index + next_ifd_offset;
     }
     // на выходе из цикла переменная last_index не будет иметь значения (она будет указывать на последний IFD), т.к. нужно проанализировать бд
     if ( total_tags_counter == 0 ) return 0; // файл без тегов не имеет смысла
+    if ( ( ifd_exif_offset > 0 ) and ( total_tags_counter == 1 ) ) return 0; // файл с единственным тегом exif не имеет смысла (часто встречается встронным в jpg и png)
     if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    // qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
+    //qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
+    //qInfo() << ifds_and_tags_db;
     Q_EMIT e->txResourceFound("tif_mm", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;

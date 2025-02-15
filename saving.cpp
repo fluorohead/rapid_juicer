@@ -669,7 +669,7 @@ void ReporterThread::run()
 R"(<!DOCTYPE html>
 <html>
 <head>
-<meta charset=\"utf-8\">
+<meta charset="utf-8">
 <title>Rapid Juicer :: )" << html_report_txt[lang_id] << "</title>\n";
     text_stream <<
 R"(<style>
@@ -705,6 +705,11 @@ td {
 
 td:nth-child(4) {
     font-size: 11px;
+    word-wrap: break-word;
+}
+
+td:nth-child(6) {
+    font-size: 12px;
     word-wrap: break-word;
 }
 
@@ -786,7 +791,7 @@ R"(</strong>
         int resources_count = it.value().count();
 
         text_stream << "<section id=\"" << it.key() << "\">\n<p>\n<table>\n";
-        text_stream << "<caption><h2>" << fformats[it.key()].extension << " (" << fformats[it.key()].description << ")";
+        text_stream << "<caption><h2>" << fformats[it.key()].extension << " (" << fformats[it.key()].description << ") " << fformats[it.key()].commentary;
         text_stream << "</h2><h4>" << html_total_found_txt[lang_id] << (*formats_counters)[it.key()].total_number_of;
         text_stream <<  html_total_size_txt[lang_id] << (*formats_counters)[it.key()].total_size_of << html_bytes_txt[lang_id] << " (" << human_readable_bytes((*formats_counters)[it.key()].total_size_of, lang_id) <<").</h4></caption>\n";
         text_stream << "<tr><th>" << html_resource_number_txt[lang_id] <<"</th>";
