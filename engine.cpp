@@ -2471,6 +2471,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
     s64i ifd_exif_offset; // смещение exif ifd
     u64i total_tags_counter = 0;
+    QSet<u16i> accumulated_tag_ids; // чтобы потом проанализировать есть ли в ресурсе изображение или только служебные теги
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
         ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
@@ -2517,6 +2518,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
                 if ( tag_pointer[tag_idx].tag_id == 34665 ) ifd_exif_offset = tag_pointer[tag_idx].data_offset; // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
             }
             // qInfo() << "   tag#"<< tag_idx << " tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
+            accumulated_tag_ids.insert(tag_pointer[tag_idx].tag_id);
             ++total_tags_counter; // если прошли все if'ы, значит тег легитимный
         }
         if ( ( ifd_image_offset > 0 ) and ( ifd_image_size > 0 ) ) ifds_and_tags_db[ifd_image_offset] = ifd_image_size; // если у тегов 273 и 279 количество данных data_count < 4;
@@ -2565,6 +2567,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     // на выходе из цикла переменная last_index не будет иметь значения (она будет указывать на последний IFD), т.к. нужно проанализировать бд
     if ( total_tags_counter == 0 ) return 0; // файл без тегов не имеет смысла
     if ( ( ifd_exif_offset > 0 ) and ( total_tags_counter == 1 ) ) return 0; // файл с единственным тегом exif не имеет смысла (часто встречается встронным в jpg и png)
+    if ( !accumulated_tag_ids.contains(273) and !accumulated_tag_ids.contains(279) ) return 0; // файл без изображения (strips) не имеет смысла
     if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
@@ -2612,6 +2615,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     u32i ifd_strip_num; // количество элементов в талицах ifd_strip_offsets и ifd_strip_counts
     s64i ifd_exif_offset; // смещение exif ifd
     u64i total_tags_counter = 0;
+    QSet<u16i> accumulated_tag_ids; // чтобы потом проанализировать есть ли в ресурсе изображение или только служебные теги
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
         ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
@@ -2661,6 +2665,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
             // qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
             //          << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
             //          << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
+            accumulated_tag_ids.insert(be2le(tag_pointer[tag_idx].tag_id));
             ++total_tags_counter;
         }
         if ( ( ifd_image_offset > 0 ) and ( ifd_image_size > 0 ) ) ifds_and_tags_db[ifd_image_offset] = ifd_image_size; // если у тегов 273 и 279 количество данных data_count < 4;
@@ -2712,6 +2717,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     // на выходе из цикла переменная last_index не будет иметь значения (она будет указывать на последний IFD), т.к. нужно проанализировать бд
     if ( total_tags_counter == 0 ) return 0; // файл без тегов не имеет смысла
     if ( ( ifd_exif_offset > 0 ) and ( total_tags_counter == 1 ) ) return 0; // файл с единственным тегом exif не имеет смысла (часто встречается встронным в jpg и png)
+    if ( !accumulated_tag_ids.contains(273) and !accumulated_tag_ids.contains(279) ) return 0; // файл без изображения (strips) не имеет смысла
     if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
