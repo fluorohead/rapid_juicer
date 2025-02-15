@@ -118,6 +118,7 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
     path_label->verticalScrollBar()->hide();
     path_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     path_label->setLineWrapMode(QTextEdit::WidgetWidth);
+    path_label->setWordWrapMode(QTextOption::WrapAnywhere);
 
     common_font.setItalic(false);
     common_font.setPixelSize(12);
@@ -225,7 +226,7 @@ SavingWindow::SavingWindow(const QString &shm_key, const QString &shm_size, cons
 SavingWindow::~SavingWindow()
 {
     if ( debug_window != nullptr ) debug_window->close();
-    QDesktopServices::openUrl(QUrl("file:///" + saving_path, QUrl::TolerantMode)); // открываем в проводнике каталог с ресурсами
+    if ( report_mode ) QDesktopServices::openUrl(QUrl("file:///" + saving_path, QUrl::TolerantMode)); // открываем файла отчёта в Браузере
 }
 
 void SavingWindow::start_saver(const QString &path)
@@ -303,8 +304,6 @@ void SavingWindow::decode_data(u8i *buffer)
         {
             ss_pod_ptr = (POD_SessionSettings*)((char*)tlv_header + sizeof(TLV_Header));
             session_settings = *ss_pod_ptr;
-            // session_settings.start_msecs = ss_pod_ptr->start_msecs;
-            // session_settings.end_msecs = ss_pod_ptr->end_msecs;
             if ( debug_mode) debug_window->info_text->append("-> ss_start_msecs:" + QString::number(session_settings.start_msecs) + "; ss_end_msecs:" + QString::number(session_settings.end_msecs));
             break;
         }
@@ -744,7 +743,7 @@ p {
 <body>
 <center>
 <header>)";
-    text_stream << "<p><h2>" << VERSION_TEXT << "</h3>\n";
+    text_stream << "<p><h2>" << VERSION_INFO << "</h3>\n";
     text_stream << "<h3>" << html_report_created_txt[lang_id] << QDateTime::currentDateTime().toString(date_time_w_msecs_template) << "</h3>\n";
     QDateTime start_date_time;
     start_date_time.setMSecsSinceEpoch(session_settings->start_msecs);

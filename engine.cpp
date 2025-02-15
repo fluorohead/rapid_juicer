@@ -1115,7 +1115,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
         //
     };
 #pragma pack(pop)
-    //qInfo() << " BMP recognizer called!";
+    //qInfo() << " BMP recognizer called!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(FileHeader);
     static const QSet <u32i> VALID_BMP_HEADER_SIZE { 12, 40, 108 };
     static const QSet <u16i> VALID_BITS_PER_PIXEL { 1, 4, 8, 16, 24, 32 };
@@ -1702,7 +1702,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
         u8i separator; // 0x3B
     };
 #pragma pack(pop)
-    //qInfo() << " GIF recognizer called!";
+    //qInfo() << " GIF recognizer called!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(FileHeader) + 1; // где +1 на u8i separator
     static const QSet <u16i> VALID_VERSIONS  { 0x6137 /*7a*/, 0x6139 /*9a*/ };
     static const QSet <u8i>  EXT_LABELS_TO_PROCESS { 0x01, 0xCE, 0xFE, 0xFF };
@@ -1711,6 +1711,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     auto buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
     auto info_header = (FileHeader*)(&buffer[base_index]);
+    if ( !VALID_VERSIONS.contains(info_header->version) ) return 0;
     u64i colors_num = 1ULL << ((info_header->packed & 0b00000111) + 1);
     bool global_palette = info_header->packed >> 7;
     u64i last_index = base_index + sizeof(FileHeader) + 3ULL * colors_num * global_palette; // перескок через глобальную цветовую таблицу, если она есть; выставляем last_index на первый вероятный separator
@@ -1727,7 +1728,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
             if ( last_index + sizeof(LocalImageDescriptor) > file_size ) return 0;
             lid_info_header = (LocalImageDescriptor*)(&buffer[last_index]);
             last_index += ( sizeof(LocalImageDescriptor) +  ( 3ULL * ( 1ULL << ((lid_info_header->packed & 0b00000111) + 1)) * (lid_info_header->packed >> 7) ) ); // перескок через локальную цветовую таблицу, если она есть
-            // теперь last_index стоит на данных, а точнее на счётчик первого блока данных
+            // теперь last_index стоит на данных, а точнее на счётчике первого блока данных
             while(true) // читаем данные итерациями : в начале каждого блока данных стоит счётчик u8i с размером блока; если размер = 0, значит это последний блок
             {
                 if ( last_index >= file_size ) return 0; // капитуляция, если не осталось места для счётчика блока //// по идее тут можно попытаться сохранить усечённый файл, но пока не будем с этим заморачиваться
@@ -2890,7 +2891,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
     if ( info_header->signature3 != 0x1A656C69 ) return 0;
     if ( info_header->header_size < sizeof(VOC_Header) ) return 0;
     if ( !VALID_VERSION.contains(info_header->version) ) return 0;
-    u64i last_index = base_index + info_header->header_size;
+    u64i last_index = base_index + info_header->header_size; // переставляемся на DataBlock
     s64i file_size = e->file_size;
     if ( last_index >= file_size ) return 0; // не осталось места на data block'и
     DataBlock *data_block;
@@ -2907,6 +2908,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
     last_index += 1; // на размер терминатора
     if ( last_index > file_size) return 0;
     u64i resource_size = last_index - base_index;
+    if ( resource_size == (sizeof(VOC_Header) + 1) ) return 0; // короткий ресурс без аудио-данных не имеет смысла
     Q_EMIT e->txResourceFound("voc", base_index, resource_size, "");
     e->resource_offset = base_index;
     return resource_size;
@@ -3117,9 +3119,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
     auto info_header = (ICO_Header*)(&buffer[base_index]);
     if ( info_header->count < 1 ) return 0;
     bool is_cur = (info_header->signature == 0x00020000 );
+    //qInfo() << "is_cur:" << is_cur;
     if ( is_cur and !e->selected_formats[cur_id] ) return 0;
     if ( !is_cur and !e->selected_formats[ico_id] ) return 0;
     u64i last_index = base_index + sizeof(ICO_Header); // last_index на начало директорий изображений
+    //qInfo() << "directory starts at:" << last_index;
     s64i file_size = e->file_size;
     Directory *directory;
     QMap<u32i, u32i> db; // бд тел битмапов: ключ - смещение, значение - размер
@@ -3132,7 +3136,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
         if ( directory->reserved != 0 ) return 0;
         if ( ( !is_cur ) and ( directory->cpl_xhotspot > 1 ) ) return 0;
         db[directory->bitmap_offset] = directory->bitmap_size;
-        //qInfo() << "bitmap_offset:" << base_index + directory->bitmap_offset;
+        //qInfo() << "bitmap_offset:" << base_index + directory->bitmap_offset << " bitmap_size:" << directory->bitmap_size;
+        //qInfo() << "last_index:" << last_index;
         if ( base_index + directory->bitmap_offset + sizeof(BitmapInfoHeader) > file_size ) return 0; // нет места на bitmap-заголовок
         auto bitmap_ih = (BitmapInfoHeader*)&buffer[base_index + directory->bitmap_offset];
         if ( !VALID_BMP_HEADER_SIZE.contains(bitmap_ih->bitmapheader_size) ) // тогда может быть есть встроенный PNG?

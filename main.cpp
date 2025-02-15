@@ -9,6 +9,7 @@
 #include <QTextEdit>
 #include <QFileDialog>
 #include <QFontDatabase>
+#include <QDesktopServices>
 
 Settings *settings; // объект должен существовать до создания любых окон.
 Task task; // объект должен существовать до создания любых окон.
@@ -50,6 +51,7 @@ int main(int argc, char **argv)
                 save_path += QDateTime::currentDateTime().toString("yyyy-MM-dd-hh-mm-ss/");
                 QDir save_dir;
                 save_dir.mkpath(save_path); // создаём подкаталог
+                QDesktopServices::openUrl(QUrl("file:///" + save_path, QUrl::TolerantMode)); // и сразу открываем его в Проводнике
             }
             else
             {
@@ -68,6 +70,8 @@ int main(int argc, char **argv)
 
     //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Program Files\Common Files\microsoft shared\ink\micaut.dll)", "", false});
+    //task.addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff)", "*", true});
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});

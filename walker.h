@@ -21,6 +21,7 @@ class WalkerThread: public QThread
     WalkerCommand command {WalkerCommand::Run};
     s64i previous_msecs; // должно быть инициализировано значением QDateTime::currentMSecsSinceEpoch(); до первого вызова update_general_progress()
     bool *selected_formats_fast; // массив будет построен в prepare_struct..(), для последующего быстрого lookup'а внутри recognizer'ов
+
     void prepare_structures_before_engine(); // подготавливает selected_formats_fast
     void clean_structures_after_engine();    // освобождает selected_formats_fast
     bool is_excluded_extension(const QString &path); // расширение файла в списке исключаемых?

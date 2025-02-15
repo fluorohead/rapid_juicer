@@ -20,7 +20,7 @@
 
 #define MAX_FILTERS 9
 
-#define VERSION_TEXT "Rapid Juicer v0.0.1"
+#define VERSION_INFO "Rapid Juicer v0.0.1a"
 
 enum class FilterAction { Include = 0, Exclude = 1, MAX };
 

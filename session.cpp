@@ -1043,8 +1043,7 @@ void SessionWindow::rxSerializeAndReport()
     data_buffer.append(QByteArray((char*)&tlv_header, sizeof(tlv_header)));
     data_buffer.append(QByteArray((char*)&pod_ss, sizeof(pod_ss)));
     ///
-    //for(int idx = 0; idx < src_files.count(); ++idx) // сначала запихиваем имена исходных файлов по порядку их следования
-    for(auto & one_src_file: src_files)
+    for(auto & one_src_file: src_files) // сначала запихиваем имена исходных файлов по порядку их следования
     {
         /// запись TLV "SrcFile" 'имя исходного файла':
         tlv_header.type = TLV_Type::SrcFile;

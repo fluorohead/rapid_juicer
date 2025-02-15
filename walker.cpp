@@ -110,8 +110,9 @@ void WalkerThread::run()
                     {
                         //qInfo() << "thread" << currentThreadId() << "(" << QThread::currentThread() << ") : \"for\" in lambda : scanning file \""<< file_infolist[idx].absoluteFilePath();
 
-                        if ( !is_excluded_extension(walker_task.task_paths[tp_idx].path) ) // не является ли расширение файла исключаемым ?
+                        if ( !is_excluded_extension(file_infolist[idx].absoluteFilePath()) ) // не является ли расширение файла исключаемым ?
                         {
+                            //qInfo() << "this file will be scanned:" << file_infolist[idx].absoluteFilePath();
                             /////  запуск поискового движка
                             engine->scan_file_win64(file_infolist[idx].absoluteFilePath());
                             if ( engine->done_cause_skip ) Q_EMIT txFileWasSkipped(); // обновляем current_status

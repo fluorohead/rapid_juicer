@@ -451,7 +451,7 @@ MainWindow::MainWindow()
     version_label->setStyleSheet("color: #fffef9");
     version_label->setFont(common_font);
     version_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    version_label->setText(VERSION_TEXT);
+    version_label->setText(VERSION_INFO);
 
     // Кнопка с количеством добавленных путей
     paths_button = new DynamicInfoButton(central_widget, ":/gui/main/pth_btn.png", ":/gui/main/pth_btn_h.png", paths_button_txt, 12, 10, &task.paths_count);
