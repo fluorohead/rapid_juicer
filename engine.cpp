@@ -2893,10 +2893,36 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
     {
         u32i type_with_size;
     };
+    struct SoundDataBlock1
+    {
+        u8i req_divisor;
+        u8i compression_type;
+    };
+    struct SoundDataBlock9
+    {
+        u32i sample_rate;
+        u8i  bits_per_sample;
+        u8i  channels;
+        u16i wformat;
+        u8i  reserved[4];
+    };
 #pragma pack(pop)
-    //qInfo() << " !!! VOC RECOGNIZER CALLED !!!";
+    //qInfo() << " !!! VOC RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(VOC_Header);
-    static const QSet <u16i> VALID_VERSION { 0x0100, 0x010A, 0x0114 };
+    static const QSet<u16i> VALID_VERSION { 0x0100, 0x010A, 0x0114 };
+    static const QMap<u8i, QString> VALID_COMPRESSION { {0x00,   "8-bits"},
+                                                        {0x01,   "4-bits"},
+                                                        {0x02,   "2.6-bits"},
+                                                        {0x03,   "2-bits"},
+                                                        {0x04,   "Multi DAC"} };
+    static const QMap<u16i, QString> VALID_WFORMAT {{0x00,   "8-bit unsigned PCM"},
+                                                    {0x01,   "Creative 8-bit to 4-bit ADPCM"},
+                                                    {0x02,   "Creative 8-bit to 3-bit ADPCM"},
+                                                    {0x03,   "Creative 8-bit to 2-bit ADPCM"},
+                                                    {0x04,   "16-bit signed PCM"},
+                                                    {0x06,   "CCITT a-Law"},
+                                                    {0x07,   "CCITT u-Law"},
+                                                    {0x2000, "Creative 16-bit to 4-bit ADPCM"} };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     auto buffer = e->mmf_scanbuf;
@@ -2910,6 +2936,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
     s64i file_size = e->file_size;
     if ( last_index >= file_size ) return 0; // не осталось места на data block'и
     DataBlock *data_block;
+    bool info_derived = false; // флаг "информация получена", по первому блоку типа 1 или 9
+    QString info;
     while(true)
     {
         if ( last_index + 1 > file_size) return 0; // нет места на тип блока
@@ -2918,13 +2946,54 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
         data_block = (DataBlock*)&buffer[last_index];
         if ( ( data_block->type_with_size & 0xFF ) > 9 ) return 0; // неизвестный тип блока
         //qInfo() << " data_block type:" << (data_block->type_with_size & 0xFF);
+        if ( ( (data_block->type_with_size & 0xFF) == 1 /*Sound data block type 1*/) and !info_derived ) // считываем инфо по первому блоку типа 1, в остальные такие же блоки больше не смотрим
+        {
+            if ( last_index + sizeof(DataBlock) + sizeof(SoundDataBlock1) <= file_size ) // хватает ли места на SoundDataBlock1?
+            {
+                auto sound_data = (SoundDataBlock1 *)&buffer[last_index + sizeof(DataBlock)];
+                u32i sample_rate = 1'000'000  / (256 - sound_data->req_divisor);
+                u8i channels = 1;
+                u8i compression_type = sound_data->compression_type;
+                if (compression_type > 0x03 )
+                {
+                    channels = compression_type - 3;
+                    compression_type = 0x04;
+                }
+                info = QString("%1 codec : %2Hz %3-ch").arg(VALID_COMPRESSION[compression_type],
+                                                            QString::number(sample_rate),
+                                                            QString::number(channels));
+                info_derived = true;
+            }
+        }
+        if ( ( (data_block->type_with_size & 0xFF) == 9 /*Sound data block type 9*/) and !info_derived ) // считываем инфо по первому блоку типа 9, в остальные такие же блоки больше не смотрим
+        {
+            if ( last_index + sizeof(DataBlock) + sizeof(SoundDataBlock9) <= file_size ) // хватает ли места на SoundDataBlock9?
+            {
+                auto sound_data = (SoundDataBlock9 *)&buffer[last_index + sizeof(DataBlock)];
+                QString codec;
+                if ( !VALID_WFORMAT.contains(sound_data->wformat) )
+                {
+                    codec = "Unknown";
+                }
+                else
+                {
+                    codec = VALID_WFORMAT[sound_data->wformat];
+                }
+                info = QString("%1 codec : %2Hz %3-ch %4-bit").arg( codec,
+                                                                    QString::number(sound_data->sample_rate),
+                                                                    QString::number(sound_data->channels),
+                                                                    QString::number(sound_data->bits_per_sample));
+                info_derived = true;
+            }
+        }
         last_index += ((data_block->type_with_size >> 8) + sizeof(DataBlock)); // сдвигаем вправо на 8, чтобы затереть type и оставить только size
     }
     last_index += 1; // на размер терминатора
     if ( last_index > file_size) return 0;
+    if ( !info_derived ) return 0; // если информация о сэмпле не получнеа, значит не было ни одного блока типа 1 или 9 - без них ресурс вообще не имеет смысла
     u64i resource_size = last_index - base_index;
     if ( resource_size == (sizeof(VOC_Header) + 1) ) return 0; // короткий ресурс без аудио-данных не имеет смысла
-    Q_EMIT e->txResourceFound("voc", base_index, resource_size, "");
+    Q_EMIT e->txResourceFound("voc", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
