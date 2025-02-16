@@ -1,9 +1,9 @@
   //   lbl|sign| AHAL | BHBL
   //   ---|----|------|------
-  //   0  |tga  : 0000 : 0200
-  //   0  |tga  : 0000 : 0A00
   //   0  |ico  : 0000 : 0100
+  //   0  |tga  : 0000 : 0200
   //   0  |cur  : 0000 : 0200 <- crossing with tga
+  //   0  |tga  : 0000 : 0A00
   //   1  |pcx  : 0A05
   //   2  |fli  : 11AF
   //   3  |flc  : 12AF
@@ -381,21 +381,30 @@ void Engine::generate_comparation_func()
 
 // ; 0x00
 aj_asm.bind(aj_signat_labels[0]);
-    // ; tga : 0x00'00 : 0x02'00
-    // ; tga : 0x00'00 : 0x0A'00
     // ; ico : 0x00'00 : 0x01'00
+    // ; tga : 0x00'00 : 0x02'00
     // ; cur : 0x00'00 : 0x02'00
+    // ; tga : 0x00'00 : 0x0A'00
     aj_asm.cmp(x86::al, 0x00);
     aj_asm.jne(aj_loop_check_label);
-    aj_asm.cmp(x86::bx, 0x02'00);
-    aj_asm.je(aj_sub_labels[13]);
-    aj_asm.cmp(x86::bx, 0x0A'00);
-    aj_asm.je(aj_sub_labels[13]);
-    aj_asm.cmp(x86::bx, 0x01'00);
-    aj_asm.je(aj_sub_labels[14]);
-    aj_asm.jmp(aj_loop_check_label);
-    aj_asm.bind(aj_sub_labels[13]);
+    if ( selected_formats[fformats["ico_win"].index] )
+    {
+        aj_asm.cmp(x86::bx, 0x01'00);
+        aj_asm.je(aj_sub_labels[14]);
+    }
+    if ( selected_formats[fformats["tga_tc"].index] or selected_formats[fformats["cur_win"].index] )
+    {
+        aj_asm.cmp(x86::bx, 0x02'00);
+        aj_asm.je(aj_sub_labels[13]);
+    }
     if ( selected_formats[fformats["tga_tc"].index] )
+    {
+        aj_asm.cmp(x86::bx, 0x0A'00);
+        aj_asm.je(aj_sub_labels[13]);
+    }
+    aj_asm.jmp(aj_loop_check_label);
+aj_asm.bind(aj_sub_labels[13]);
+    if ( selected_formats[fformats["tga_tc"].index] or selected_formats[fformats["cur_win"].index] )
     {
         // вызов recognize_tga
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
@@ -407,7 +416,7 @@ aj_asm.bind(aj_signat_labels[0]);
     }
     aj_asm.jmp(aj_loop_check_label);
 aj_asm.bind(aj_sub_labels[14]);
-    if ( selected_formats[fformats["ico_win"].index] or selected_formats[fformats["cur_win"].index] )
+    if ( selected_formats[fformats["ico_win"].index] )
     {
         // вызов recognize_ico_cur
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
@@ -417,7 +426,7 @@ aj_asm.bind(aj_sub_labels[14]);
         aj_asm.jne(aj_scrup_mode_check_label);
         //
     }
-aj_asm.jmp(aj_loop_check_label);
+    aj_asm.jmp(aj_loop_check_label);
 
 // ; 0x0A
 aj_asm.bind(aj_signat_labels[1]);
@@ -2915,11 +2924,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
                                                         {0x02,   "2.6-bits"},
                                                         {0x03,   "2-bits"},
                                                         {0x04,   "Multi DAC"} };
-    static const QMap<u16i, QString> VALID_WFORMAT {{0x00,   "8-bit unsigned PCM"},
+    static const QMap<u16i, QString> VALID_WFORMAT {{0x00,   "unsigned PCM"},
                                                     {0x01,   "Creative 8-bit to 4-bit ADPCM"},
                                                     {0x02,   "Creative 8-bit to 3-bit ADPCM"},
                                                     {0x03,   "Creative 8-bit to 2-bit ADPCM"},
-                                                    {0x04,   "16-bit signed PCM"},
+                                                    {0x04,   "signed PCM"},
                                                     {0x06,   "CCITT a-Law"},
                                                     {0x07,   "CCITT u-Law"},
                                                     {0x2000, "Creative 16-bit to 4-bit ADPCM"} };
@@ -2946,7 +2955,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
         data_block = (DataBlock*)&buffer[last_index];
         if ( ( data_block->type_with_size & 0xFF ) > 9 ) return 0; // неизвестный тип блока
         //qInfo() << " data_block type:" << (data_block->type_with_size & 0xFF);
-        if ( ( (data_block->type_with_size & 0xFF) == 1 /*Sound data block type 1*/) and !info_derived ) // считываем инфо по первому блоку типа 1, в остальные такие же блоки больше не смотрим
+        if ( ( (data_block->type_with_size & 0xFF) == 1 ) and !info_derived ) // считываем инфо по первому блоку типа 1, в остальные такие же блоки больше не смотрим
         {
             if ( last_index + sizeof(DataBlock) + sizeof(SoundDataBlock1) <= file_size ) // хватает ли места на SoundDataBlock1?
             {
@@ -2965,7 +2974,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
                 info_derived = true;
             }
         }
-        if ( ( (data_block->type_with_size & 0xFF) == 9 /*Sound data block type 9*/) and !info_derived ) // считываем инфо по первому блоку типа 9, в остальные такие же блоки больше не смотрим
+        if ( ( (data_block->type_with_size & 0xFF) == 9 ) and !info_derived ) // считываем инфо по первому блоку типа 9, в остальные такие же блоки больше не смотрим
         {
             if ( last_index + sizeof(DataBlock) + sizeof(SoundDataBlock9) <= file_size ) // хватает ли места на SoundDataBlock9?
             {

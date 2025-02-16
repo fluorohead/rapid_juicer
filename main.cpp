@@ -70,7 +70,7 @@ int main(int argc, char **argv)
 
     task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\voc\nem.voc)", "", false});
+    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\ico\SNAGIT.001.cur)", "", false});
     //task.addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff)", "*", true});
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
     return 0;
 }
 
-QString reduce_file_path(const QString &path, int max_len) // передаваемый path должен быть с нативными сепараторами
+QString reduce_file_path(const QString &path, int max_len) // передаваемый path должен быть с нативными сепараторами и с именем файла, не просто путь каталога
 {
     static const QChar separator = QDir::separator();
     static const QString filler_part = QString(separator) + "..."; //  filler_part = "\..." or "/..."
