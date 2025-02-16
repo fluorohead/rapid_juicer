@@ -3221,6 +3221,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
     Directory *directory;
     QMap<u32i, u32i> db; // бд тел битмапов: ключ - смещение, значение - размер
     //qInfo() << "count:" << info_header->count;
+    QString info;
     for (u16i idx = 0; idx < info_header->count; ++idx)
     {
         if ( last_index + sizeof(Directory) > file_size) return 0; // не хватает места на Directory
@@ -3237,11 +3238,25 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
         {
             if ( bitmap_ih->bitmapheader_size != 0x474E5089 ) return 0;
             //qInfo() << " ----> nested png here!!!!";
+            if ( idx <= 4 ) // 5 изображений
+            {
+                info += QString("%1:png, ").arg(  QString::number(idx + 1));
+            }
         }
         else
         {
             if ( !VALID_BITS_PER_PIXEL.contains(bitmap_ih->bits_per_pixel) ) return 0;
+            if ( idx <= 4 ) // 5 изображений
+            {
+                info += QString("%1:%2x%3, ").arg(  QString::number(idx + 1),
+                                                    QString::number(bitmap_ih->width),
+                                                    QString::number(bitmap_ih->height));
+            }
         }
+        if ( idx == 5 ) // на 6-м изображении добавляем только многоточие
+        {
+            info += "...  ";
+        } // на изображениях более 6 ничего не делаем
         last_index += sizeof(Directory);
     }
     //qInfo() << "most far offset:" << db.lastKey() << " bitmap size:" << db[db.lastKey()];
@@ -3249,7 +3264,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
     last_index = base_index + db.lastKey() + db[db.lastKey()];
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    Q_EMIT e->txResourceFound((is_cur) ? "cur_win" : "ico_win", base_index, resource_size, "");
+    info.chop(2); // удаляем последнюю запятую с пробелом
+    Q_EMIT e->txResourceFound((is_cur) ? "cur_win" : "ico_win", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
