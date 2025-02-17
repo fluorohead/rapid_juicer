@@ -68,9 +68,9 @@ int main(int argc, char **argv)
     // auto sim = QImageReader::supportedImageFormats();
     // qInfo() << sim;
 
-    task.delAllTaskPaths();
+    //task.delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\ico\SNAGIT.001.cur)", "", false});
+    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff\MM_SONY DSC-D700-04-najlepsze.tif)", "", false});
     //task.addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
     //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff)", "*", true});

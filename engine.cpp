@@ -2462,6 +2462,37 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     //qInfo() << " TIF_II recognizer called!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
+    static const QMap<u32i, QString> VALID_COMPRESSION {{0x0001, "uncompressed"},
+                                                        {0x0002, "CCITT Group 3"},
+                                                        {0x0003, "CCITT T.4 bi-level"},
+                                                        {0x0004, "CCITT T.6 bi-level"},
+                                                        {0x0005, "LZW"},
+                                                        {0x0006, "old-style JPEG"},
+                                                        {0x0007, "JPEG"},
+                                                        {0x0008, "Deflate/Adobe"},
+                                                        {0x0009, "JBIG ITU-T T.85"},
+                                                        {0x000A, "JBIG ITU-T T.43"},
+                                                        {0x7FFE, "NeXT RLE 2-bit greyscale"},
+                                                        {0x8003, "uncompressed"},
+                                                        {0x8005, "PackBits"},
+                                                        {0x8029, "ThunderScan RLE 4-bit"},
+                                                        {0x807F, "RasterPadding CT/MP"},
+                                                        {0x8080, "RLE for LW"},
+                                                        {0x8081, "RLE for HC"},
+                                                        {0x8082, "RLE for BL"},
+                                                        {0x80B2, "Deflate PKZIP"},
+                                                        {0x80B3, "Kodak DCS"},
+                                                        {0x8765, "LibTIFF JBIG"},
+                                                        {0x8798, "JPEG2000"},
+                                                        {0x8799, "Nikon NEF"},
+                                                        {0x879B, "JBIG2"},
+                                                        {0x8847, "LERC"},
+                                                        {0x884C, "Lossy non-YCbCr JPEG"},
+                                                        {0xC350, "ZSTD"},
+                                                        {0xC351, "WebP"},
+                                                        {0xCD32, "JPEG XL"},
+                                                        {0xFFFFFFFF, "unknown compression"} // фиктивный тип, в стандарте не существует
+                                                       };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
@@ -2482,6 +2513,17 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     s64i ifd_exif_offset; // смещение exif ifd
     u64i total_tags_counter = 0;
     QSet<u16i> accumulated_tag_ids; // чтобы потом проанализировать есть ли в ресурсе изображение или только служебные теги
+    u32i image_width = 0;
+    bool image_width_derived = false;
+    u32i image_height = 0;
+    bool image_height_derived = false;
+    u64i image_bps = 0;
+    bool image_bps_derived = false;
+    u64i image_spp = 0;
+    bool image_spp_derived = false;
+    u32i image_compression = 0;
+    bool image_compression_derived = false;
+    QString info;
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
         ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
@@ -2519,6 +2561,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
                         ifd_strip_num = tag_pointer[tag_idx].data_count;
                         ifd_strip_counts_table = tag_pointer[tag_idx].data_offset;
                     }
+                    if ( tag_pointer[tag_idx].tag_id == 258 ) // у этого тега длина данных может быть меньше 8 : например встречается 6
+                    {
+                        image_bps_derived = true;
+                        image_bps = buffer[base_index + tag_pointer[tag_idx].data_offset]; // считываем только первый байт, т.к. в остальных обычно просто дубли
+                    }
                 }
             }
             else // иначе, если данные помещаются в 4 байта, то поле data_offset хранит не смещение, а значение тега (например для тега 273 в data_offset хранится начало изображения размером из тега data_offset 279)
@@ -2526,8 +2573,26 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
                 if ( tag_pointer[tag_idx].tag_id == 273 ) ifd_image_offset = tag_pointer[tag_idx].data_offset;
                 if ( tag_pointer[tag_idx].tag_id == 279 ) ifd_image_size = tag_pointer[tag_idx].data_offset;
                 if ( tag_pointer[tag_idx].tag_id == 34665 ) ifd_exif_offset = tag_pointer[tag_idx].data_offset; // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
+
+                if ( tag_pointer[tag_idx].tag_id == 256 ) { image_width_derived = true; image_width = tag_pointer[tag_idx].data_offset & (0xFFFFFFFF >> (8 * result_tag_data_size)); }
+                if ( tag_pointer[tag_idx].tag_id == 257 ) { image_height_derived = true; image_height = tag_pointer[tag_idx].data_offset & (0xFFFFFFFF >> (8 * result_tag_data_size));}
+                if ( tag_pointer[tag_idx].tag_id == 258 ) { image_bps_derived = true; image_bps = tag_pointer[tag_idx].data_offset & (0xFFFFFFFF >> (8 * result_tag_data_size));}
+                if ( tag_pointer[tag_idx].tag_id == 259 ) { image_compression_derived = true; image_compression = tag_pointer[tag_idx].data_offset & (0xFFFFFFFF >> (8 * result_tag_data_size));}
+                if ( tag_pointer[tag_idx].tag_id == 277 ) { image_spp_derived = true; image_spp = tag_pointer[tag_idx].data_offset & (0xFFFFFFFF >> (8 * result_tag_data_size));}
             }
-            // qInfo() << "   tag#"<< tag_idx << " tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
+            //qInfo() << "   tag#"<< tag_idx << " tag_id:" << tag_pointer[tag_idx].tag_id << " data_type:" << tag_pointer[tag_idx].data_type << " data_count:" << tag_pointer[tag_idx].data_count << " multiplier:" << VALID_DATA_TYPE[tag_pointer[tag_idx].data_type] << " data_offset:" <<  tag_pointer[tag_idx].data_offset << " result_data_size:" << result_tag_data_size;
+            if ( image_width_derived and image_height_derived and image_bps_derived and image_compression_derived and image_spp_derived)
+            {
+                image_width_derived = false;
+                image_height_derived = false;
+                image_bps_derived = false;
+                image_compression_derived = false;
+                image_spp_derived = false;
+                info +=  QString("%1x%2 %3-bpp (%4), ").arg(QString::number(image_width),
+                                                            QString::number(image_height),
+                                                            QString::number(image_spp * image_bps),
+                                                            VALID_COMPRESSION[image_compression]);
+            }
             accumulated_tag_ids.insert(tag_pointer[tag_idx].tag_id);
             ++total_tags_counter; // если прошли все if'ы, значит тег легитимный
         }
@@ -2581,8 +2646,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
+    //qInfo() << "width:" << image_width << "; height:" << image_height << "; bps:" << image_bps << " compr:" << image_compression << "; spp:" << image_spp;
+    if ( ( image_width == 0 ) or ( image_height == 0 ) ) return 0;
+    if ( !VALID_COMPRESSION.contains(image_compression)) image_compression = 0xFFFFFFFF;
+    info.chop(2); // удаляем последние ", "
     u64i resource_size = last_index - base_index;
-    Q_EMIT e->txResourceFound("tif_ii", base_index, resource_size, "");
+    Q_EMIT e->txResourceFound("tif_ii", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -2606,6 +2675,36 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     //qInfo() << " TIF_MM recognizer called!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
+    static const QMap<u32i, QString> VALID_COMPRESSION {{0x0001, "uncompressed"},
+                                                        {0x0002, "CCITT Group 3"},
+                                                        {0x0003, "CCITT T.4 bi-level"},
+                                                        {0x0004, "CCITT T.6 bi-level"},
+                                                        {0x0005, "LZW"},
+                                                        {0x0006, "old-style JPEG"},
+                                                        {0x0007, "JPEG"},
+                                                        {0x0008, "Deflate/Adobe"},
+                                                        {0x0009, "JBIG ITU-T T.85"},
+                                                        {0x000A, "JBIG ITU-T T.43"},
+                                                        {0x7FFE, "NeXT RLE 2-bit greyscale"},
+                                                        {0x8003, "uncompressed"},
+                                                        {0x8005, "PackBits"},
+                                                        {0x8029, "ThunderScan RLE 4-bit"},
+                                                        {0x807F, "RasterPadding CT/MP"},
+                                                        {0x8080, "RLE for LW"},
+                                                        {0x8081, "RLE for HC"},
+                                                        {0x8082, "RLE for BL"},
+                                                        {0x80B2, "Deflate PKZIP"},
+                                                        {0x80B3, "Kodak DCS"},
+                                                        {0x8765, "LibTIFF JBIG"},
+                                                        {0x8798, "JPEG2000"},
+                                                        {0x8799, "Nikon NEF"},
+                                                        {0x879B, "JBIG2"},
+                                                        {0x8847, "LERC"},
+                                                        {0x884C, "Lossy non-YCbCr JPEG"},
+                                                        {0xC350, "ZSTD"},
+                                                        {0xC351, "WebP"},
+                                                        {0xCD32, "JPEG XL"},
+                                                        {0xFFFFFFFF, "unknown compression"}};
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
@@ -2626,6 +2725,17 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     s64i ifd_exif_offset; // смещение exif ifd
     u64i total_tags_counter = 0;
     QSet<u16i> accumulated_tag_ids; // чтобы потом проанализировать есть ли в ресурсе изображение или только служебные теги
+    u32i image_width = 0;
+    bool image_width_derived = false;
+    u32i image_height = 0;
+    bool image_height_derived = false;
+    u64i image_bps = 0;
+    bool image_bps_derived = false;
+    u64i image_spp = 0;
+    bool image_spp_derived = false;
+    u32i image_compression = 0;
+    bool image_compression_derived = false;
+    QString info;
     while(true) // задача пройти по всем IFD и тегам в них, накопив информацию в бд
     {
         ifd_image_offset = -1; // начальное -1 означает, что действительное значение ещё не найдено (потому что размер тела изобр. и его смещение хранятся в разных тегах)
@@ -2647,7 +2757,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
             //qInfo() << "\n   pre tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " pre data_type:" << be2le(tag_pointer[tag_idx].data_type) << " pre tag data_offset:" << be2le(tag_pointer[tag_idx].data_offset);
             if ( !VALID_DATA_TYPE.contains(be2le(tag_pointer[tag_idx].data_type)) ) return 0; // неизвестный тип данных
             result_tag_data_size = be2le(tag_pointer[tag_idx].data_count) * VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)];
-            //if ( e->scanbuf_offset == 437086454 ) qInfo() << "   result_tag_data_size:" << result_tag_data_size;
+            //qInfo() << "   result_tag_data_size:" << result_tag_data_size;
             if ( result_tag_data_size > 4 ) // если данные не вмещаются в 4 байта, значит data_offset означает действительное смещение в файле ресурса
             {
                 if ( base_index + be2le(tag_pointer[tag_idx].data_offset) + result_tag_data_size > file_size ) return 0; // данные тега не вмещаются в скан-файл
@@ -2664,17 +2774,44 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
                         ifd_strip_num = be2le(tag_pointer[tag_idx].data_count);
                         ifd_strip_counts_table = be2le(tag_pointer[tag_idx].data_offset);
                     }
+                    if ( be2le(tag_pointer[tag_idx].tag_id) == 258 ) // у этого тега длина данных может быть меньше 8 : например встречается 6
+                    {
+                        image_bps_derived = true;
+                        image_bps = buffer[base_index + be2le(tag_pointer[tag_idx].data_offset) + result_tag_data_size - 1]; // считываем только первый байт, т.к. в остальных обычно просто дубли
+                    }
                 }
             }
             else // иначе, если данные помещаются в 4 байта, то поле data_offset хранит не смещение, а значение тега (например для тега 273 в data_offset хранится начало изображения размером из тега data_offset 279)
             {
-                if ( be2le(tag_pointer[tag_idx].tag_id) == 273 ) ifd_image_offset = be2le(tag_pointer[tag_idx].data_offset);
-                if ( be2le(tag_pointer[tag_idx].tag_id) == 279 ) ifd_image_size = be2le(tag_pointer[tag_idx].data_offset);
-                if ( be2le(tag_pointer[tag_idx].tag_id) == 34665 ) ifd_exif_offset = be2le(tag_pointer[tag_idx].data_offset); // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
+                // далее формула (8 * (4 - result_tag_data_size)) применяется, т.к. значащих байт в поле data_offset может быть меньше 4 => нужно из
+
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 273 ) ifd_image_offset = be2le(tag_pointer[tag_idx].data_offset) >> (8 * (4 - result_tag_data_size));
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 279 ) ifd_image_size = be2le(tag_pointer[tag_idx].data_offset) >> (8 * (4 - result_tag_data_size));
+
+                // бывает встречается тег "EXIF IFD" - это смещение на таблицу exif-данных, которая имеет структуру обычного IFD
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 34665 ) ifd_exif_offset = be2le(tag_pointer[tag_idx].data_offset)  >> (8 * (4 - result_tag_data_size));
+
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 256 ) { image_width_derived = true; image_width = be2le(tag_pointer[tag_idx].data_offset) >> (8 * (4 - result_tag_data_size)); }
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 257 ) { image_height_derived = true; image_height = be2le(tag_pointer[tag_idx].data_offset) >> (8 * (4 - result_tag_data_size)); }
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 258 ) { image_bps_derived = true; image_bps = be2le(tag_pointer[tag_idx].data_offset) >> (8 * (4 - result_tag_data_size)); }
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 259 ) { image_compression_derived = true; image_compression = be2le(tag_pointer[tag_idx].data_offset) >> (8 * (4 - result_tag_data_size)); }
+                if ( be2le(tag_pointer[tag_idx].tag_id) == 277 ) { image_spp_derived = true; image_spp = be2le(tag_pointer[tag_idx].data_offset) >> (8 * (4 - result_tag_data_size)); }
             }
             // qInfo() << "   tag#"<< tag_idx << " tag_id:" << be2le(tag_pointer[tag_idx].tag_id) << " data_type:" << be2le(tag_pointer[tag_idx].data_type)
             //          << " data_count:" << be2le(tag_pointer[tag_idx].data_count) << " multiplier:" << VALID_DATA_TYPE[be2le(tag_pointer[tag_idx].data_type)]
             //          << " data_offset:" <<  be2le(tag_pointer[tag_idx].data_offset) << " result_data_size:" << result_tag_data_size;
+            if ( image_width_derived and image_height_derived and image_bps_derived and image_compression_derived and image_spp_derived)
+            {
+                image_width_derived = false;
+                image_height_derived = false;
+                image_bps_derived = false;
+                image_compression_derived = false;
+                image_spp_derived = false;
+                info +=  QString("%1x%2 %3-bpp (%4), ").arg(QString::number(image_width),
+                                                            QString::number(image_height),
+                                                            QString::number(image_spp * image_bps),
+                                                            VALID_COMPRESSION[image_compression]);
+            }
             accumulated_tag_ids.insert(be2le(tag_pointer[tag_idx].tag_id));
             ++total_tags_counter;
         }
@@ -2731,10 +2868,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     if ( ifds_and_tags_db.count() == 0 ) return 0; // проверка на всякий случай
     last_index = base_index + ifds_and_tags_db.lastKey() + ifds_and_tags_db[ifds_and_tags_db.lastKey()];
     if ( last_index > file_size ) return 0;
+    //qInfo() << "width:" << image_width << "; height:" << image_height << "; bps:" << image_bps << " compr:" << image_compression << "; spp:" << image_spp;
+    if ( ( image_width == 0 ) or ( image_height == 0 ) ) return 0;
+    if ( !VALID_COMPRESSION.contains(image_compression)) image_compression = 0xFFFFFFFF;
+    info.chop(2); // удаляем последние ", "
     u64i resource_size = last_index - base_index;
-    //qInfo() << " last_offset:" << ifds_and_tags_db.lastKey() << " last_block:" << ifds_and_tags_db[ifds_and_tags_db.lastKey()] << "  resource_size:" << resource_size;
-    //qInfo() << ifds_and_tags_db;
-    Q_EMIT e->txResourceFound("tif_mm", base_index, resource_size, "");
+    Q_EMIT e->txResourceFound("tif_mm", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -3231,13 +3370,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
         if ( ( !is_cur ) and ( directory->cpl_xhotspot > 1 ) ) return 0;
         db[directory->bitmap_offset] = directory->bitmap_size;
         //qInfo() << "bitmap_offset:" << base_index + directory->bitmap_offset << " bitmap_size:" << directory->bitmap_size;
-        //qInfo() << "last_index:" << last_index;
         if ( base_index + directory->bitmap_offset + sizeof(BitmapInfoHeader) > file_size ) return 0; // нет места на bitmap-заголовок
         auto bitmap_ih = (BitmapInfoHeader*)&buffer[base_index + directory->bitmap_offset];
         if ( !VALID_BMP_HEADER_SIZE.contains(bitmap_ih->bitmapheader_size) ) // тогда может быть есть встроенный PNG?
         {
             if ( bitmap_ih->bitmapheader_size != 0x474E5089 ) return 0;
-            //qInfo() << " ----> nested png here!!!!";
+            //qInfo() << " ----> embedded png here!!!!";
             if ( idx <= 4 ) // 5 изображений
             {
                 info += QString("%1:png, ").arg(  QString::number(idx + 1));
@@ -3246,6 +3384,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
         else
         {
             if ( !VALID_BITS_PER_PIXEL.contains(bitmap_ih->bits_per_pixel) ) return 0;
+            if ( bitmap_ih->planes != 1 ) return 0;
             if ( idx <= 4 ) // 5 изображений
             {
                 info += QString("%1:%2x%3, ").arg(  QString::number(idx + 1),
