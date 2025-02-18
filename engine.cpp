@@ -1405,7 +1405,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_iff RECOGNIZE_FUNC_HEADER
     {
         u32i chunk_id; // "FORM"
         u32i chunk_size; // need BE<>LE swap
-        u32i format_type; // "ILBM", "AIFF", "XDIR"
+        u32i format_type; // "ILBM", "AIFF", "XDIR"...
     };
     struct BMHD_InfoHeader
     {
@@ -1822,6 +1822,16 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         u16i xdens, ydens;
         u8i  xthumb, ythumb;
     };
+    // https://en.wikipedia.org/wiki/JPEG#Syntax_and_structure
+    struct SOF_Info
+    {
+        u16i marker;
+        u16i len;
+        u8i  bpp;
+        u16i height;
+        u16i width;
+        u8i  components;
+    };
 #pragma pack(pop)
     static constexpr u64i min_room_need = sizeof(JFIF_Header);
     static const QSet <u16i> VALID_VERSIONS  { 0x0100, 0x0101, 0x0102 };
@@ -1838,16 +1848,24 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
     if ( !VALID_UNITS.contains(info_header->units) ) return 0;
     u64i last_index = base_index + sizeof(JFIF_Header) + 3 * (info_header->xthumb * info_header->ythumb);
     if ( last_index >= file_size ) return 0; // капитуляция, если сразу за заголовком (или thumbnail'ом) файл закончился
+    SOF_Info *sof_marker = nullptr;
+    bool progressive = false;
     while(true) // ищем SOS (start of scan) \0xFF\0xDA
     {
-        if (last_index + 2 > file_size) return 0; // не нашли SOS
+        if ( last_index + 2 > file_size ) return 0; // не нашли SOS
+        if ( ( *((u16i*)(&buffer[last_index])) == 0xC0FF /*SOF0*/) or ( *((u16i*)(&buffer[last_index])) == 0xC2FF /*SOF2*/) )
+        {
+            //qInfo() << "last_index:" << last_index;
+            if ( last_index + sizeof(SOF_Info) < file_size ) sof_marker = (SOF_Info*)&buffer[last_index];
+        }
         if ( *((u16i*)(&buffer[last_index])) == 0xDAFF ) break; // нашли SOS
         ++last_index;
     }
     last_index += 2; // на размер SOS-идентификатора
+    //if ( sof_marker != nullptr ) qInfo() << " width:" << be2le(sof_marker->width) << "; height:" << be2le(sof_marker->height) << "; bpp:" << sof_marker->bpp << "; components:" << sof_marker->components;
     while(true) // ищем EOI (end of image) \0xFF\0xD9
     {
-        if (last_index + 2 > file_size) return 0; // не нашли SOS
+        if ( last_index + 2 > file_size ) return 0; // не нашли SOS
         if ( *((u16i*)(&buffer[last_index])) == 0xD9FF ) break; // нашли SOS
         ++last_index;
     }
@@ -1858,8 +1876,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
     // QImage image;
     // bool valid = image.loadFromData(e->mmf_scanbuf + base_index, resource_size);
     // qInfo() << "\njpeg is:" << valid;
-
-    Q_EMIT e->txResourceFound("jpg", base_index, resource_size, "");
+    QString info;
+    if ( sof_marker != nullptr )
+    {
+        info = QString("%1x%2 %3-bpp").arg( QString::number(be2le(sof_marker->width)),
+                                            QString::number(be2le(sof_marker->height)),
+                                            QString::number(sof_marker->bpp * sof_marker->components));
+    }
+    Q_EMIT e->txResourceFound("jpg", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }

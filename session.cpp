@@ -396,7 +396,7 @@ bool ResultsTable::event(QEvent* ev)
         int row_item = this->row(this->itemAt(((QHelpEvent*)ev)->pos()));
         if ( row_item >= 0 )
         {
-            QToolTip::showText(((QHelpEvent*)ev)->globalPos(), QString("source file:\n%1\noffset:\n0x%2 (%3)").arg(
+            QToolTip::showText(((QHelpEvent*)ev)->globalPos(), QString("source file:\n%1\n\noffset: 0x%2 (%3)").arg(
                                                                                                                     QDir::toNativeSeparators((*src_files)[(*resources_db)[my_fmt][row_item].src_fname_idx]),
                                                                                                                     QString::number((*resources_db)[my_fmt][row_item].offset, 16),
                                                                                                                     QString::number((*resources_db)[my_fmt][row_item].offset, 10)
