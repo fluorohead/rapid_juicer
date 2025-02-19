@@ -4,6 +4,7 @@
   //   0  |tga  : 0000 : 0200
   //   0  |cur  : 0000 : 0200 <- crossing with tga
   //   0  |tga  : 0000 : 0A00
+  //   0  |ttf  : 0001 : 0000
   //   1  |pcx  : 0A05
   //   2  |fli  : 11AF
   //   3  |flc  : 12AF
@@ -103,6 +104,7 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "mmd2",       { 0x0000000032444D4D, 4, Engine::recognize_med      } }, // "MMD2" OctaMED
     { "mmd3",       { 0x0000000033444D4D, 4, Engine::recognize_med      } }, // "MMD3" OctaMED
     { "dbm0",       { 0x00000000304D4244, 4, Engine::recognize_dbm0     } }, // "DBM0" DigiBooster Pro
+    { "ttf",        { 0x0000000000000100, 4, Engine::recognize_ttf      } }, // "\x00\x01\x00\x00"
 };
 
 u16i be2le(u16i be)
@@ -240,9 +242,9 @@ void Engine::generate_comparation_func()
     aj_asm.sub(x86::rdi, imm(256*8)); // возвращаем rdi на начало вектора
 
     // выборочно заполняем вектор адресами предобработчиков
-    if ( selected_formats[fformats["tga_tc"].index] or selected_formats[fformats["ico_win"].index] or selected_formats[fformats["cur_win"].index] )
+    if ( selected_formats[fformats["tga_tc"].index] or selected_formats[fformats["ico_win"].index] or selected_formats[fformats["cur_win"].index] or selected_formats[fformats["ttf"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[0])); // tag_tc, ico_win, cur_win
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[0])); // tag_tc, ico_win, cur_win, ttf
         aj_asm.mov(x86::ptr(x86::rdi, 0x00 * 8), x86::rax);
     }
 
@@ -385,8 +387,15 @@ aj_asm.bind(aj_signat_labels[0]);
     // ; tga : 0x00'00 : 0x02'00
     // ; cur : 0x00'00 : 0x02'00
     // ; tga : 0x00'00 : 0x0A'00
+    // ; ttf : 0x00'01 : 0x00'00
     aj_asm.cmp(x86::al, 0x00);
+    aj_asm.je(aj_sub_labels[20]);
+    aj_asm.cmp(x86::al, 0x01);
     aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x00'00);
+    aj_asm.je(aj_sub_labels[21]);
+    aj_asm.jmp(aj_loop_check_label);
+aj_asm.bind(aj_sub_labels[20]);
     if ( selected_formats[fformats["ico_win"].index] )
     {
         aj_asm.cmp(x86::bx, 0x01'00);
@@ -396,9 +405,6 @@ aj_asm.bind(aj_signat_labels[0]);
     {
         aj_asm.cmp(x86::bx, 0x02'00);
         aj_asm.je(aj_sub_labels[13]);
-    }
-    if ( selected_formats[fformats["tga_tc"].index] )
-    {
         aj_asm.cmp(x86::bx, 0x0A'00);
         aj_asm.je(aj_sub_labels[13]);
     }
@@ -422,6 +428,18 @@ aj_asm.bind(aj_sub_labels[14]);
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_ico_cur));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
+        //
+    }
+    aj_asm.jmp(aj_loop_check_label);
+aj_asm.bind(aj_sub_labels[21]);
+    if ( selected_formats[fformats["ttf"].index] )
+    {
+        // вызов recognize_ttf
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_ttf));
         aj_asm.cmp(x86::rax, 0);
         aj_asm.jne(aj_scrup_mode_check_label);
         //
@@ -1823,6 +1841,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         u8i  xthumb, ythumb;
     };
     // https://en.wikipedia.org/wiki/JPEG#Syntax_and_structure
+    // + JPG_diagram_by_Ange_Albertini.png
     struct SOF_Info
     {
         u16i marker;
@@ -3829,3 +3848,63 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
     e->resource_offset = base_index;
     return resource_size;
 };
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
+{
+// https://github.com/corkami/pics/blob/master/binary/ttf.png
+// https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6Tables.html
+// https://learn.microsoft.com/en-us/typography/opentype/spec/avar
+#pragma pack(push,1)
+    struct TTF_Header
+    {
+        u32i sfnt_version; // 0x00000100
+        u16i num_tables;
+        u16i search_range;
+        u16i entry_selector;
+        u16i range_shift;
+    };
+    struct TableRecord
+    {
+        u32i table_tag;
+        u32i checksum;
+        u32i offset;
+        u32i len;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! TTF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static constexpr u64i min_room_need = sizeof(TTF_Header);
+    static const QSet<u32i> VALID_TABLE_TAG {   0x41534350 /*ASCP*/, 0x42415345 /*BASE*/, 0x43464620 /*CFF */, 0x434F4C52 /*COLR*/, 0x4350414C /*CPAL*/, 0x44534947 /*DSIG*/, 0x45424454 /*EBDT*/,
+                                                0x45424C43 /*EBLC*/, 0x4646544D /*FFTM*/, 0x47444546 /*GDEF*/, 0x47504F53 /*GPOS*/, 0x47535542 /*GSUB*/, 0x48564152 /*HVAR*/, 0x4A535446 /*JSTF*/,
+                                                0x4C545348 /*LTSH*/, 0x4D415448 /*MATH*/, 0x4D455247 /*MERG*/, 0x4D564152 /*MVAR*/, 0x4F532F32 /*OS/2*/, 0x50434C54 /*PCLT*/, 0x53544154 /*STAT*/,
+                                                0x54544641 /*TTFA*/, 0x56444D58 /*VDMX*/, 0x564F5247 /*VORG*/, 0x61766172 /*avar*/, 0x62646174 /*bdat*/, 0x626C6F63 /*bloc*/, 0x636D6170 /*cmap*/,
+                                                0x63767420 /*cvt */, 0x6670676D /*fpgm*/, 0x66766172 /*fvar*/, 0x67617370 /*gasp*/, 0x676C7966 /*glyf*/, 0x67766172 /*gvar*/, 0x68646D78 /*hdmx*/,
+                                                0x68656164 /*head*/, 0x68686561 /*hhea*/, 0x686D7478 /*hmtx*/, 0x6B65726E /*kern*/, 0x6C6F6361 /*loca*/, 0x6D617870 /*maxp*/, 0x6D657461 /*meta*/,
+                                                0x6E616D65 /*name*/, 0x706F7374 /*post*/, 0x70726570 /*prep*/, 0x76686561 /*vhea*/, 0x766D7478 /*vmtx*/ };
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (TTF_Header*)&buffer[base_index];
+    u64i last_index = base_index + sizeof(TTF_Header); // переставляемся на директорию заголовков таблиц
+    s64i file_size = e->file_size;
+    QMap<u32i, u32i> tables_db; // бд тел таблиц
+    TableRecord *table_record;
+    u16i num_tables = be2le(info_header->num_tables);
+    //qInfo() << "num_of_tables:" << num_tables;
+    if ( num_tables == 0 ) return 0;
+    if ( last_index + num_tables * sizeof(TableRecord) > file_size ) return 0; // не хватает места под директорию таблиц
+    for(u16i idx = 0; idx < num_tables; ++idx) // обход directory table
+    {
+        table_record = (TableRecord*)&buffer[last_index];
+        if ( !VALID_TABLE_TAG.contains(be2le(table_record->table_tag)) ) return 0; // встретился неизвестный тег
+        if ( base_index + be2le(table_record->offset) + be2le(table_record->len) > file_size ) return 0; // тело таблицы не вмещается в сканируемый файл
+        tables_db[be2le(table_record->offset)] = be2le(table_record->len);
+        //qInfo() << "idx:" << idx << QString("; tag_type: 0x%1").arg(QString::number(be2le(table_record->table_tag), 16)) << "; table_offset:" << be2le(table_record->offset) << "; table_len:" << be2le(table_record->len);
+        last_index += sizeof(TableRecord);
+    }
+    //qInfo() << tables_db;
+    if ( tables_db.lastKey() < sizeof(TTF_Header) + num_tables * sizeof(TableRecord) ) return 0; // все таблицы должны быть строго после директории
+    u64i resource_size = tables_db.lastKey() + tables_db[tables_db.lastKey()];
+    Q_EMIT e->txResourceFound("ttf", base_index, resource_size, "");
+    e->resource_offset = base_index;
+    return resource_size;
+}

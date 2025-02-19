@@ -155,7 +155,8 @@ const QMap <u64i, QString> first_categ_resources
     { CAT_VIDEO, ":/gui/session/cat_video_big.png" },
     { CAT_AUDIO, ":/gui/session/cat_audio_big.png" },
     { CAT_MUSIC, ":/gui/session/cat_music_big.png" },
-    { CAT_3D,    ":/gui/session/cat_3d_big.png"    }
+    { CAT_3D,    ":/gui/session/cat_3d_big.png"    },
+    { CAT_OTHER, ":/gui/session/cat_other_big.png" }
 };
 
 const QString back_txt[int(Langs::MAX)]
