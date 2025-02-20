@@ -126,7 +126,7 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "ogg",      { "Ogg Audio/Video", "", "OGG", { CAT_AUDIO, CAT_VIDEO, CAT_NONE }, CAT_NONE, { "ogg" }, 0, "" } },
     { "med",      { "OctaMED Module", "MMD0/MMD1/MMD2/MMD03", "MED", { CAT_MUSIC, CAT_AMIGA, CAT_OUTDATED }, CAT_MOTOROLA, { "mmd0", "mmd1", "mmd2", "mmd3" }, 0, "" } },
     { "dbm0",     { "DigiBooster Pro Module", "", "DBM", { CAT_MUSIC, CAT_AMIGA, CAT_OUTDATED }, CAT_MOTOROLA, { "dbm0" }, 0, "" } },
-    { "ttf",      { "TrueType Font", "", "TTF", { CAT_OTHER, CAT_NONE, CAT_NONE }, CAT_VECTOR, { "ttf" }, 0, "" } }
+    { "ttf",      { "TrueType/OpenType Font", "TTF/OTF", "TTF", { CAT_OTHER, CAT_NONE, CAT_NONE }, CAT_VECTOR, { "ttf", "otf" }, 0, "" } }
     /// Сейчас 36 форматов.
     /// ВНИМАНИЕ! При добавлении нового формата, нужно удостовериться, что хватит места для тайла в таблице результатов
     /// и при необходимости откорректировать макрос RESULTS_TABLE_ROWS в session.cpp ( RESULTS_TABLE_ROWS * RESULTS_TABLE_COLUMNS всегда должно быть >= кол-ва форматов).

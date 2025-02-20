@@ -30,6 +30,7 @@
   //   13 |mmd2 : 4D4D : 4432
   //   13 |mmd3 : 4D4D : 4433
   //   13 |mid  : 4D54 : 6864
+  //   27 |otc  : 4F54 : 544F
   //   27 |ogg  : 4F67 : 6753
   //   16 |rif  : 5249 : 4646
   //   17 |s3m  : 5343 : 524D
@@ -105,6 +106,7 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "mmd3",       { 0x0000000033444D4D, 4, Engine::recognize_med      } }, // "MMD3" OctaMED
     { "dbm0",       { 0x00000000304D4244, 4, Engine::recognize_dbm0     } }, // "DBM0" DigiBooster Pro
     { "ttf",        { 0x0000000000000100, 4, Engine::recognize_ttf      } }, // "\x00\x01\x00\x00"
+    { "otf",        { 0x000000004F54544F, 4, Engine::recognize_ttf      } }, // "OTTO"
 };
 
 u16i be2le(u16i be)
@@ -190,7 +192,7 @@ void Engine::generate_comparation_func()
     }
 
     //x86::Mem rbp_plus_16 = x86::ptr(x86::rbp, 16); // указатель на наш "home rcx"
-    x86::Mem rdi_edx_mul8 = x86::ptr(x86::rdi, x86::edx, 3); // shift = 3, равноценно *8 : [rdi + r15*8]
+    x86::Mem rdi_edx_mul8 = x86::ptr(x86::rdi, x86::edx, 3); // shift = 3, равноценно *8 : [rdi + edx*8]
 
     //  входные параметры
     //  rcx - start_offset
@@ -329,9 +331,9 @@ void Engine::generate_comparation_func()
         aj_asm.mov(x86::ptr(x86::rdi, 0x4D * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["ogg"].index] )
+    if ( selected_formats[fformats["ogg"].index] or selected_formats[fformats["ttf"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[27])); // ogg
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[27])); // ogg, otc(ttf)
         aj_asm.mov(x86::ptr(x86::rdi, 0x4F * 8), x86::rax);
     }
 
@@ -440,8 +442,9 @@ aj_asm.bind(aj_sub_labels[21]);
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_ttf));
+        // scrup mode для ttf всегда отключен
         aj_asm.cmp(x86::rax, 0);
-        aj_asm.jne(aj_scrup_mode_check_label);
+        aj_asm.jne(aj_scrup_mode_off_label);
         //
     }
     aj_asm.jmp(aj_loop_check_label);
@@ -816,19 +819,40 @@ aj_asm.bind(aj_sub_labels[6]); // mid ?
 
 // ; 0x4F
 aj_asm.bind(aj_signat_labels[27]);
-    // ; ogg  : 0x4F'67 : 0x67'53
-    aj_asm.cmp(x86::al, 0x67);
-    aj_asm.jne(aj_loop_check_label);
-    aj_asm.cmp(x86::bx, 0x67'53);
-    aj_asm.jne(aj_loop_check_label);
-    // вызов recognize_ogg
-    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
-    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
-    aj_asm.call(imm((u64i)Engine::recognize_ogg));
-    // для ogg всегда выключен scrupulous mode.
-    aj_asm.cmp(x86::rax, 0);
-    aj_asm.jne(aj_scrup_mode_off_label);
-    //
+    // ; otc  : 0x4F'54 : 0x54'4F ('OTTO')
+    // ; ogg  : 0x4F'67 : 0x67'53 ('OggS')
+    if ( selected_formats[fformats["ttf"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x54);
+        aj_asm.jne(aj_sub_labels[6]);
+        aj_asm.cmp(x86::bx, 0x54'4F);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_ttf
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_ttf));
+        // для ttf всегда выключен scrupulous mode.
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_off_label);
+        //
+        aj_asm.jmp(aj_loop_check_label);
+    }
+aj_asm.bind(aj_sub_labels[6]); // ogg ?
+    if ( selected_formats[fformats["ogg"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x67);
+        aj_asm.jne(aj_loop_check_label);
+        aj_asm.cmp(x86::bx, 0x67'53);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_ogg
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_ogg));
+        // для ogg всегда выключен scrupulous mode.
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_off_label);
+        //
+    }
     aj_asm.jmp(aj_loop_check_label);
 
 // ; 0x52
@@ -1197,14 +1221,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_png RECOGNIZE_FUNC_HEADER
 #pragma pack(pop)
     //qInfo() << "\nPNG recognizer called!\n";
     static const u64i min_room_need = sizeof(FileHeader) + sizeof(ChunkHeader) + sizeof(IHDRData) + sizeof(CRC);
-    static const QSet <u8i>  VALID_BIT_DEPTH  {1, 2, 4, 8, 16};
-    static const QSet <u8i>  VALID_COLOR_TYPE {0, 2, 3, 4, 6};
-    static const QSet <u8i>  VALID_INTERLACE  {0, 1};
-    static const QSet <u32i> VALID_CHUNK_TYPE {    0x54414449 /*IDAT*/, 0x4D524863 /*cHRM*/, 0x414D4167 /*gAMA*/, 0x54494273 /*sBIT*/, 0x45544C50 /*PLTE*/, 0x44474B62 /*bKGD*/,
-                                                   0x54534968 /*hIST*/, 0x534E5274 /*tRNS*/, 0x7346466F /*oFFs*/, 0x73594870 /*pHYs*/, 0x4C414373 /*sCAL*/, 0x54414449 /*IDAT*/, 0x454D4974 /*tIME*/,
-                                                   0x74584574 /*tEXt*/, 0x7458547A /*zTXt*/, 0x63415266 /*fRAc*/, 0x67464967 /*gIFg*/, 0x74464967 /*gIFt*/, 0x78464967 /*gIFx*/, 0x444E4549 /*IEND*/,
-                                                   0x42475273 /*sRGB*/, 0x52455473 /*sTER*/, 0x4C414370 /*pCAL*/, 0x47495364 /*dSIG*/, 0x50434369 /*iCCP*/, 0x50434963 /*iICP*/, 0x7643446D /*mDCv*/,
-                                                   0x694C4C63 /*cLLi*/, 0x74585469 /*iTXt*/, 0x744C5073 /*sPLt*/, 0x66495865 /*eXIf*/, 0x52444849 /*iHDR*/};
+    static const QSet <u8i> VALID_BIT_DEPTH  { 1, 2, 4, 8, 16 };
+    static const QSet <u8i> VALID_COLOR_TYPE { 0, 2, 3, 4, 6 };
+    static const QSet <u8i> VALID_INTERLACE  { 0, 1 };
+    static const QSet <u32i> VALID_CHUNK_TYPE { 0x54414449 /*IDAT*/, 0x4D524863 /*cHRM*/, 0x414D4167 /*gAMA*/, 0x54494273 /*sBIT*/, 0x45544C50 /*PLTE*/, 0x44474B62 /*bKGD*/,
+                                                0x54534968 /*hIST*/, 0x534E5274 /*tRNS*/, 0x7346466F /*oFFs*/, 0x73594870 /*pHYs*/, 0x4C414373 /*sCAL*/, 0x54414449 /*IDAT*/, 0x454D4974 /*tIME*/,
+                                                0x74584574 /*tEXt*/, 0x7458547A /*zTXt*/, 0x63415266 /*fRAc*/, 0x67464967 /*gIFg*/, 0x74464967 /*gIFt*/, 0x78464967 /*gIFx*/, 0x444E4549 /*IEND*/,
+                                                0x42475273 /*sRGB*/, 0x52455473 /*sTER*/, 0x4C414370 /*pCAL*/, 0x47495364 /*dSIG*/, 0x50434369 /*iCCP*/, 0x50434963 /*iICP*/, 0x7643446D /*mDCv*/,
+                                                0x694C4C63 /*cLLi*/, 0x74585469 /*iTXt*/, 0x744C5073 /*sPLt*/, 0x66495865 /*eXIf*/, 0x52444849 /*iHDR*/ };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
@@ -3347,7 +3371,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     if ( !VALID_PIX_DEPTH.contains(info_header->pix_depth) ) return recognize_ico_cur(e);
     if ( (info_header->image_descriptor >> 6) != 0 ) return recognize_ico_cur(e);
     u64i last_index = base_index + sizeof(TGA_Header) + info_header->width * info_header->height * (info_header->pix_depth / 8); // вычисление эмпирического размера
-    last_index += 4096; // накидываем ещё 4K : вдруг это TGA v2? у которого есть области расширения и разработчика.
+    last_index += 4096; // накидываем ещё 4K : вдруг это TGAv2, у которого есть области расширения и разработчика.
     if ( last_index > e->file_size ) last_index = e->file_size;
     u64i resource_size = last_index - base_index;
     auto info = QString("%1x%2 %3-bpp").arg(QString::number(info_header->width),
@@ -3672,6 +3696,7 @@ mp3_id3v1:
 
 RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
 { // https://xiph.org/ogg/doc/framing.html
+  // https://www.xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-590004
 #pragma pack(push,1)
     struct PageHeader
     {
@@ -3684,6 +3709,19 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
         u32i page_checksum;
         u8i  segments_num;
     };
+    struct VorbisHeader
+    {
+        u8i  packet_type;
+        u32i signature1; // "vorb"
+        u16i signature2; // "is"
+        u32i vorbis_version;
+        u8i  audio_channels;
+        u32i sample_rate;
+        u32i bitrate_max;
+        u32i bitrate_nom;
+        u32i bitrate_min;
+    };
+
 #pragma pack(pop)
     //qInfo() << " !!! OGG RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(PageHeader);
@@ -3694,6 +3732,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index;
     s64i file_size = e->file_size;
     u64i pages = 0;
+    bool info_derived = false;
+    VorbisHeader *vorbis_header;
     while(true)
     {
         if ( last_index + sizeof(PageHeader) > file_size ) break;// есть место для очередного PageHeader?
@@ -3706,12 +3746,23 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
             segments_block += buffer[last_index + sizeof(PageHeader) + segm_idx];
         }
         if ( last_index + sizeof(PageHeader) + page_header->segments_num + segments_block > file_size ) break;// есть ли место под блок тел сегментов?
+        if ( !info_derived and ( page_header->segments_num > 0 ) and segments_block >= sizeof(VorbisHeader) )
+        {
+            vorbis_header = (VorbisHeader*)&buffer[last_index + sizeof(PageHeader) + page_header->segments_num];
+            if ( ( vorbis_header->packet_type == 0x1 ) and ( vorbis_header->signature1 == 0x62726F76 /*vorb*/) and ( vorbis_header->signature2 == 0x7369 /*is*/) )
+            {
+                info_derived = true;
+            }
+        }
         last_index += (sizeof(PageHeader) + page_header->segments_num + segments_block);
         ++pages;
     }
     if ( pages < 2 ) return 0;
     u64i resource_size = last_index - base_index;
-    Q_EMIT e->txResourceFound("ogg", base_index, resource_size, "");
+    QString info;
+    if ( info_derived ) info = QString("%1Hz %2kbps").arg(  QString::number(vorbis_header->sample_rate),
+                                                            QString::number(vorbis_header->bitrate_nom / 1000));
+    Q_EMIT e->txResourceFound("ogg", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -3752,10 +3803,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
     s64i file_size = e->file_size;
     if ( file_size - base_index < resource_size ) return 0; // не помещается
     // далее грубые проверки (без учёта размеров блоков по указателям)
-    if ( (( be2le(info_header->song_ptr) >= resource_size ) or ( be2le(info_header->song_ptr) < sizeof(MED_Header) )) and ( be2le(info_header->song_ptr) != 0 ) ) return 0;
-    if ( (( be2le(info_header->blockarr_ptr) >= resource_size ) or ( be2le(info_header->blockarr_ptr) < sizeof(MED_Header) )) and ( be2le(info_header->blockarr_ptr) != 0 ) ) return 0;
-    if ( (( be2le(info_header->smplarr_ptr) >= resource_size ) or ( be2le(info_header->smplarr_ptr) < sizeof(MED_Header) )) and ( be2le(info_header->smplarr_ptr) != 0 ) ) return 0;
-    if ( (( be2le(info_header->expdata_ptr) >= resource_size ) or ( be2le(info_header->expdata_ptr) < sizeof(MED_Header) )) and ( be2le(info_header->expdata_ptr) != 0 ) ) return 0;
+    if ( ( ( be2le(info_header->song_ptr) >= resource_size ) or ( be2le(info_header->song_ptr) < sizeof(MED_Header) ) ) and ( be2le(info_header->song_ptr) != 0 ) ) return 0;
+    if ( ( ( be2le(info_header->blockarr_ptr) >= resource_size ) or ( be2le(info_header->blockarr_ptr) < sizeof(MED_Header) ) ) and ( be2le(info_header->blockarr_ptr) != 0 ) ) return 0;
+    if ( ( ( be2le(info_header->smplarr_ptr) >= resource_size ) or ( be2le(info_header->smplarr_ptr) < sizeof(MED_Header) ) ) and ( be2le(info_header->smplarr_ptr) != 0 ) ) return 0;
+    if ( ( ( be2le(info_header->expdata_ptr) >= resource_size ) or ( be2le(info_header->expdata_ptr) < sizeof(MED_Header) ) ) and ( be2le(info_header->expdata_ptr) != 0 ) ) return 0;
     //
     if ( info_header->mmdflags > 1 ) return 0;
     if ( info_header->psecnum_and_pseq != 0 ) return 0;
@@ -3857,7 +3908,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
 #pragma pack(push,1)
     struct TTF_Header
     {
-        u32i sfnt_version; // 0x00000100
+        u32i sfnt_version; // 0x00000100 ttf or 0x4F54544F 'OTTO'
         u16i num_tables;
         u16i search_range;
         u16i entry_selector;
