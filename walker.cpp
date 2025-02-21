@@ -5,10 +5,10 @@
 
 extern QMap <QString, FileFormat> fformats;
 
-WalkerThread::WalkerThread(SessionWindow *receiver, QMutex *control_mtx, const Task &task, const Config &config, const QSet<QString> &formats_to_scan)
+WalkerThread::WalkerThread(SessionWindow *receiver, QMutex *control_mtx, Task *task, const Config &config, const QSet<QString> &formats_to_scan)
     : my_receiver(receiver)
     , walker_control_mutex(control_mtx)
-    , walker_task(task)
+    , walker_task(*task)
     , walker_config(config)
     , my_formats(formats_to_scan)
 {

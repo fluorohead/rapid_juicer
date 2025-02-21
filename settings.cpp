@@ -374,15 +374,15 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     background.move(0, 0);
     background.setPixmap(bg_pixmap);
 
-    QFont tmpFont {*skin_font()};
-    tmpFont.setPixelSize(13);
-    tmpFont.setBold(true);
+    QFont common_font {*skin_font()};
+    common_font.setPixelSize(13);
+    common_font.setBold(true);
 
     QLabel* tmp_label;
     for (int idx = 0; idx < 5; ++idx) { // надписи
         tmp_label = new QLabel;
         tmp_label->setFixedSize(164, 16);
-        tmp_label->setFont(tmpFont);
+        tmp_label->setFont(common_font);
         tmp_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         tmp_label->setStyleSheet("color: #fffef9"/*; background-color: #009167"*/);
         tmp_label->setParent(&background);
@@ -404,9 +404,9 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         "border-color: #b6c7c7;"
         "padding-left: 8px;}"
         );
-    tmpFont.setPixelSize(12);
-    tmpFont.setBold(false);
-    lang_combo->setFont(tmpFont);
+    common_font.setPixelSize(12);
+    common_font.setBold(false);
+    lang_combo->setFont(common_font);
     lang_combo->move(252, y_offset + 74);
     for (int idx = 0; idx < int(Langs::MAX); ++idx) {
         lang_combo->addItem(languages_txt[curr_lang()][idx]);
@@ -427,7 +427,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         "border-color: #b6c7c7;"
         "padding-left: 8px;}"
         );
-    bufsz_combo->setFont(tmpFont);
+    bufsz_combo->setFont(common_font);
     bufsz_combo->move(252, y_offset + 110);
     auto maxBSVars = permitted_buffers.count();
     for (int idx = 0; idx < maxBSVars; ++idx) {
@@ -449,7 +449,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         "border-color: #b6c7c7;"
         "padding-left: 8px;}"
         );
-    recurs_combo->setFont(tmpFont);
+    recurs_combo->setFont(common_font);
     recurs_combo->move(252, y_offset + 146);
     recurs_combo->addItem(yes_no_txt[curr_lang()][false]); // "No"
     recurs_combo->addItem(yes_no_txt[curr_lang()][true]);  // "Yes"
@@ -467,20 +467,20 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         "border-color: #b6c7c7;"
         "padding-left: 8px;}"
         );
-    mask_le->setFont(tmpFont);
+    mask_le->setFont(common_font);
     mask_le->move(252, y_offset + 182);
     mask_le->setClearButtonEnabled(true);
     mask_le->setText(settings->cand_config.file_mask);
     mask_le->setMaxLength(32);
     mask_le->setValidator(&fmv);
 
-    tmpFont.setBold(true);
-    tmpFont.setPixelSize(12);
+    common_font.setBold(true);
+    common_font.setPixelSize(12);
 
     // Таблица исключений
     auto excluding_table = new QListWidget(&background);
     excluding_table->setFixedSize(96, 112);
-    excluding_table->setFont(tmpFont);
+    excluding_table->setFont(common_font);
     auto my_style = new QCommonStyle;
     excluding_table->verticalScrollBar()->setStyle(my_style);
     excluding_table->verticalScrollBar()->setFixedSize(10, 100);
@@ -516,7 +516,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
         "border-color: #b6c7c7;"
         "padding-left: 8px;}"
         );
-    excluding_le->setFont(tmpFont);
+    excluding_le->setFont(common_font);
     excluding_le->move(312, y_offset + 236);
     excluding_le->setClearButtonEnabled(true);
     excluding_le->setMaxLength(16);
@@ -532,7 +532,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     add_button->setAttribute(Qt::WA_NoMousePropagation);
     add_button->setFixedSize(96, 28);
     add_button->setStyleSheet(buttons_style);
-    add_button->setFont(tmpFont);
+    add_button->setFont(common_font);
     add_button->setText(add_txt[curr_lang()]);
     add_button->move(324, y_offset + 268);
 
@@ -540,7 +540,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     del_button->setAttribute(Qt::WA_NoMousePropagation);
     del_button->setFixedSize(96, 28);
     del_button->setStyleSheet(buttons_style);
-    del_button->setFont(tmpFont);
+    del_button->setFont(common_font);
     del_button->setText(del_txt[curr_lang()]);
     del_button->move(324, y_offset + 320);
 
@@ -548,7 +548,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
     clear_button->setAttribute(Qt::WA_NoMousePropagation);
     clear_button->setFixedSize(86, 56);
     clear_button->setStyleSheet(buttons_style);
-    clear_button->setFont(tmpFont);
+    clear_button->setFont(common_font);
     clear_button->setText(clear_txt[curr_lang()]);
     clear_button->move(100, y_offset + 294);
 
@@ -559,7 +559,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
                                     "QPushButton:hover   {color: #fffef9; background-color: #7c812e; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                     "QPushButton:pressed {color: #fffef9; background-color: #7c812e; border-width: 0px;}"
                                    );
-    defaults_button->setFont(tmpFont);
+    defaults_button->setFont(common_font);
     defaults_button->setText(defaults_txt[curr_lang()]);
     defaults_button->move(80, y_offset + 384);
 
@@ -570,7 +570,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
                                 "QPushButton:hover   {color: #fffef9; background-color: #5f8b4d; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                 "QPushButton:pressed {color: #fffef9; background-color: #5f8b4d; border-width: 0px;}"
                              );
-    ok_button->setFont(tmpFont);
+    ok_button->setFont(common_font);
     ok_button->setText(ok_txt[curr_lang()]);
     ok_button->move(272, y_offset + 392);
 
@@ -581,7 +581,7 @@ SettingsWindow::SettingsWindow(QWidget *parent)
                                     "QPushButton:hover   {color: #fffef9; background-color: #8b4132; border-width: 2px; border-style: solid; border-radius: 14px; border-color: #b6c7c7;}"
                                     "QPushButton:pressed {color: #fffef9; background-color: #8b4132; border-width: 0px;}"
                                  );
-    cancel_button->setFont(tmpFont);
+    cancel_button->setFont(common_font);
     cancel_button->setText(cancel_txt[curr_lang()]);
     cancel_button->move(356, y_offset + 392);
 
@@ -666,7 +666,7 @@ SettingsWindow::~SettingsWindow()
 {
     if ( settings->config.lang_idx != previous_lang_idx ) // изменился язык => разошлём всем gui-элементам событие
     {
-        QApplication::postEvent(this->parent(), new QEvent(QEvent::LanguageChange)); // отсылаем родителю, т.е. CentralWidget
+        QApplication::postEvent(this->parent(), new QEvent(QEvent::LanguageChange)); // отсылаем родителю, т.е. MainWindow
     }
 }
 

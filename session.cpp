@@ -24,9 +24,10 @@
 extern QString reduce_file_path(const QString&, int);
 
 extern QMap <QString, FileFormat> fformats;
-extern SessionsPool sessions_pool;
+extern SessionsPool *sessions_pool;
 extern Settings *settings;
-extern Task task;
+extern Task *task;
+
 extern const QList<u64i> permitted_buffers;
 
 extern const QString yes_no_txt[int(Langs::MAX)][2];
@@ -436,7 +437,7 @@ SessionWindow::SessionWindow(u32i session_id)
     common_font.setPixelSize(13);
     common_font.setBold(true);
 
-    auto properties_label = new QLabel; // "Session properties" label
+    properties_label = new QLabel; // "Session properties" label
     properties_label->setFixedSize(144, 24);
     properties_label->setStyleSheet("color: #c18556");
     properties_label->setFont(common_font);
@@ -558,7 +559,7 @@ SessionWindow::SessionWindow(u32i session_id)
                                                     "QProgressBar:chunk {background-color: #42982f; border-width: 0px; border-style: solid; border-radius: 6px;}"};
 
     common_font.setPixelSize(12);
-    auto progress_label = new QLabel; // "Current progress" label
+    progress_label = new QLabel; // "Current progress" label
     progress_label->setFixedSize(144, 24);
     progress_label->setStyleSheet("color: #e1a576");
     progress_label->setFont(common_font);
@@ -736,7 +737,7 @@ SessionWindow::SessionWindow(u32i session_id)
     common_font.setPixelSize(16);
 
     // завершающей страницей будет информационный виджет (с анимацией и текстом)
-    auto info_widget = new QLabel;
+    info_widget = new QLabel;
     info_widget->setFixedSize(RESULTS_TABLE_WIDTH, RESULTS_TABLE_HEIGHT);
     info_widget->setStyleSheet("QLabel {color: #fffef9;}");
     info_widget->setAlignment(Qt::AlignCenter);
@@ -950,7 +951,7 @@ void SessionWindow::create_and_start_walker()
 
 SessionWindow::~SessionWindow()
 {
-    sessions_pool.remove_session(this, my_session_id);
+    sessions_pool->remove_session(this, my_session_id);
     //qInfo() << "Session window destroyed";
 }
 

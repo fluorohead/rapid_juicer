@@ -26,7 +26,7 @@ class WalkerThread: public QThread
     void clean_structures_after_engine();    // освобождает selected_formats_fast
     bool is_excluded_extension(const QString &path); // расширение файла в списке исключаемых?
 public:
-    WalkerThread(SessionWindow* window_receiver, QMutex* control_mtx, const Task &task, const Config &config, const QSet<QString> &formats_to_scan);
+    WalkerThread(SessionWindow* window_receiver, QMutex* control_mtx, Task *task, const Config &config, const QSet<QString> &formats_to_scan);
     ~WalkerThread();
     void run();
 Q_SIGNALS:

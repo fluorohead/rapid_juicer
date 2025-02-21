@@ -8,7 +8,7 @@
 #include <QFileDialog>
 
 extern Settings *settings;
-extern Task task;
+extern Task *task;
 
 const QString paths_list_info_txt[int(Langs::MAX)]
 {
@@ -41,7 +41,7 @@ YesNoMicroButton::YesNoMicroButton(QWidget *parent, u32i row_index, QPixmap *no_
     this->setAttribute(Qt::WA_TranslucentBackground);
     this->setAttribute(Qt::WA_NoSystemBackground);
     this->setFixedSize(main_pixmap[0]->size());
-    this->setPixmap(*main_pixmap[task.getTaskRecursion(taskIdx)]);
+    this->setPixmap(*main_pixmap[task->getTaskRecursion(taskIdx)]);
 
     this->setMask(main_pixmap[0]->mask());
 }
@@ -65,9 +65,9 @@ void YesNoMicroButton::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
         // settings.setTaskRecursionFlag(taskIdx, !task.getTaskRecursion(taskIdx));
-        task.setTaskRecursion(taskIdx, !task.getTaskRecursion(taskIdx));
+        task->setTaskRecursion(taskIdx, !task->getTaskRecursion(taskIdx));
         //qInfo() << "Recursion set to" << task.getTaskRecursion(taskIdx) << "in task_id=" << taskIdx << "in row at index=" << my_row_index;
-        this->setPixmap(*hover_pixmap[task.getTaskRecursion(taskIdx)]);
+        this->setPixmap(*hover_pixmap[task->getTaskRecursion(taskIdx)]);
         event->accept();
     }
 }
@@ -79,13 +79,13 @@ void YesNoMicroButton::mouseMoveEvent(QMouseEvent *event)
 
 void YesNoMicroButton::enterEvent(QEnterEvent *event)
 {
-    this->setPixmap(*hover_pixmap[task.getTaskRecursion(taskIdx)]);
+    this->setPixmap(*hover_pixmap[task->getTaskRecursion(taskIdx)]);
     event->accept();
 }
 
 void YesNoMicroButton::leaveEvent(QEvent *event)
 {
-    this->setPixmap(*main_pixmap[task.getTaskRecursion(taskIdx)]);
+    this->setPixmap(*main_pixmap[task->getTaskRecursion(taskIdx)]);
     event->accept();
 }
 
@@ -225,7 +225,7 @@ void PathsTable::update_header()
 void PathsTable::rxRemoveRow(u32i row_index)
 {
     // qInfo() << "removeRow("<< row_index << ") called";
-    task.delTaskPath(row_index - 1);
+    task->delTaskPath(row_index - 1);
     this->setUpdatesEnabled(false); // чтобы виджет не перерисовывался, пока идёт изменение количества строк
     this->setRowCount(this->rowCount() + 1);
     this->setRowHeight(this->rowCount() - 1, PATHS_TABLE_ROW_H);
@@ -238,7 +238,7 @@ void PathsTable::rxRemoveRow(u32i row_index)
 void PathsTable::rxRemoveAll()
 {
     this->setUpdatesEnabled(false); // чтобы виджет не перерисовывался, пока идёт изменение количества строк
-    task.delAllTaskPaths();
+    task->delAllTaskPaths();
     this->clear();
     fill_header();
     Q_EMIT txUpdatePathsButton();
@@ -332,7 +332,7 @@ PathsWindow::PathsWindow()
     connect(minimize_button, &OneStateButton::imReleased, this, &PathsWindow::showMinimized);
     connect(remove_all_button, &OneStateButton::imReleased, paths_table, &PathsTable::rxRemoveAll);
 
-    paths_count = &task.paths_count;
+    paths_count = &task->paths_count;
 }
 
 PathsWindow::~PathsWindow()
@@ -418,9 +418,9 @@ void PathsWindow::rxAddFilenames(QStringList filenames)
     for (auto && one : filenames) {
         if ( *paths_count < PATHS_TABLE_MAX_PATHS )
         {
-            if ( !task.isTaskPathPresent(one) )
+            if ( !task->isTaskPathPresent(one) )
             {
-                task.addTaskPath(TaskPath {one, "", false});
+                task->addTaskPath(TaskPath {one, "", false});
                 auto delete_button = new DeleteMicroButton(nullptr, *paths_count, delete_pixmap, delete_hover_pixmap);
                 delete_button->setFixedSize(delete_pixmap->size());
                 paths_table->setCellWidget(*paths_count, 0, delete_button);
@@ -437,13 +437,13 @@ void PathsWindow::rxAddFilenames(QStringList filenames)
 void PathsWindow::rxAddDirname(QString dirname)
 {
     // в dirname путь с перевёрнутыми слэшами a'la linux
-    if ( ( *paths_count < PATHS_TABLE_MAX_PATHS ) and ( !task.isTaskPathPresent(dirname) ) )
+    if ( ( *paths_count < PATHS_TABLE_MAX_PATHS ) and ( !task->isTaskPathPresent(dirname) ) )
     {
         if ( ( dirname.length() > 1 ) and ( dirname.endsWith('/') ) ) // чтобы исключить добавление пути "C:/", к которому потом прицепится второй '/' : поэтому удаляем '/', если он есть и если это не linux (len > 1)
         {
             dirname.removeLast();
         }
-        task.addTaskPath(TaskPath {dirname, settings->config.file_mask, settings->config.recursion});
+        task->addTaskPath(TaskPath {dirname, settings->config.file_mask, settings->config.recursion});
         auto delete_button = new DeleteMicroButton(nullptr, *paths_count, delete_pixmap, delete_hover_pixmap);
         delete_button->setFixedSize(delete_pixmap->size());
         paths_table->setCellWidget(*paths_count, 0, delete_button);

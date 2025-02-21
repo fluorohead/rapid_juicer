@@ -97,11 +97,6 @@ class PathsWindow: public QWidget
     int paths_table_width;
     int paths_table_height;
     QPointF prev_cursor_pos;
-    void mouseMoveEvent(QMouseEvent *event);
-    void mousePressEvent(QMouseEvent *event);
-    void paintEvent(QPaintEvent *event);
-    void changeEvent(QEvent *event);
-    bool event(QEvent *event);
     QLabel *central_widget;
     PathsTable *paths_table;
     CornerGrip *grip;
@@ -117,7 +112,14 @@ class PathsWindow: public QWidget
     QPixmap *delete_pixmap;
     QPixmap *delete_hover_pixmap;
     int *paths_count {nullptr};
+
     void remove_all();
+
+    void mouseMoveEvent(QMouseEvent *event);
+    void mousePressEvent(QMouseEvent *event);
+    void paintEvent(QPaintEvent *event);
+    void changeEvent(QEvent *event);
+    bool event(QEvent *event);
 public:
     PathsWindow();
     ~PathsWindow();

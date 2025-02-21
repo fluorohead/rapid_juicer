@@ -11,9 +11,9 @@
 #include <QFontDatabase>
 #include <QDesktopServices>
 
-Settings *settings; // объект должен существовать до создания любых окон.
-Task task; // объект должен существовать до создания любых окон.
-SessionsPool sessions_pool {MAX_SESSIONS};
+Settings *settings;
+Task *task;
+SessionsPool *sessions_pool;
 
 int main(int argc, char **argv)
 {
@@ -68,14 +68,13 @@ int main(int argc, char **argv)
     // auto sim = QImageReader::supportedImageFormats();
     // qInfo() << sim;
 
-    task.delAllTaskPaths();
-    //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
-    task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\fonts\AdobeArabic-Bold.otf)", "", false});
-    //task.addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
+    task = new Task;
+    sessions_pool = new SessionsPool(MAX_SESSIONS);
 
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\tiff)", "*", true});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\result_png_it.dat)", "", false});
-    //task.addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield)", "*", true});
+    //task->delAllTaskPaths();
+    //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
+    //task->addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\fonts\AdobeArabic-Bold.otf)", "", false});
+    //task.addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
     settings = new Settings;
     settings->initSkin();
@@ -87,6 +86,8 @@ int main(int argc, char **argv)
 
     settings->dump_to_file();
     delete settings;
+    delete sessions_pool;
+    delete task;
 
     return 0;
 }

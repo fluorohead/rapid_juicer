@@ -116,6 +116,9 @@ class SessionWindow: public QWidget
     QPushButton *select_all_button;
     QPushButton *unselect_all_button;
     QProgressBar *file_progress_bar;
+    QLabel *properties_label;
+    QLabel *progress_label;
+    QLabel *info_widget;
     QLabel *current_file_lbl;
     QLabel *scanned_files_lbl;
     QLabel *total_amount_lbl;
@@ -145,6 +148,7 @@ class SessionWindow: public QWidget
     void mouseMoveEvent(QMouseEvent *event);
     void mousePressEvent(QMouseEvent *event);
     void closeEvent(QCloseEvent *event);
+
     void create_and_start_walker(); // создание walker-потока и запуск его в работу
 public:
     SessionWindow(u32i session_id);
@@ -171,7 +175,6 @@ public:
     u32i write_new_session(SessionWindow* session_window, u32i id); // вернёт 0, если id используется; в ином случае вернёт тот же id, что передавался в аргументах
     u32i remove_session(SessionWindow* session_window, u32i id);    // вернёт 0, если id от 1 до MAX_SESSIONS и по этому id лежит верный указатель
     u32i get_active_count();
-    void free_session();
     friend MainWindow;
 };
 

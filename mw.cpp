@@ -20,8 +20,8 @@ extern QHash <u32i, QString> categories;
 extern QMap <QString, FileFormat> fformats;
 
 extern Settings *settings;
-extern Task task;
-extern SessionsPool sessions_pool;
+extern Task *task;
+extern SessionsPool *sessions_pool;
 
 const QString filter_labels_txt[int(Langs::MAX)][MAX_FILTERS]
 {
@@ -464,7 +464,7 @@ MainWindow::MainWindow()
     version_label->setText(VERSION_INFO);
 
     // Кнопка с количеством добавленных путей
-    paths_button = new DynamicInfoButton(central_widget, ":/gui/main/pth_btn.png", ":/gui/main/pth_btn_h.png", paths_button_txt, 12, 10, &task.paths_count);
+    paths_button = new DynamicInfoButton(central_widget, ":/gui/main/pth_btn.png", ":/gui/main/pth_btn_h.png", paths_button_txt, 12, 10, &task->paths_count);
     paths_button->move(424, 499);
 
     common_font.setItalic(true);
@@ -475,7 +475,12 @@ MainWindow::MainWindow()
     tasks_label->setStyleSheet("color: #fffef9");
     tasks_label->setFont(common_font);
     tasks_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    tasks_label->setText(QString("%1%2").arg(tasks_label_txt[curr_lang()], QString::number(sessions_pool.get_active_count())));
+    tasks_label->setText(QString("%1%2").arg(tasks_label_txt[curr_lang()], QString::number(sessions_pool->get_active_count())));
+
+    // blinking_arrow = new QLabel(central_widget);
+    // blinking_arrow->move(300, 500);
+    // blinking_arrow->setFixedSize(92, 24);
+    // blinking_arrow->setAutoFillBackground(true);
 
     paths_list = new PathsWindow;
 
@@ -539,11 +544,11 @@ void MainWindow::changeEvent(QEvent *event)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    for (u32i idx = 0; idx < sessions_pool._size; ++idx) // закрываем окна сессий, если они есть
+    for (u32i idx = 0; idx < sessions_pool->_size; ++idx) // закрываем окна сессий, если они есть
     {
-        if ( sessions_pool.pool[idx] != nullptr )
+        if ( sessions_pool->pool[idx] != nullptr )
         {
-            sessions_pool.pool[idx]->close();
+            sessions_pool->pool[idx]->close();
         }
     }
     paths_list->close();
@@ -622,7 +627,7 @@ void MainWindow::showSettings()
 
 void MainWindow::showNewSessionWindow()
 {
-    if ( task.task_paths.isEmpty() )
+    if ( task->task_paths.isEmpty() )
     {
         auto mdliw = new ModalInfoWindow(this, warning_title_txt[curr_lang()], select_one_file_txt[curr_lang()], ModalInfoWindow::Type::Warning);
         mdliw->show(); // модальное окно уничтожается автоматически после вызова close()
@@ -636,12 +641,12 @@ void MainWindow::showNewSessionWindow()
         return;
     }
 
-    u32i new_session_id = sessions_pool.get_new_session_id();
+    u32i new_session_id = sessions_pool->get_new_session_id();
     if ( new_session_id != 0 )
     {
         auto new_session_window = new SessionWindow(new_session_id);
         connect(new_session_window, &SessionWindow::destroyed, this, &MainWindow::updateSessionsCounter);
-        if ( sessions_pool.write_new_session(new_session_window, new_session_id) == 0 )
+        if ( sessions_pool->write_new_session(new_session_window, new_session_id) == 0 )
         {
             // если по какой-то причине не удалось записать указатель в пул с переданным id, тогда уничтожаем окно
             delete new_session_window;
@@ -662,5 +667,7 @@ void MainWindow::showNewSessionWindow()
 
 void MainWindow::updateSessionsCounter()
 {
-    tasks_label->setText(QString("%1%2").arg(tasks_label_txt[curr_lang()], QString::number(sessions_pool.get_active_count())));
+    tasks_label->setText(QString("%1%2").arg(   tasks_label_txt[curr_lang()],
+                                                QString::number(sessions_pool->get_active_count()))
+                                            );
 }
