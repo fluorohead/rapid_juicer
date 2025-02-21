@@ -153,3 +153,21 @@ Rapid Juicer :
  - использует стороннюю библиотеку asmjit : [документация](https://asmjit.com/) и [код](https://github.com/asmjit/asmjit)
  - использует иконки, предоставляемые в общий доступ сайтом [icons8.com](https://icons8.com/)
  
+ Полезные ресурсы с информацией о форматах и образцами файлов :
+ 
+ - [multimedia.cx](https://multimedia.cx/)
+ - [moddingwiki.shikadi.net](https://moddingwiki.shikadi.net)
+ - [video game music preservation foundation](https://www.vgmpf.com)
+ - [fileformats.archiveteam.org](http://fileformats.archiveteam.org/wiki/Main_Page)
+ - [media foundation and directshow media types](https://gix.github.io/media-types/)
+ - [fileformat.info](https://www.fileformat.info/)
+ - [lclevy's reverse engineering file formats](http://lclevy.free.fr/)
+ - [martin reddy's the graphics file format page](https://martinreddy.net/gfx/)
+ - [wiki.amigaos.net](https://wiki.amigaos.net/wiki/IFF_Standard)
+ - [textfiles.com](http://www.textfiles.com/programming/FORMATS/)
+ - [tiff_tags](https://www.loc.gov/preservation/digital/formats/content/tiff_tags.shtml)
+ - [samples.mplayerhq.hu](https://samples.mplayerhq.hu/)
+ - [sembiance.com](https://sembiance.com/)
+ - [ftp.modland.com](https://ftp.modland.com/pub/modules/)
+ - [modsamplemaster.thegang.nu](https://modsamplemaster.thegang.nu/)
+ - [www.exotica.org.uk](https://www.exotica.org.uk/wiki/Special:Modland)
