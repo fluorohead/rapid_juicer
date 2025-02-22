@@ -1,6 +1,9 @@
 build/
+deploy/
+Output/
 .gitignore.bak
 CMakeLists.txt.user
+rapid_juicer.iss
 asmjit/
 CMakeFiles/
 

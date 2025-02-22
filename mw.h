@@ -110,6 +110,7 @@ class MainWindow: public QWidget
     QLabel *categ_labels[MAX_FILTERS];
     FormatsTable *formats_table;
     QLabel *blinking_arrow;
+
     void mouseMoveEvent(QMouseEvent *event);
     void mousePressEvent(QMouseEvent *event);
     void changeEvent(QEvent *event);
