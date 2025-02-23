@@ -15,7 +15,7 @@
 
 Будет полезно в reverse engineering'е для поиска встроенных или намеренно спрятанных ресурсов.
 
-[Инсталлятор под Win64](https://github.com/fluorohead/rapid_juicer/releases/download/v0.0.1a/rapid_juicer-0.0.1a-windows-x64.exe)
+[>>> Инсталлятор под Win64 <<<](https://github.com/fluorohead/rapid_juicer/releases/download/v0.0.1a/rapid_juicer-0.0.1a-windows-x64.exe)
 
 ## Поддержка форматов
 
