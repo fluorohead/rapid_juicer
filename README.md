@@ -15,6 +15,7 @@
 
 Будет полезно в reverse engineering'е для поиска встроенных или намеренно спрятанных ресурсов.
 
+[Инсталлятор под Win64](https://github.com/fluorohead/rapid_juicer/releases/download/v0.0.1a/rapid_juicer-0.0.1a-windows-x64.exe)
 
 ## Поддержка форматов
 
@@ -163,6 +164,7 @@ Rapid Juicer :
  - [fileformat.info](https://www.fileformat.info/)
  - [lclevy's reverse engineering file formats](http://lclevy.free.fr/)
  - [martin reddy's the graphics file format page](https://martinreddy.net/gfx/)
+ - [corkami](https://github.com/corkami/pics/blob/master/binary/README.md)
  - [wiki.amigaos.net](https://wiki.amigaos.net/wiki/IFF_Standard)
  - [textfiles.com](http://www.textfiles.com/programming/FORMATS/)
  - [tiff_tags](https://www.loc.gov/preservation/digital/formats/content/tiff_tags.shtml)
@@ -171,4 +173,4 @@ Rapid Juicer :
  - [ftp.modland.com](https://ftp.modland.com/pub/modules/)
  - [modsamplemaster.thegang.nu](https://modsamplemaster.thegang.nu/)
  - [www.exotica.org.uk](https://www.exotica.org.uk/wiki/Special:Modland)
- - [corkami](https://github.com/corkami/pics/blob/master/binary/README.md)
+ 
