@@ -70,5 +70,6 @@
         <file>gui/logo_tiny_h.png</file>
         <file>gui/main/cat_other.png</file>
         <file>gui/session/cat_other_big.png</file>
+        <file>gui/RobotoMono-Bold.ttf</file>
     </qresource>
 </RCC>

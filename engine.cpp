@@ -1,5 +1,5 @@
-  //   lbl|sign| AHAL | BHBL
-  //   ---|----|------|------
+  //   lbl|sign | AHAL | BHBL
+  //   ---|-----|------|------
   //   0  |ico  : 0000 : 0100
   //   0  |tga  : 0000 : 0200
   //   0  |cur  : 0000 : 0200 <- crossing with tga
@@ -184,8 +184,7 @@ void Engine::generate_comparation_func()
     Label aj_loop_check_label = aj_asm.newLabel();
     Label aj_epilog_label = aj_asm.newLabel();
 
-    int s_idx;
-    for (s_idx = 0; s_idx < 30; ++s_idx) // готовим лейблы
+    for (int s_idx = 0; s_idx < 30; ++s_idx) // готовим лейблы
     {
         aj_signat_labels[s_idx] = aj_asm.newLabel();
         aj_sub_labels[s_idx] = aj_asm.newLabel();
@@ -1848,15 +1847,22 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
-
 RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
 {
+// https://en.wikipedia.org/wiki/JPEG#Syntax_and_structure
+// + JPG_diagram_by_Ange_Albertini.png
 #pragma pack(push,1)
-    struct JFIF_Header
+    struct SOI_Identifier
     {
         u16i soi;
-        u16i app0_marker;
+    };
+    struct MarkerHeader
+    {
+        u16i marker_id;
         u16i len;
+    };
+    struct APP0_Marker
+    {
         u32i identifier_4b;
         u8i  identifier_1b;
         u16i version;
@@ -1864,68 +1870,114 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         u16i xdens, ydens;
         u8i  xthumb, ythumb;
     };
-    // https://en.wikipedia.org/wiki/JPEG#Syntax_and_structure
-    // + JPG_diagram_by_Ange_Albertini.png
-    struct SOF_Info
+    struct SOF_Marker
     {
-        u16i marker;
-        u16i len;
         u8i  bpp;
         u16i height;
         u16i width;
         u8i  components;
     };
 #pragma pack(pop)
-    static constexpr u64i min_room_need = sizeof(JFIF_Header);
+    qInfo() << "JPG RECOGNIZER CALLED: " << e->scanbuf_offset;
+    static constexpr u64i min_room_need = sizeof(SOI_Identifier) + sizeof(MarkerHeader);
     static const QSet <u16i> VALID_VERSIONS  { 0x0100, 0x0101, 0x0102 };
     static const QSet <u8i> VALID_UNITS { 0x00, 0x01, 0x02 };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
     s64i file_size = e->file_size;
-    auto info_header = (JFIF_Header*)(&buffer[base_index]);
-    if ( be2le(info_header->len) != 16 ) return 0;
-    if ( info_header->identifier_4b != 0x4649464A ) return 0;
-    if ( info_header->identifier_1b != 0 ) return 0;
-    if ( !VALID_VERSIONS.contains(be2le(info_header->version)) ) return 0;
-    if ( !VALID_UNITS.contains(info_header->units) ) return 0;
-    u64i last_index = base_index + sizeof(JFIF_Header) + 3 * (info_header->xthumb * info_header->ythumb);
-    if ( last_index >= file_size ) return 0; // капитуляция, если сразу за заголовком (или thumbnail'ом) файл закончился
-    SOF_Info *sof_marker = nullptr;
+    u64i last_index = base_index + sizeof(SOI_Identifier); // встали на самый первый маркер
     bool progressive = false;
-    while(true) // ищем SOS (start of scan) \0xFF\0xDA
+    u16i image_width = 0;
+    u16i image_height = 0;
+    u16i image_bpp = 0;
+    bool info_derived = false;
+    bool sos_found = false;
+    while(!sos_found) // задача найти маркер SOS
     {
-        if ( last_index + 2 > file_size ) return 0; // не нашли SOS
-        if ( ( *((u16i*)(&buffer[last_index])) == 0xC0FF /*SOF0*/) or ( *((u16i*)(&buffer[last_index])) == 0xC2FF /*SOF2*/) )
+        if ( last_index + sizeof(MarkerHeader) > file_size ) return 0; // нет места на marker id
+        u16i marker_id = be2le((*((MarkerHeader*)&buffer[last_index])).marker_id);
+        u16i marker_len= be2le((*((MarkerHeader*)&buffer[last_index])).len);
+        if ( (marker_id & 0b1111111111110000) == 0xFFE0 ) // Application marker : 0xFFE0 - 0xFFEF
         {
-            //qInfo() << "last_index:" << last_index;
-            if ( last_index + sizeof(SOF_Info) < file_size ) sof_marker = (SOF_Info*)&buffer[last_index];
+            if ( marker_id == 0xFFE0) // APP0 marker
+            {
+                if ( last_index + sizeof(MarkerHeader) + sizeof(APP0_Marker) > file_size ) return 0; // нет места на маркер APP0
+                auto app0_marker = (APP0_Marker*)&buffer[last_index + sizeof(MarkerHeader)];
+                if ( app0_marker->identifier_4b != 0x4649464A /*JFIF*/ ) return 0;
+                if ( app0_marker->identifier_1b != 0 ) return 0;
+                if ( !VALID_VERSIONS.contains(be2le(app0_marker->version)) ) return 0;
+                if ( !VALID_UNITS.contains(app0_marker->units) ) return 0;
+            }
+            qInfo() << QString("APP%1 at:").arg(QString::number(marker_id & 0b1111)) << last_index;
+            last_index += (sizeof(MarkerHeader::marker_id) + marker_len);
+            continue;
         }
-        if ( *((u16i*)(&buffer[last_index])) == 0xDAFF ) break; // нашли SOS
-        ++last_index;
+
+        switch(marker_id)
+        {
+        case 0xFFDB: // DQT - define quantization table
+        {
+            if ( last_index + sizeof(MarkerHeader) > file_size ) return 0; // нет места на маркер DQT
+            qInfo() << "DQT at:" << last_index;
+            last_index += (sizeof(MarkerHeader::marker_id) + marker_len);
+            break;
+        }
+        case 0xFFC2: // SOF0 - start of frame
+        {
+            progressive = true;
+        }
+        case 0xFFC0: // SOF2
+        {
+            if ( last_index + sizeof(MarkerHeader) + sizeof(SOF_Marker) > file_size ) return 0; // нет места на маркер SOF2
+            auto sof_marker = (SOF_Marker*)&buffer[last_index + sizeof(MarkerHeader)];
+            qInfo() << "SOF(0/2) at:" << last_index << ">>> bpp:" << sof_marker->bpp << "; comp:" << sof_marker->components << "; width:" << be2le(sof_marker->width) << "; height:" << be2le(sof_marker->height);
+            image_width = be2le(sof_marker->width);
+            if ( image_width == 0 ) return 0;
+            image_height = be2le(sof_marker->height);
+            if ( image_height == 0 ) return 0;
+            image_bpp = sof_marker->bpp * sof_marker->components;
+            if ( image_bpp != 24 ) return 0;
+            info_derived = true;
+            last_index += (sizeof(MarkerHeader::marker_id) + marker_len);
+            break;
+        }
+        case 0xFFC4: // DHT - define huffman table
+        {
+            if ( last_index + sizeof(MarkerHeader) > file_size ) return 0; // нет места на маркер DHT
+            qInfo() << "DHT at:" << last_index;
+            last_index += (sizeof(MarkerHeader::marker_id) + marker_len);
+            break;
+        }
+        case 0xFFDA: // SOS - start of scan
+        {
+            if ( last_index + sizeof(MarkerHeader) > file_size ) return 0; // нет места на маркер SOS
+            qInfo() << "SOS at:" << last_index;
+            last_index += (sizeof(MarkerHeader::marker_id) + marker_len);
+            sos_found = true;
+            break;
+        }
+        default: // неизвестный маркер
+            // не нашли SOS, значит капитуляция
+            qInfo() << "Unknown marker at:" << last_index;
+            return 0;
+        }
     }
-    last_index += 2; // на размер SOS-идентификатора
-    //if ( sof_marker != nullptr ) qInfo() << " width:" << be2le(sof_marker->width) << "; height:" << be2le(sof_marker->height) << "; bpp:" << sof_marker->bpp << "; components:" << sof_marker->components;
+    // здесь last_index стоит на SOS-данных
+    if ( !info_derived ) return 0; // в ресурсе не было маркера SOF0 или SOF2? тогда ресурс некорректный
     while(true) // ищем EOI (end of image) \0xFF\0xD9
     {
-        if ( last_index + 2 > file_size ) return 0; // не нашли SOS
-        if ( *((u16i*)(&buffer[last_index])) == 0xD9FF ) break; // нашли SOS
+        if ( last_index + 2 > file_size ) return 0; // есть место под EOI ?
+        if ( *((u16i*)(&buffer[last_index])) == 0xD9FF ) break; // нашли EOI
         ++last_index;
     }
     last_index += 2; // на размер EOI-идентификатора
     if ( last_index <= base_index ) return 0;
     u64i resource_size = last_index - base_index;
-
-    // QImage image;
-    // bool valid = image.loadFromData(e->mmf_scanbuf + base_index, resource_size);
-    // qInfo() << "\njpeg is:" << valid;
-    QString info;
-    if ( sof_marker != nullptr )
-    {
-        info = QString("%1x%2 %3-bpp").arg( QString::number(be2le(sof_marker->width)),
-                                            QString::number(be2le(sof_marker->height)),
-                                            QString::number(sof_marker->bpp * sof_marker->components));
-    }
+    QString info = QString("%1x%2 %3-bpp (%4 DCT)").arg(QString::number(image_width),
+                                                    QString::number(image_height),
+                                                    QString::number(image_bpp),
+                                                    progressive ? "progressive" : "baseline");
     Q_EMIT e->txResourceFound("jpg", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -2510,6 +2562,38 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
+static const QMap<u32i, QString> TIFF_VALID_COMPRESSION {   {0x0001, "uncompressed"},
+                                                            {0x0002, "CCITT Group 3"},
+                                                            {0x0003, "CCITT T.4 bi-level"},
+                                                            {0x0004, "CCITT T.6 bi-level"},
+                                                            {0x0005, "LZW"},
+                                                            {0x0006, "old-style JPEG"},
+                                                            {0x0007, "JPEG"},
+                                                            {0x0008, "Deflate/Adobe"},
+                                                            {0x0009, "JBIG ITU-T T.85"},
+                                                            {0x000A, "JBIG ITU-T T.43"},
+                                                            {0x7FFE, "NeXT RLE 2-bit greyscale"},
+                                                            {0x8003, "uncompressed"},
+                                                            {0x8005, "PackBits"},
+                                                            {0x8029, "ThunderScan RLE 4-bit"},
+                                                            {0x807F, "RasterPadding CT/MP"},
+                                                            {0x8080, "RLE for LW"},
+                                                            {0x8081, "RLE for HC"},
+                                                            {0x8082, "RLE for BL"},
+                                                            {0x80B2, "Deflate PKZIP"},
+                                                            {0x80B3, "Kodak DCS"},
+                                                            {0x8765, "LibTIFF JBIG"},
+                                                            {0x8798, "JPEG2000"},
+                                                            {0x8799, "Nikon NEF"},
+                                                            {0x879B, "JBIG2"},
+                                                            {0x8847, "LERC"},
+                                                            {0x884C, "Lossy non-YCbCr JPEG"},
+                                                            {0xC350, "ZSTD"},
+                                                            {0xC351, "WebP"},
+                                                            {0xCD32, "JPEG XL"},
+                                                            {0xFFFFFFFF, "unknown compression"} // фиктивный тип, в стандарте не существует
+                                                       };
+
 RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
@@ -2529,37 +2613,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     //qInfo() << " TIF_II recognizer called!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
-    static const QMap<u32i, QString> VALID_COMPRESSION {{0x0001, "uncompressed"},
-                                                        {0x0002, "CCITT Group 3"},
-                                                        {0x0003, "CCITT T.4 bi-level"},
-                                                        {0x0004, "CCITT T.6 bi-level"},
-                                                        {0x0005, "LZW"},
-                                                        {0x0006, "old-style JPEG"},
-                                                        {0x0007, "JPEG"},
-                                                        {0x0008, "Deflate/Adobe"},
-                                                        {0x0009, "JBIG ITU-T T.85"},
-                                                        {0x000A, "JBIG ITU-T T.43"},
-                                                        {0x7FFE, "NeXT RLE 2-bit greyscale"},
-                                                        {0x8003, "uncompressed"},
-                                                        {0x8005, "PackBits"},
-                                                        {0x8029, "ThunderScan RLE 4-bit"},
-                                                        {0x807F, "RasterPadding CT/MP"},
-                                                        {0x8080, "RLE for LW"},
-                                                        {0x8081, "RLE for HC"},
-                                                        {0x8082, "RLE for BL"},
-                                                        {0x80B2, "Deflate PKZIP"},
-                                                        {0x80B3, "Kodak DCS"},
-                                                        {0x8765, "LibTIFF JBIG"},
-                                                        {0x8798, "JPEG2000"},
-                                                        {0x8799, "Nikon NEF"},
-                                                        {0x879B, "JBIG2"},
-                                                        {0x8847, "LERC"},
-                                                        {0x884C, "Lossy non-YCbCr JPEG"},
-                                                        {0xC350, "ZSTD"},
-                                                        {0xC351, "WebP"},
-                                                        {0xCD32, "JPEG XL"},
-                                                        {0xFFFFFFFF, "unknown compression"} // фиктивный тип, в стандарте не существует
-                                                       };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
@@ -2658,7 +2711,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
                 info +=  QString("%1x%2 %3-bpp (%4), ").arg(QString::number(image_width),
                                                             QString::number(image_height),
                                                             QString::number(image_spp * image_bps),
-                                                            VALID_COMPRESSION[image_compression]);
+                                                            TIFF_VALID_COMPRESSION[image_compression]);
             }
             accumulated_tag_ids.insert(tag_pointer[tag_idx].tag_id);
             ++total_tags_counter; // если прошли все if'ы, значит тег легитимный
@@ -2715,7 +2768,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0;
     //qInfo() << "width:" << image_width << "; height:" << image_height << "; bps:" << image_bps << " compr:" << image_compression << "; spp:" << image_spp;
     if ( ( image_width == 0 ) or ( image_height == 0 ) ) return 0;
-    if ( !VALID_COMPRESSION.contains(image_compression)) image_compression = 0xFFFFFFFF;
+    if ( !TIFF_VALID_COMPRESSION.contains(image_compression)) image_compression = 0xFFFFFFFF;
     info.chop(2); // удаляем последние ", "
     u64i resource_size = last_index - base_index;
     Q_EMIT e->txResourceFound("tif_ii", base_index, resource_size, info);
@@ -2742,36 +2795,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     //qInfo() << " TIF_MM recognizer called!" << e->scanbuf_offset;
     static constexpr u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
-    static const QMap<u32i, QString> VALID_COMPRESSION {{0x0001, "uncompressed"},
-                                                        {0x0002, "CCITT Group 3"},
-                                                        {0x0003, "CCITT T.4 bi-level"},
-                                                        {0x0004, "CCITT T.6 bi-level"},
-                                                        {0x0005, "LZW"},
-                                                        {0x0006, "old-style JPEG"},
-                                                        {0x0007, "JPEG"},
-                                                        {0x0008, "Deflate/Adobe"},
-                                                        {0x0009, "JBIG ITU-T T.85"},
-                                                        {0x000A, "JBIG ITU-T T.43"},
-                                                        {0x7FFE, "NeXT RLE 2-bit greyscale"},
-                                                        {0x8003, "uncompressed"},
-                                                        {0x8005, "PackBits"},
-                                                        {0x8029, "ThunderScan RLE 4-bit"},
-                                                        {0x807F, "RasterPadding CT/MP"},
-                                                        {0x8080, "RLE for LW"},
-                                                        {0x8081, "RLE for HC"},
-                                                        {0x8082, "RLE for BL"},
-                                                        {0x80B2, "Deflate PKZIP"},
-                                                        {0x80B3, "Kodak DCS"},
-                                                        {0x8765, "LibTIFF JBIG"},
-                                                        {0x8798, "JPEG2000"},
-                                                        {0x8799, "Nikon NEF"},
-                                                        {0x879B, "JBIG2"},
-                                                        {0x8847, "LERC"},
-                                                        {0x884C, "Lossy non-YCbCr JPEG"},
-                                                        {0xC350, "ZSTD"},
-                                                        {0xC351, "WebP"},
-                                                        {0xCD32, "JPEG XL"},
-                                                        {0xFFFFFFFF, "unknown compression"}};
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
@@ -2877,7 +2900,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
                 info +=  QString("%1x%2 %3-bpp (%4), ").arg(QString::number(image_width),
                                                             QString::number(image_height),
                                                             QString::number(image_spp * image_bps),
-                                                            VALID_COMPRESSION[image_compression]);
+                                                            TIFF_VALID_COMPRESSION[image_compression]);
             }
             accumulated_tag_ids.insert(be2le(tag_pointer[tag_idx].tag_id));
             ++total_tags_counter;
@@ -2937,7 +2960,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     if ( last_index > file_size ) return 0;
     //qInfo() << "width:" << image_width << "; height:" << image_height << "; bps:" << image_bps << " compr:" << image_compression << "; spp:" << image_spp;
     if ( ( image_width == 0 ) or ( image_height == 0 ) ) return 0;
-    if ( !VALID_COMPRESSION.contains(image_compression)) image_compression = 0xFFFFFFFF;
+    if ( !TIFF_VALID_COMPRESSION.contains(image_compression)) image_compression = 0xFFFFFFFF;
     info.chop(2); // удаляем последние ", "
     u64i resource_size = last_index - base_index;
     Q_EMIT e->txResourceFound("tif_mm", base_index, resource_size, info);

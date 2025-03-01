@@ -278,6 +278,9 @@ void Settings::dump_to_file()
 void Settings::initSkin()
 {
     skin.main_font = new QFont(skin.font_name);
+    skin.main_font->setHintingPreference(QFont::PreferFullHinting);
+    skin.main_font->setStyleHint(QFont::Monospace, QFont::PreferAntialias);
+    skin.main_font->setKerning(true);
 }
 
 u64i Settings::getBufferSizeInBytes()

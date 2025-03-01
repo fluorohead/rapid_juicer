@@ -17,10 +17,13 @@ SessionsPool *sessions_pool;
 
 int main(int argc, char **argv)
 {
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::Round);
+    //qInfo() << QGuiApplication::highDpiScaleFactorRoundingPolicy();
     QApplication app(argc, argv);
     app.setApplicationName(":: Rapid Juicer :: resource extractor ::");
     app.setWindowIcon(QIcon(":/gui/logo_tiny.png"));
     QFontDatabase::addApplicationFont(":/gui/RobotoMono-Regular.ttf");
+    QFontDatabase::addApplicationFont(":/gui/RobotoMono-Bold.ttf");
 
     //qInfo() << "Main process id (uint64):" << app.applicationPid();
     // qInfo() << "Main thread id:" << QThread::currentThreadId();
@@ -73,7 +76,7 @@ int main(int argc, char **argv)
 
     //task->delAllTaskPaths();
     //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
-    //task->addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\fonts\AdobeArabic-Bold.otf)", "", false});
+    //task->addTaskPath(TaskPath {R"(c:\Downloads\2025-03-01-18-15-15\1246.jpg)", "", false});
     //task.addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
     settings = new Settings;
