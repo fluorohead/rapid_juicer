@@ -152,11 +152,10 @@ REPORT - сохраняет html-отчёт по найденным ресурс
 Rapid Juicer :
  - написан на C++17 с использованием фреймворка Qt 6.6.1
  - использует стороннюю библиотеку asmjit : [документация](https://asmjit.com/) и [код](https://github.com/asmjit/asmjit)
- - использует свободный шрифт Roboto Mono by Christian Robertson : [fonts.google.com](https://fonts.google.com/?query=Christian+Robertson)
+ - использует свободный шрифт "Roboto Mono" by Christian Robertson : [fonts.google.com](https://fonts.google.com/?query=Christian+Robertson)
  - использует иконки, предоставляемые в общий доступ сайтом [icons8.com](https://icons8.com/)
- 
- Полезные ресурсы с информацией о форматах и образцами файлов :
- 
+
+## Полезные ресурсы с информацией о форматах и образцами файлов :
  - [multimedia.cx](https://multimedia.cx/)
  - [moddingwiki.shikadi.net](https://moddingwiki.shikadi.net)
  - [video game music preservation foundation](https://www.vgmpf.com)
