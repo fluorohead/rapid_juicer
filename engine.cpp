@@ -9,6 +9,7 @@
   //   2  |fli  : 11AF
   //   3  |flc  : 12AF
   //   25 |au   : 2E73 : 6E64
+  //   28 |asf  : 3026 : b275
   //   4  |bik  : 4249
   //   4  |bmp  : 424D
   //   24 |ch   : 4348
@@ -107,6 +108,7 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "dbm0",       { 0x00000000304D4244, 4, Engine::recognize_dbm0     } }, // "DBM0" DigiBooster Pro
     { "ttf",        { 0x0000000000000100, 4, Engine::recognize_ttf      } }, // "\x00\x01\x00\x00"
     { "otf",        { 0x000000004F54544F, 4, Engine::recognize_ttf      } }, // "OTTO"
+    { "asf",        { 0x0000000075B22630, 4, Engine::recognize_asf      } }, // "\x30\x26\xB2\x75"
 };
 
 u16i be2le(u16i be)
@@ -268,6 +270,12 @@ void Engine::generate_comparation_func()
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[25])); // au
         aj_asm.mov(x86::ptr(x86::rdi, 0x2E * 8), x86::rax);
+    }
+
+    if ( selected_formats[fformats["wma"].index] or selected_formats[fformats["wmv"].index] )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[28])); // asf
+        aj_asm.mov(x86::ptr(x86::rdi, 0x30 * 8), x86::rax);
     }
 
     if ( selected_formats[fformats["bik"].index] or selected_formats[fformats["bmp"].index] )
@@ -501,6 +509,22 @@ aj_asm.bind(aj_signat_labels[25]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_au));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x30
+aj_asm.bind(aj_signat_labels[28]);
+    // ; asf: 0x30'26 : 0xB2'75
+    aj_asm.cmp(x86::al, 0x26);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0xB2'75);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_asf
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_asf));
     aj_asm.cmp(x86::rax, 0);
     aj_asm.jne(aj_scrup_mode_check_label);
     //
@@ -1166,7 +1190,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " BMP recognizer called!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(FileHeader);
+    static const u64i min_room_need = sizeof(FileHeader);
     static const QSet <u32i> VALID_BMP_HEADER_SIZE { 12, 40, 108 };
     static const QSet <u16i> VALID_BITS_PER_PIXEL { 1, 4, 8, 16, 24, 32 };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
@@ -1754,7 +1778,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_gif RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " GIF recognizer called!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(FileHeader) + 1; // где +1 на u8i separator
+    static const u64i min_room_need = sizeof(FileHeader) + 1; // где +1 на u8i separator
     static const QSet <u16i> VALID_VERSIONS  { 0x6137 /*7a*/, 0x6139 /*9a*/ };
     static const QSet <u8i>  EXT_LABELS_TO_PROCESS { 0x01, 0xCE, 0xFE, 0xFF };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
@@ -1878,8 +1902,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         u8i  components;
     };
 #pragma pack(pop)
-    qInfo() << "JPG RECOGNIZER CALLED: " << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(SOI_Identifier) + sizeof(MarkerHeader);
+    //qInfo() << "JPG RECOGNIZER CALLED: " << e->scanbuf_offset;
+    static const u64i min_room_need = sizeof(SOI_Identifier) + sizeof(MarkerHeader);
     static const QSet <u16i> VALID_VERSIONS  { 0x0100, 0x0101, 0x0102 };
     static const QSet <u8i> VALID_UNITS { 0x00, 0x01, 0x02 };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
@@ -1909,7 +1933,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
                 if ( !VALID_VERSIONS.contains(be2le(app0_marker->version)) ) return 0;
                 if ( !VALID_UNITS.contains(app0_marker->units) ) return 0;
             }
-            qInfo() << QString("APP%1 at:").arg(QString::number(marker_id & 0b1111)) << last_index;
+            //qInfo() << QString("APP%1 at:").arg(QString::number(marker_id & 0b1111)) << last_index;
             last_index += (sizeof(MarkerHeader::marker_id) + marker_len);
             continue;
         }
@@ -1919,7 +1943,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         case 0xFFDB: // DQT - define quantization table
         {
             if ( last_index + sizeof(MarkerHeader) > file_size ) return 0; // нет места на маркер DQT
-            qInfo() << "DQT at:" << last_index;
+            //qInfo() << "DQT at:" << last_index;
             last_index += (sizeof(MarkerHeader::marker_id) + marker_len);
             break;
         }
@@ -1931,7 +1955,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         {
             if ( last_index + sizeof(MarkerHeader) + sizeof(SOF_Marker) > file_size ) return 0; // нет места на маркер SOF2
             auto sof_marker = (SOF_Marker*)&buffer[last_index + sizeof(MarkerHeader)];
-            qInfo() << "SOF(0/2) at:" << last_index << ">>> bpp:" << sof_marker->bpp << "; comp:" << sof_marker->components << "; width:" << be2le(sof_marker->width) << "; height:" << be2le(sof_marker->height);
+            //qInfo() << "SOF(0/2) at:" << last_index << ">>> bpp:" << sof_marker->bpp << "; comp:" << sof_marker->components << "; width:" << be2le(sof_marker->width) << "; height:" << be2le(sof_marker->height);
             image_width = be2le(sof_marker->width);
             if ( image_width == 0 ) return 0;
             image_height = be2le(sof_marker->height);
@@ -1945,21 +1969,21 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_jpg RECOGNIZE_FUNC_HEADER
         case 0xFFC4: // DHT - define huffman table
         {
             if ( last_index + sizeof(MarkerHeader) > file_size ) return 0; // нет места на маркер DHT
-            qInfo() << "DHT at:" << last_index;
+            //qInfo() << "DHT at:" << last_index;
             last_index += (sizeof(MarkerHeader::marker_id) + marker_len);
             break;
         }
         case 0xFFDA: // SOS - start of scan
         {
             if ( last_index + sizeof(MarkerHeader) > file_size ) return 0; // нет места на маркер SOS
-            qInfo() << "SOS at:" << last_index;
+            //qInfo() << "SOS at:" << last_index;
             last_index += (sizeof(MarkerHeader::marker_id) + marker_len);
             sos_found = true;
             break;
         }
         default: // неизвестный маркер
             // не нашли SOS, значит капитуляция
-            qInfo() << "Unknown marker at:" << last_index;
+            //qInfo() << "Unknown marker at:" << last_index;
             return 0;
         }
     }
@@ -2150,7 +2174,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
         u8i  name[22];
     };
 #pragma pack(pop)
-    static constexpr u64i min_room_need = sizeof(XM_Header);
+    static const u64i min_room_need = sizeof(XM_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
@@ -2369,7 +2393,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_it RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << "\nIT recognizer called!\n";
-    static constexpr u64i min_room_need = sizeof(IT_Header);
+    static const u64i min_room_need = sizeof(IT_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
@@ -2473,7 +2497,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bink RECOGNIZE_FUNC_HEADER
 #pragma pack(pop)
     static u32i bink1_id {fformats["bik"].index};
     static u32i bink2_id {fformats["bk2"].index};
-    static constexpr u64i min_room_need = sizeof(BINK_Header);
+    static const u64i min_room_need = sizeof(BINK_Header);
     if ( ( !e->selected_formats[bink1_id] ) and ( !e->selected_formats[bink2_id] ) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
@@ -2536,7 +2560,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_smk RECOGNIZE_FUNC_HEADER
         u32i dummy;
     };
 #pragma pack(pop)
-    static constexpr u64i min_room_need = sizeof(SMK_Header);
+    static const u64i min_room_need = sizeof(SMK_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
@@ -2611,7 +2635,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " TIF_II recognizer called!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(TIF_Header);
+    static const u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
@@ -2793,7 +2817,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " TIF_MM recognizer called!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(TIF_Header);
+    static const u64i min_room_need = sizeof(TIF_Header);
     static const QMap<u16i, u8i> VALID_DATA_TYPE { {1, 1}, {2, 1}, {3, 2}, {4, 4}, {5, 8}, {6, 1}, {7, 1}, {8, 2}, {9, 4}, {10, 8}, {11, 4}, {12, 8} }; // ключ - тип данных тега, значение - множитель размера данных
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
@@ -2984,7 +3008,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
         u16i reserved;
     };
 #pragma pack(pop)
-    static constexpr u64i min_room_need = sizeof(FLC_Header) - sizeof(FLC_Header::file_size);
+    static const u64i min_room_need = sizeof(FLC_Header) - sizeof(FLC_Header::file_size);
     if ( e->scanbuf_offset < sizeof(FLC_Header::file_size) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset - sizeof(FLC_Header::file_size);
@@ -3027,7 +3051,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! 669 RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(_669_Header);
+    static const u64i min_room_need = sizeof(_669_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     auto buffer = e->mmf_scanbuf;
@@ -3093,7 +3117,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_au RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! AU RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(AU_Header);
+    static const u64i min_room_need = sizeof(AU_Header);
     static const QSet <u32i> VALID_SAMPLE_RATE { 5500, 7333, 8000, 8012, 8013, 8192, 8363, 11025, 16000, 22050, 32000, 44056, 44100, 48000 };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
@@ -3146,7 +3170,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! VOC RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(VOC_Header);
+    static const u64i min_room_need = sizeof(VOC_Header);
     static const QSet<u16i> VALID_VERSION { 0x0100, 0x010A, 0x0114 };
     static const QMap<u8i, QString> VALID_COMPRESSION { {0x00,   "8-bits"},
                                                         {0x01,   "4-bits"},
@@ -3376,7 +3400,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
 #pragma pack(pop)
     //qInfo() << " !!! TGA RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     static u32i tga_id {fformats["tga_tc"].index};
-    static constexpr u64i min_room_need = sizeof(TGA_Header);
+    static const u64i min_room_need = sizeof(TGA_Header);
     static const QSet <u8i> VALID_PIX_DEPTH { 16, 24, 32 };
     if ( !e->selected_formats[tga_id] ) return recognize_ico_cur(e); // если не tga, так может cur ?
     if ( !e->enough_room_to_continue(min_room_need) ) return recognize_ico_cur(e);
@@ -3431,7 +3455,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ico_cur RECOGNIZE_FUNC_HEADER
     //qInfo() << " !!! ICO/CUR RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     static u32i ico_id {fformats["ico_win"].index};
     static u32i cur_id {fformats["cur_win"].index};
-    static constexpr u64i min_room_need = sizeof(ICO_Header);
+    static const u64i min_room_need = sizeof(ICO_Header);
     static const QSet <u32i> VALID_BMP_HEADER_SIZE { 12, 40, 108 };
     static const QSet <u16i> VALID_BITS_PER_PIXEL { 1, 4, 8, 16, 24, 32 };
     if ( !e->selected_formats[ico_id] and !e->selected_formats[cur_id] ) return 0;
@@ -3747,7 +3771,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
 
 #pragma pack(pop)
     //qInfo() << " !!! OGG RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(PageHeader);
+    static const u64i min_room_need = sizeof(PageHeader);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     auto buffer = e->mmf_scanbuf;
@@ -3817,7 +3841,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_med RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! MED RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(MED_Header);
+    static const u64i min_room_need = sizeof(MED_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     auto buffer = e->mmf_scanbuf;
@@ -3881,7 +3905,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! DBM0 RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(DBM0_Header);
+    static const u64i min_room_need = sizeof(DBM0_Header);
     static const QSet <u32i> VALID_CHUNK_ID {   0x454D414E /*'NAME'*/, 0x4F464E49 /*'INFO'*/, 0x474E4F53 /*'SONG'*/, 0x54534E49 /*'INST'*/,
                                                 0x54544150 /*'PATT'*/, 0x4C504D53 /*'SMPL'*/, 0x564E4556 /*'VENV'*/, 0x564E4550 /*'PENV'*/,
                                                 0x45505344 /*'DSPE'*/, 0x4D414E50 /*'PNAM'*/};
@@ -3946,7 +3970,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     //qInfo() << " !!! TTF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    static constexpr u64i min_room_need = sizeof(TTF_Header);
+    static const u64i min_room_need = sizeof(TTF_Header);
     static const QSet<u32i> VALID_TABLE_TAG {   0x41534350 /*ASCP*/, 0x42415345 /*BASE*/, 0x43464620 /*CFF */, 0x434F4C52 /*COLR*/, 0x4350414C /*CPAL*/, 0x44534947 /*DSIG*/, 0x45424454 /*EBDT*/,
                                                 0x45424C43 /*EBLC*/, 0x4646544D /*FFTM*/, 0x47444546 /*GDEF*/, 0x47504F53 /*GPOS*/, 0x47535542 /*GSUB*/, 0x48564152 /*HVAR*/, 0x4A535446 /*JSTF*/,
                                                 0x4C545348 /*LTSH*/, 0x4D415448 /*MATH*/, 0x4D455247 /*MERG*/, 0x4D564152 /*MVAR*/, 0x4F532F32 /*OS/2*/, 0x50434C54 /*PCLT*/, 0x53544154 /*STAT*/,
@@ -3979,6 +4003,154 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
     if ( tables_db.lastKey() < sizeof(TTF_Header) + num_tables * sizeof(TableRecord) ) return 0; // все таблицы должны быть строго после директории
     u64i resource_size = tables_db.lastKey() + tables_db[tables_db.lastKey()];
     Q_EMIT e->txResourceFound("ttf", base_index, resource_size, "");
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_asf RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct GUID
+    {
+        u64i data1_2_3;
+        u64i data4_5;
+    };
+    struct ObjectHeader
+    {
+        GUID guid;
+        u64i size;
+    };
+    struct ASF_Header
+    {
+        GUID guid;
+        u64i size;
+        u32i sub_objects_num;
+        u8i reserved1, reserved2;
+    };
+    struct FileProps_Header
+    {
+        GUID guid;
+        u64i size;
+        GUID file_id;
+        u64i file_size;
+        u64i creation_date;
+        u64i packets_cnt;
+        u64i play_duration;
+        u64i send_duration;
+        u64i preroll;
+        u32i flags;
+        u32i min_pkt_size;
+        u32i max_pkt_size;
+        u32i max_bitrate;
+    };
+    struct StreamProps_Header
+    {
+        GUID guid;
+        u64i size;
+        GUID stream_type;
+        GUID err_corr_type;
+        u64i time_offset;
+        u32i tsdl;
+        u32i ecdl;
+        u16i flags;
+        u32i reserved1;
+    };
+#pragma pack(pop)
+    // qInfo() << "!!! ASF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    // qInfo() << "file:" << e->file.fileName();
+    static const QMap<u64i, u64i> TOP_LEVEL_GUID {  { 0x11CF668E75B22630, 0x6CCE6200AA00D9A6 }, // header object
+                                                    { 0x11CF668E75B22636, 0x6CCE6200AA00D9A6 }, // data object
+                                                    { 0x11CFE5B133000890, 0xCB4903C9A000F489 }, // simple index object
+                                                    { 0x11D135DAD6E229D3, 0xBE4903C9A0003490 }, // index object
+                                                    { 0x4C6412ADFEB103F8, 0x8CD47A2F1D2A0F84 }, // media index object
+                                                    { 0x48030C4A3CB73FD0, 0x0C8F22B6F7ED3D95 }  // timecode index object
+                                                    };
+    static const QMap<u64i, QString> STREAM_TYPE {  { 0x11CF5B4DF8699E40, "audio" },
+                                                    { 0x11CF5B4DBC19EFC0, "video" }
+                                                    };
+    static const u64i min_room_need = sizeof(ObjectHeader);
+    static u32i wma_id {fformats["wma"].index};
+    static u32i wmv_id {fformats["wmv"].index};
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    auto buffer = e->mmf_scanbuf;
+    s64i file_size = e->file_size;
+    u64i last_index = base_index;
+    auto object_header = (ObjectHeader*)&buffer[base_index];
+    if ( !TOP_LEVEL_GUID.contains(object_header->guid.data1_2_3) ) return 0; // неизвестный GUID
+    else if ( TOP_LEVEL_GUID[object_header->guid.data1_2_3] != object_header->guid.data4_5 ) return 0; // неизвестный GUID
+    u64i duration = 0;
+    u32i max_bitrate = 0;
+    QString format_type;
+    while(true)
+    {
+        if ( last_index + sizeof(ObjectHeader) > file_size ) break; // нет места на заголовок очередного объекта -> возможно достигли конца сканируемого файла
+        object_header = (ObjectHeader*)&buffer[last_index];
+        if ( !TOP_LEVEL_GUID.contains(object_header->guid.data1_2_3) ) break; // неизвестный GUID -> достигли конца ресурса
+        else if ( TOP_LEVEL_GUID[object_header->guid.data1_2_3] != object_header->guid.data4_5 ) break; // неизвестный GUID -> достигли конца ресурса
+        //qInfo() << QString("Top-level object: 0x%1 at offset: 0x%2; size: %3").arg(QString::number(object_header->guid.data1_2_3, 16), QString::number(last_index, 16), QString::number(object_header->size));
+        if ( file_size - last_index < object_header->size ) return 0; // неверный размер объекта (не помещается в результирующий файл)
+        if ( ( object_header->guid.data1_2_3 == 0x11CF668E75B22630 ) and ( object_header->guid.data4_5 == 0x6CCE6200AA00D9A6 ) ) // попробуем достать info
+        {
+            if ( last_index + sizeof(ASF_Header) < file_size )
+            {
+                auto asf_header = (ASF_Header*)&buffer[last_index];
+                //qInfo() << "sub objects num:" << asf_header->sub_objects_num;
+                u64i ih_last_index = last_index + sizeof(ASF_Header); // встали на первый подобъект
+                ObjectHeader* ih_header;
+                for(int idx = 0; idx < asf_header->sub_objects_num; ++idx)
+                {
+                    if ( ih_last_index + sizeof(ObjectHeader) > file_size ) return 0; // нет места под заголовок очередного подобъекта
+                    ih_header = (ObjectHeader*)&buffer[ih_last_index];
+                    //qInfo() << QString("subobject:0x%1 at offset:0x%2; size: %3").arg(QString::number(ih_header->guid.data1_2_3, 16), QString::number(ih_last_index, 16), QString::number(ih_header->size));
+                    if ( file_size - ih_last_index < ih_header->size ) return 0; // неверный размер подобъекта (не помещается в результирующий файл)
+                    if ( ih_header->size <= sizeof(ObjectHeader) ) return 0; // неверный размер подобъекта (меньше самого заголовка или равен ему
+                    u32i data_size = ih_header->size - sizeof(ObjectHeader);
+                    if ( ( ih_header->guid.data1_2_3 == 0x11CFA9478CABDCA1 ) and ( ih_header->guid.data4_5 == 0x6553200CC000E48E ) and ( ih_header->size >= sizeof(FileProps_Header) ) ) // file properties subobject
+                    {
+                        auto properties = (FileProps_Header*)&buffer[ih_last_index];
+                        duration = properties->play_duration / 10000; // перевод в миллисекунды
+                        max_bitrate = properties->max_bitrate;
+                    }
+                    if ( ( ih_header->guid.data1_2_3 == 0x11CFA9B7B7DC0791 ) and ( ih_header->guid.data4_5 == 0x6553200CC000E68E ) and ( ih_header->size >= sizeof(StreamProps_Header) ) ) // stream properties subobject
+                    {
+                        auto properties = (StreamProps_Header*)&buffer[ih_last_index];
+                        switch(properties->stream_type.data1_2_3)
+                        {
+                        case 0x11CF5B4DF8699E40: // audio
+                        {
+                            if ( !e->selected_formats[wma_id] ) return 0;
+                            format_type = "wma";
+                            break;
+                        }
+                        case 0x11CF5B4DBC19EFC0: // video
+                        {
+                            if ( !e->selected_formats[wmv_id] ) return 0;
+                            format_type = "wmv";
+                            break;
+                        }
+                        default:
+                            return 0; // неизвестный тип (не видео и не аудио)
+                        }
+                    }
+                    ih_last_index += (ih_header->size);
+                }
+            }
+            else
+            {
+                return 0;  // нет места под главный ASF заголовок
+            }
+        }
+        last_index += (object_header->size);
+    }
+    // здесь last_index стоит на позиции сразу за последним объектом
+    //
+    QTime duration_time(0, 0, 0);
+    duration_time = duration_time.addMSecs(duration);
+    QString info = QString("%1kbps %2").arg(QString::number(max_bitrate / 1000),
+                                            duration_time.toString(Qt::ISODateWithMs));
+    u64i resource_size = last_index - base_index;
+    Q_EMIT e->txResourceFound(format_type, base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }

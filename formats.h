@@ -72,7 +72,6 @@ struct FileFormat
     QList<QString> signature_ids;  // список сигнатур для формата (должен быть >= 1)
     u32i           index;
     QString        tooltip_str; // для отображения в tooltip'ах
-//    QString        icon_path;   // путь к иконке формата для отображения в результатах поиска
 };
 
 
