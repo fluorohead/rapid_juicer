@@ -8,6 +8,7 @@
   //   1  |pcx  : 0A05
   //   2  |fli  : 11AF
   //   3  |flc  : 12AF
+  //   30 |emf  : 2045 : 4D46
   //   25 |au   : 2E73 : 6E64
   //   28 |asf  : 3026 : b275
   //   4  |bik  : 4249
@@ -57,6 +58,8 @@
 // #define ASMJIT_STATIC
 // #define ASMJIT_NO_AARCH64
 // #define ASMJIT_NO_FOREIGN
+
+#define ASM_LABELS_MAX 40
 
 extern const QMap <u32i, QString> wave_codecs;
 extern QMap <QString, FileFormat> fformats;
@@ -111,6 +114,7 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "otf",        { 0x000000004F54544F, 4, Engine::recognize_ttf      } }, // "OTTO"
     { "asf",        { 0x0000000075B22630, 4, Engine::recognize_asf      } }, // "\x30\x26\xB2\x75"
     { "wmf",        { 0x000000009AC6CDD7, 4, Engine::recognize_wmf      } }, // "\xD7\xCD\xC6\x9A"
+    { "emf",        { 0x00000000464D4520, 4, Engine::recognize_emf      } }, // "\x20\x45\x4D\x46"
 };
 
 u16i be2le(u16i be)
@@ -181,14 +185,14 @@ void Engine::generate_comparation_func()
 
     Label aj_prolog_label = aj_asm.newLabel();
     Label aj_loop_start_label = aj_asm.newLabel();
-    Label aj_signat_labels[30]; // 30 - с запасом
-    Label aj_sub_labels[30]; // 30 - с запасом
+    Label aj_signat_labels[ASM_LABELS_MAX]; // 40 - с запасом
+    Label aj_sub_labels[ASM_LABELS_MAX]; // 40 - с запасом
     Label aj_scrup_mode_check_label = aj_asm.newLabel();
     Label aj_scrup_mode_off_label = aj_asm.newLabel();
     Label aj_loop_check_label = aj_asm.newLabel();
     Label aj_epilog_label = aj_asm.newLabel();
 
-    for (int s_idx = 0; s_idx < 30; ++s_idx) // готовим лейблы
+    for (int s_idx = 0; s_idx < ASM_LABELS_MAX; ++s_idx) // готовим лейблы
     {
         aj_signat_labels[s_idx] = aj_asm.newLabel();
         aj_sub_labels[s_idx] = aj_asm.newLabel();
@@ -266,6 +270,12 @@ void Engine::generate_comparation_func()
 
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[3])); // flc
         aj_asm.mov(x86::ptr(x86::rdi, 0x12 * 8), x86::rax);
+    }
+
+    if ( selected_formats[fformats["emf"].index] )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[30])); // emf
+        aj_asm.mov(x86::ptr(x86::rdi, 0x20 * 8), x86::rax);
     }
 
     if ( selected_formats[fformats["au"].index] )
@@ -501,6 +511,22 @@ aj_asm.bind(aj_signat_labels[3]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_flc));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0x20
+aj_asm.bind(aj_signat_labels[30]);
+    // ; emf : 0x20'45 : 0x4D'46
+    aj_asm.cmp(x86::al, 0x45);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x4D'46);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_emf
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_emf));
     aj_asm.cmp(x86::rax, 0);
     aj_asm.jne(aj_scrup_mode_check_label);
     //
@@ -4198,7 +4224,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_wmf RECOGNIZE_FUNC_HEADER
         u16i header_size;
         u16i version;
         u32i size; // u16i size_low + u16i size_high
-        u16i objects_num;
+        u16i objs_num;
         u32i max_record;
         u16i members_num;
     };
@@ -4233,3 +4259,62 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_wmf RECOGNIZE_FUNC_HEADER
     e->resource_offset = base_index;
     return resource_size;
 }
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_emf RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct EMR_EMF_Header
+    {
+        u32i type;
+        u32i header_size;
+        u32i b_left, b_top, b_right, b_bottom;
+        u32i f_left, f_top, f_right, f_bottom;
+        u32i signature; // " EMF"
+        u32i version;
+        u32i file_size;
+        u32i recs_num;
+        u16i objs_num;
+        u16i reserved;
+        u32i descr_size;
+        u32i descr_offset;
+        u32i pall_num;
+        u32i dev_cx_pix, dev_cy_pix;
+        u32i dev_cx_mm, dev_cy_mm;
+    };
+#pragma pack(pop)
+    // qInfo() << "!!! EMF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    // qInfo() << "file:" << e->file.fileName();
+    if ( e->scanbuf_offset < 40 ) return 0; // не хватает места под часть заголовка перед сигнатурой
+    if ( !e->enough_room_to_continue(48) ) return 0;  // не хватает места под часть заголовка, начиная с сигнатуры
+    u64i base_index = e->scanbuf_offset - 40;
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (EMR_EMF_Header*)&buffer[base_index];
+    if ( info_header->type != 0x00000001 ) return 0;
+    if ( info_header->header_size < 88 ) return 0;
+    s64i file_size = e->file_size;
+    if ( file_size - base_index < info_header->file_size ) return 0; // неверное поле .->file_size в заголовке
+    u64i last_index = base_index + info_header->file_size; // переставляемся на размер .->file_size
+    // qInfo() << "file_size:" << info_header->file_size << "; descr_size:" << info_header->descr_size << "; descr_offset:" << info_header->descr_offset << "; pal_num:" << info_header->pall_num;
+    // qInfo() << "b_left:" << info_header->b_left << "; b_top:" << info_header->b_top << "; b_right:" << info_header->b_right << "; b_bottom:" << info_header->b_bottom;
+    // qInfo() << "f_left:" << info_header->f_left << "; f_top:" << info_header->f_top << "; f_right:" << info_header->f_right << "; f_bottom:" << info_header->f_bottom;
+    // qInfo() << "dev_cx_pix:" << info_header->dev_cx_pix << "; dev_cy_pix:" << info_header->dev_cy_pix << "; dev_cx_mm:" << info_header->dev_cx_mm << "; dev_cy_mm:" << info_header->dev_cy_mm;
+    double image_width = double(( info_header->b_right > info_header->b_left ) ? info_header->b_right - info_header->b_left : info_header->b_left - info_header->b_right) / 96;
+    double image_height = double(( info_header->b_bottom > info_header->b_top ) ? info_header->b_bottom - info_header->b_top : info_header->b_top - info_header->b_bottom) / 96;
+    QString info = QString("%1 dpi : %2 x %3 inch (%4 x %5 cm)").arg(   QString::number(96),
+                                                                        QString::number(image_width, 'g', 4),
+                                                                        QString::number(image_height, 'g', 4),
+                                                                        QString::number(image_width * 25.4 / 10, 'g', 4),
+                                                                        QString::number(image_height * 25.4 / 10, 'g', 4));
+
+    // u32i image_width = ( info_header->b_right > info_header->b_left ) ? info_header->b_right - info_header->b_left : info_header->b_left - info_header->b_right;
+    // u32i image_height = ( info_header->b_bottom > info_header->b_top ) ? info_header->b_bottom - info_header->b_top : info_header->b_top - info_header->b_bottom;
+    // QString info = QString("%1x%2").arg(QString::number(image_width),
+    //                                     QString::number(image_height)
+    //                                     );
+
+    u64i resource_size = last_index - base_index;
+    Q_EMIT e->txResourceFound("emf", base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
