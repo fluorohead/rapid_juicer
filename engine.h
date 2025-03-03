@@ -100,6 +100,7 @@ public:
     RECOGNIZE_FUNC_DECL_RETURN recognize_dbm0 RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_ttf RECOGNIZE_FUNC_HEADER;
     RECOGNIZE_FUNC_DECL_RETURN recognize_asf RECOGNIZE_FUNC_HEADER;
+    RECOGNIZE_FUNC_DECL_RETURN recognize_wmf RECOGNIZE_FUNC_HEADER;
 
 Q_SIGNALS:
     void txFileChange(const QString &file_name, u64i bytes_amount);

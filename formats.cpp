@@ -127,9 +127,10 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "med",      { "OctaMED Module", "MMD0/MMD1/MMD2/MMD03", "MED", { CAT_MUSIC, CAT_AMIGA, CAT_OUTDATED }, CAT_MOTOROLA, { "mmd0", "mmd1", "mmd2", "mmd3" }, 0, "" } },
     { "dbm0",     { "DigiBooster Pro Module", "", "DBM", { CAT_MUSIC, CAT_AMIGA, CAT_OUTDATED }, CAT_MOTOROLA, { "dbm0" }, 0, "" } },
     { "ttf",      { "TrueType/OpenType Font", "TTF/OTF", "TTF", { CAT_OTHER, CAT_NONE, CAT_NONE }, CAT_VECTOR, { "ttf", "otf" }, 0, "" } },
-    { "wma",      { "Window Media Audio", "ASF container", "WMA", { CAT_AUDIO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } },
-    { "wmv",      { "Window Media Video", "ASF container", "WMV", { CAT_VIDEO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } }
-    /// Сейчас 38 форматов.
+    { "wma",      { "Windows Media Audio", "ASF container", "WMA", { CAT_AUDIO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } },
+    { "wmv",      { "Windows Media Video", "ASF container", "WMV", { CAT_VIDEO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } },
+    { "wmf",      { "Windows Metafile", "", "WMF", { CAT_IMAGE, CAT_WIN, CAT_OUTDATED }, CAT_VECTOR, { "wmf" }, 0, "" } },
+    /// Сейчас 39 форматов.
     /// ВНИМАНИЕ! При добавлении нового формата, нужно удостовериться, что хватит места для тайла в таблице результатов
     /// и при необходимости откорректировать макрос RESULTS_TABLE_ROWS в session.cpp ( RESULTS_TABLE_ROWS * RESULTS_TABLE_COLUMNS всегда должно быть >= кол-ва форматов).
 };

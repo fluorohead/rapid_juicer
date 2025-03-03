@@ -41,6 +41,7 @@
   //   26 |mdat : 6D64 : 6174
   //   26 |moov : 6D6F : 6F76
   //   20 |png  : 8950 : 4E47
+  //   29 |wmf  : D7CD : C69A
   //   21 |jpg  : FFD8 : FFE0
   //   21 |mp3  : FFFA
   //   21 |mp3  : FFFB
@@ -109,6 +110,7 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "ttf",        { 0x0000000000000100, 4, Engine::recognize_ttf      } }, // "\x00\x01\x00\x00"
     { "otf",        { 0x000000004F54544F, 4, Engine::recognize_ttf      } }, // "OTTO"
     { "asf",        { 0x0000000075B22630, 4, Engine::recognize_asf      } }, // "\x30\x26\xB2\x75"
+    { "wmf",        { 0x000000009AC6CDD7, 4, Engine::recognize_wmf      } }, // "\xD7\xCD\xC6\x9A"
 };
 
 u16i be2le(u16i be)
@@ -372,6 +374,12 @@ void Engine::generate_comparation_func()
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[20])); // png
         aj_asm.mov(x86::ptr(x86::rdi, 0x89 * 8), x86::rax);
+    }
+
+    if ( selected_formats[fformats["wmf"].index] )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[29])); // wmf
+        aj_asm.mov(x86::ptr(x86::rdi, 0xD7 * 8), x86::rax);
     }
 
     if ( selected_formats[fformats["jpg"].index] or selected_formats[fformats["mp3"].index] )
@@ -985,6 +993,22 @@ aj_asm.bind(aj_signat_labels[20]);
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_png));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+// ; 0xD7
+aj_asm.bind(aj_signat_labels[29]);
+    // ; wmf : 0xD7'CD : 0xC6'9A
+    aj_asm.cmp(x86::al, 0xCD);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0xC6'9A);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_png
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_wmf));
     aj_asm.cmp(x86::rax, 0);
     aj_asm.jne(aj_scrup_mode_check_label);
     //
@@ -4151,6 +4175,61 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_asf RECOGNIZE_FUNC_HEADER
                                             duration_time.toString(Qt::ISODateWithMs));
     u64i resource_size = last_index - base_index;
     Q_EMIT e->txResourceFound(format_type, base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_wmf RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct PlaceableHeader
+    {
+        u32i key;
+        u16i hwmf;
+        u16i bbox_left, bbox_top, bbox_right, bbox_bottom;
+        u16i inch;
+        u32i reserved;
+        u16i checksum;
+    };
+    struct MetaHeader
+    {
+        u16i type;
+        u16i header_size;
+        u16i version;
+        u32i size; // u16i size_low + u16i size_high
+        u16i objects_num;
+        u32i max_record;
+        u16i members_num;
+    };
+#pragma pack(pop)
+    // qInfo() << "!!! WMF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    // qInfo() << "file:" << e->file.fileName();
+    static const u64i min_room_need = sizeof(PlaceableHeader);
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    auto buffer = e->mmf_scanbuf;
+    s64i file_size = e->file_size;
+    auto plcb_header = (PlaceableHeader*)&buffer[base_index];
+    if ( plcb_header->reserved != 0x00000000 ) return 0;
+    //qInfo() << "left:" << plcb_header->bbox_left << "; top:" << plcb_header->bbox_top << "; right:" << plcb_header->bbox_right << "; bottom:" << plcb_header->bbox_bottom << "; inch:" << plcb_header->inch;
+    u64i last_index = base_index + sizeof(PlaceableHeader); // переставляемся на MetaHeader
+    if ( last_index + sizeof(MetaHeader) > file_size ) return 0; // нет места на MetaHeader
+    auto meta_header = (MetaHeader*)&buffer[last_index];
+    if ( ( meta_header->type != 0x0001 ) and ( meta_header->type != 0x0002 ) ) return 0;
+    if ( meta_header->header_size != 0x0009 ) return 0;
+    if ( ( meta_header->version != 0x0300 ) and ( meta_header->version != 0x0100 ) ) return 0;
+    last_index = base_index + meta_header->size * 2 + sizeof(PlaceableHeader);
+    if ( last_index > file_size ) return 0;
+    u64i resource_size = last_index - base_index;
+    double image_width = double(( plcb_header->bbox_right > plcb_header->bbox_left ) ? plcb_header->bbox_right - plcb_header->bbox_left : plcb_header->bbox_left - plcb_header->bbox_right) / plcb_header->inch;
+    double image_height = double(( plcb_header->bbox_bottom > plcb_header->bbox_top ) ? plcb_header->bbox_bottom - plcb_header->bbox_top : plcb_header->bbox_top - plcb_header->bbox_bottom) / plcb_header->inch;
+    QString info = QString("%1 dpi : %2 x %3 inch (%4 x %5 cm)").arg(   QString::number(plcb_header->inch),
+                                                                        QString::number(image_width, 'g', 4),
+                                                                        QString::number(image_height, 'g', 4),
+                                                                        QString::number(image_width * 25.4 / 10, 'g', 4),
+                                                                        QString::number(image_height * 25.4 / 10, 'g', 4));
+    Q_EMIT e->txResourceFound("wmf", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
