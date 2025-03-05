@@ -75,9 +75,9 @@ int main(int argc, char **argv)
     sessions_pool = new SessionsPool(MAX_SESSIONS);
 
     //task->delAllTaskPaths();
-    //task.addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
-    //task->addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\emf_wmf\ISI.EMF)", "", false});
-    //task.addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
+    //task->addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
+    //task->addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\emf_wmf\001_truncated.WMF)", "", false});
+    //task->addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
     settings = new Settings;
     settings->initSkin();

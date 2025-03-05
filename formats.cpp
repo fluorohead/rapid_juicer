@@ -130,7 +130,7 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "ttf",      { "TrueType/OpenType Font", "TTF/OTF", "TTF", { CAT_OTHER, CAT_NONE, CAT_NONE }, CAT_VECTOR, { "ttf", "otf" }, 0, "" } },
     { "wma",      { "Windows Media Audio", "ASF container", "WMA", { CAT_AUDIO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } },
     { "wmv",      { "Windows Media Video", "ASF container", "WMV", { CAT_VIDEO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } },
-    { "wmf",      { "Windows Metafile", "", "WMF", { CAT_IMAGE, CAT_WIN, CAT_OUTDATED }, CAT_VECTOR, { "wmf" }, 0, "" } },
+    { "wmf",      { "Windows Metafile", "", "WMF", { CAT_IMAGE, CAT_WIN, CAT_OUTDATED }, CAT_VECTOR, { "wmf_plc", "wmf_mem", "wmf_disk" }, 0, "" } },
     { "emf",      { "Enhanced Metafile", "", "EMF", { CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_VECTOR, { "emf" }, 0, "" } },
     /// Сейчас 39 форматов.
     /// ВНИМАНИЕ! При добавлении нового формата, нужно удостовериться, что хватит места для тайла в таблице результатов
