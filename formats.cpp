@@ -101,8 +101,9 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "xmi",      { "eXtended MIDI music (MSS)", "IFF container", "XMI", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_MIDI | CAT_MOTOROLA, { "iff" }, 0, "" } },
     { "lbm",      { "Interleaved Bitmap", "ACBM/DEEP/ILBM/PBM/RGB8/...", "LBM", { CAT_IMAGE, CAT_AMIGA, CAT_OUTDATED }, CAT_RASTER | CAT_MOTOROLA, { "iff" }, 0, "" } },
     { "gif",      { "Graphics Interchange Format", "", "GIF", { CAT_IMAGE, CAT_WEB, CAT_NONE }, CAT_RASTER, { "gif" }, 0, "" } },
-    { "tif_ii",   { "Tag Image File Format", "Intel byte order", "TIF", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER | CAT_INTELX86, { "tiff_ii" }, 0, "" } },
-    { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "TIF", { CAT_IMAGE, CAT_MAC, CAT_OUTDATED }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "" } },
+    { "tif",      { "Tag Image File Format", "Intel/Motorola byte order", "TIF", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "tiff_ii", "tiff_mm" }, 0, "" } },
+    // { "tif_ii",   { "Tag Image File Format", "Intel byte order", "TIF", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER | CAT_INTELX86, { "tiff_ii" }, 0, "" } },
+    // { "tif_mm",   { "Tag Image File Format", "Motorola byte order", "TIF", { CAT_IMAGE, CAT_MAC, CAT_OUTDATED }, CAT_RASTER | CAT_MOTOROLA, { "tiff_mm" }, 0, "" } },
     { "tga_tc",   { "Targa Graphics Adapter Image", "only true-color", "TGA", { CAT_IMAGE, CAT_OUTDATED, CAT_PERFRISK }, CAT_RASTER, { "tga_tp2", "tga_tp10" }, 0, "" } },
     { "jpg",      { "JPEG File Interchange Format", "", "JPG", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "" } },
     { "ani_riff", { "MS Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
@@ -131,7 +132,7 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "wmv",      { "Windows Media Video", "ASF container", "WMV", { CAT_VIDEO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } },
     { "wmf",      { "Windows Metafile", "", "WMF", { CAT_IMAGE, CAT_WIN, CAT_OUTDATED }, CAT_VECTOR, { "wmf" }, 0, "" } },
     { "emf",      { "Enhanced Metafile", "", "EMF", { CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_VECTOR, { "emf" }, 0, "" } },
-    /// Сейчас 40 форматов.
+    /// Сейчас 39 форматов.
     /// ВНИМАНИЕ! При добавлении нового формата, нужно удостовериться, что хватит места для тайла в таблице результатов
     /// и при необходимости откорректировать макрос RESULTS_TABLE_ROWS в session.cpp ( RESULTS_TABLE_ROWS * RESULTS_TABLE_COLUMNS всегда должно быть >= кол-ва форматов).
 };

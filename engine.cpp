@@ -326,7 +326,7 @@ void Engine::generate_comparation_func()
         aj_asm.mov(x86::ptr(x86::rdi, 0x47 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["tif_ii"].index] or selected_formats[fformats["it"].index] or selected_formats[fformats["mp3"].index] )
+    if ( selected_formats[fformats["tif"].index] or selected_formats[fformats["it"].index] or selected_formats[fformats["mp3"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[10])); // tif_ii, it, mp3 id3v2
         aj_asm.mov(x86::ptr(x86::rdi, 0x49 * 8), x86::rax);
@@ -344,7 +344,7 @@ void Engine::generate_comparation_func()
         aj_asm.mov(x86::ptr(x86::rdi, 0x4B * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["mod"].index] or selected_formats[fformats["tif_mm"].index] or selected_formats[fformats["mid"].index] or selected_formats[fformats["med"].index] )
+    if ( selected_formats[fformats["mod"].index] or selected_formats[fformats["tif"].index] or selected_formats[fformats["mid"].index] or selected_formats[fformats["med"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[13])); // mod 'M.K.', tif_mm, mid, mmd0, mmd1, mmd2, mmd3
         aj_asm.mov(x86::ptr(x86::rdi, 0x4D * 8), x86::rax);
@@ -738,7 +738,7 @@ aj_asm.bind(aj_sub_labels[16]); // id3v2 ?
         aj_asm.jmp(aj_loop_check_label);
     }
 aj_asm.bind(aj_sub_labels[2]); // tif_ii ?
-    if ( selected_formats[fformats["tif_ii"].index] )
+    if ( selected_formats[fformats["tif"].index] )
     {
         aj_asm.cmp(x86::al, 0x49);
         aj_asm.jne(aj_sub_labels[3]);
@@ -824,7 +824,7 @@ aj_asm.bind(aj_sub_labels[4]); // mod_m.k. ?
         aj_asm.jmp(aj_loop_check_label);
     }
 aj_asm.bind(aj_sub_labels[5]); // tif_mm ?
-    if ( selected_formats[fformats["tif_mm"].index] )
+    if ( selected_formats[fformats["tif"].index] )
     {
         aj_asm.cmp(x86::al, 0x4D);
         aj_asm.jne(aj_sub_labels[6]);
@@ -2845,7 +2845,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_ii RECOGNIZE_FUNC_HEADER
     if ( !TIFF_VALID_COMPRESSION.contains(image_compression)) image_compression = 0xFFFFFFFF;
     info.chop(2); // удаляем последние ", "
     u64i resource_size = last_index - base_index;
-    Q_EMIT e->txResourceFound("tif_ii", base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("tif", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -3037,7 +3037,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tif_mm RECOGNIZE_FUNC_HEADER
     if ( !TIFF_VALID_COMPRESSION.contains(image_compression)) image_compression = 0xFFFFFFFF;
     info.chop(2); // удаляем последние ", "
     u64i resource_size = last_index - base_index;
-    Q_EMIT e->txResourceFound("tif_mm", base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("tif", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
