@@ -4279,10 +4279,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_wmf RECOGNIZE_FUNC_HEADER
         u16i members_num;
     };
 #pragma pack(pop)
-    qInfo() << "!!! WMF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    qInfo() << "file:" << e->file.fileName();
+    // qInfo() << "!!! WMF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    // qInfo() << "file:" << e->file.fileName();
     bool placeable = ( *((u32i*)&e->mmf_scanbuf[e->scanbuf_offset]) == 0x9AC6CDD7 );
-    qInfo() << "placeable:" << placeable;
+//    qInfo() << "placeable:" << placeable;
     u64i base_index = e->scanbuf_offset;
     e->resource_offset = base_index;
     if ( placeable)
@@ -4310,12 +4310,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_wmf RECOGNIZE_FUNC_HEADER
         last_index += sizeof(PlaceableHeader); // переставляемся на MetaHeader
     }
     auto meta_header = (MetaHeader*)&buffer[last_index];
-    qInfo() << "here";
     if ( ( meta_header->type != 0x0001 ) and ( meta_header->type != 0x0002 ) ) return 0;
     if ( meta_header->header_size != 0x0009 ) return 0;
     if ( ( meta_header->version != 0x0300 ) and ( meta_header->version != 0x0100 ) ) return 0;
     last_index = base_index + meta_header->size * 2 + (placeable ? sizeof(PlaceableHeader) : 0);
-    qInfo() << "last_index:" << last_index;
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
     QString info;

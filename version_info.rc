@@ -13,9 +13,9 @@ BLOCK "StringFileInfo"
                 VALUE "LegalCopyright", "Free"
                 VALUE "OriginalFilename", "rapid_juicer.exe"
                 VALUE "ProductName", "Rapid Juicer :: Resource Extractor"
-                VALUE "ProductVersion", "alpha release"
+                VALUE "ProductVersion", "beta release"
                 VALUE "InternalName", "Rapid Juicer :: Resource Extractor"
-                VALUE "Comments", "first alpha release"
+                VALUE "Comments", "beta release"
 		VALUE "LegalTrademarks", ""
 	}
 }

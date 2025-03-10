@@ -18,6 +18,7 @@ struct Config
     int lang_idx;
     int bfr_size_idx;
     bool recursion;
+    bool ctx_menu;
     QString file_mask;
     QStringList excluding;
     QString last_src_dir;
@@ -79,6 +80,8 @@ class SettingsWindow: public QWidget
     QPointF prev_cursor_pos;
     MaskValidator fmv {this}; // file mask validator
     ExcludingValidator eev {this}; // excluding extensions validator
+    void install_ctx_menu(); // прописывает контекстное меню в реестре
+    void remove_ctx_menu(); // удаляет контекстное меню из реестра
     void mouseMoveEvent(QMouseEvent *event);  // событие будет возникать и спускаться из Qlabel background
     void mousePressEvent(QMouseEvent *event); // событие будет возникать и спускаться из Qlabel background
 public:

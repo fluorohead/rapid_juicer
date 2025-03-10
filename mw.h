@@ -20,7 +20,7 @@
 
 #define MAX_FILTERS 9
 
-#define VERSION_INFO "Rapid Juicer v0.0.1a"
+#define VERSION_INFO "Rapid Juicer v0.0.1b"
 
 enum class FilterAction { Include = 0, Exclude = 1, MAX };
 
@@ -109,7 +109,6 @@ class MainWindow: public QWidget
     QLabel *scrup_label;
     QLabel *categ_labels[MAX_FILTERS];
     FormatsTable *formats_table;
-    QLabel *blinking_arrow;
 
     void mouseMoveEvent(QMouseEvent *event);
     void mousePressEvent(QMouseEvent *event);
@@ -124,7 +123,7 @@ public Q_SLOTS:
     void addFiles();
     void addDir();
     void showSettings();
-    void showNewSessionWindow();
+    static void showNewSessionWindow(MainWindow *parent_widget);
     void updateSessionsCounter();
 Q_SIGNALS:
     void txFilenames(QStringList filenames);

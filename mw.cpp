@@ -23,6 +23,8 @@ extern Settings *settings;
 extern Task *task;
 extern SessionsPool *sessions_pool;
 
+extern bool instant_start;
+
 const QString filter_labels_txt[int(Langs::MAX)][MAX_FILTERS]
 {
     { "raster/vector",    "video/animation", "audio/music",  "3D objects/scenes", "platform specific", "performance risk", "outdated",   "other formats", "all formats" },
@@ -493,8 +495,13 @@ MainWindow::MainWindow()
     connect(paths_list->paths_table, &PathsTable::txUpdatePathsButton, paths_button, &DynamicInfoButton::updateText);
     connect(paths_button, &DynamicInfoButton::imReleased, paths_list, &PathsWindow::show);
     connect(settings_button, &OneStateButton::imReleased, this, &MainWindow::showSettings);
-    connect(play_button, &OneStateButton::imReleased, this, &MainWindow::showNewSessionWindow);
+    //connect(play_button, &OneStateButton::imReleased, this, &MainWindow::showNewSessionWindow(this));
+    connect(play_button, &OneStateButton::imReleased, [this](){
+        this->showNewSessionWindow(this);
+    });
     connect(logo_button, &OneStateButton::imReleased, [](){ QDesktopServices::openUrl(QUrl("https://github.com/fluorohead/rapid_juicer", QUrl::TolerantMode)); }); // открываем в в браузере страницу проекта
+
+    if ( instant_start ) showNewSessionWindow(nullptr);
 }
 
 MainWindow::~MainWindow()
@@ -625,18 +632,18 @@ void MainWindow::showSettings()
     tw->show(); // модальное окно уничтожается автоматически после вызова close()
 }
 
-void MainWindow::showNewSessionWindow()
+void MainWindow::showNewSessionWindow(MainWindow *parent_widget)
 {
     if ( task->task_paths.isEmpty() )
     {
-        auto mdliw = new ModalInfoWindow(this, warning_title_txt[curr_lang()], select_one_file_txt[curr_lang()], ModalInfoWindow::Type::Warning);
+        auto mdliw = new ModalInfoWindow(parent_widget, warning_title_txt[curr_lang()], select_one_file_txt[curr_lang()], ModalInfoWindow::Type::Warning);
         mdliw->show(); // модальное окно уничтожается автоматически после вызова close()
         return;
     }
 
     if ( settings->selected_formats.isEmpty() )
     {
-        auto mdliw = new ModalInfoWindow(this, warning_title_txt[curr_lang()], select_one_fmt_txt[curr_lang()], ModalInfoWindow::Type::Warning);
+        auto mdliw = new ModalInfoWindow(parent_widget, warning_title_txt[curr_lang()], select_one_fmt_txt[curr_lang()], ModalInfoWindow::Type::Warning);
         mdliw->show(); // модальное окно уничтожается автоматически после вызова close()
         return;
     }
@@ -645,7 +652,7 @@ void MainWindow::showNewSessionWindow()
     if ( new_session_id != 0 )
     {
         auto new_session_window = new SessionWindow(new_session_id);
-        connect(new_session_window, &SessionWindow::destroyed, this, &MainWindow::updateSessionsCounter);
+        if ( !instant_start ) connect(new_session_window, &SessionWindow::destroyed, parent_widget, &MainWindow::updateSessionsCounter);
         if ( sessions_pool->write_new_session(new_session_window, new_session_id) == 0 )
         {
             // если по какой-то причине не удалось записать указатель в пул с переданным id, тогда уничтожаем окно
@@ -655,12 +662,12 @@ void MainWindow::showNewSessionWindow()
         {
             new_session_window->show();
         }
-        updateSessionsCounter();
-        paths_list->remove_all(); // очищаем список путей в task и в PathsWindow
+        if ( !instant_start ) parent_widget->updateSessionsCounter();
+        if ( !instant_start ) parent_widget->paths_list->remove_all(); // очищаем список путей в task и в PathsWindow
     }
     else
     {
-        auto mdliw = new ModalInfoWindow(this, warning_title_txt[curr_lang()], too_much_sessions_txt[curr_lang()], ModalInfoWindow::Type::Warning);
+        auto mdliw = new ModalInfoWindow(parent_widget, warning_title_txt[curr_lang()], too_much_sessions_txt[curr_lang()], ModalInfoWindow::Type::Warning);
         mdliw->show(); // модальное окно уничтожается автоматически после вызова close()
     }
 }

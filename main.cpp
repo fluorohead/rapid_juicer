@@ -10,10 +10,13 @@
 #include <QFileDialog>
 #include <QFontDatabase>
 #include <QDesktopServices>
+#include <QMessageBox>
 
 Settings *settings;
 Task *task;
 SessionsPool *sessions_pool;
+bool instant_start = false; // для индикации запуска через контекстное меню
+bool first_start = false; // для индикации первого запуска после инсталляции
 
 int main(int argc, char **argv)
 {
@@ -31,6 +34,7 @@ int main(int argc, char **argv)
     index_file_formats();
 
     auto args = app.arguments();
+
     // [0] - имя файла процесса
     // [1] - команды : "-save" или "-save_dbg"
     // [2] - ключ shm
@@ -79,13 +83,51 @@ int main(int argc, char **argv)
     //task->addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\emf_wmf\001_truncated.WMF)", "", false});
     //task->addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
+    // [0] - имя файла процесса
+    // [1] - команды : "-first_start"
+    if ( args.count() == 2 )
+    {
+        if ( args[1] == "-first_start" ) first_start = true; // для запуска с найстройками по-умолчанию (без чтения settings.json)
+    }
+
     settings = new Settings;
     settings->initSkin();
 
-    auto mw = new MainWindow;
-    mw->show();
-    app.exec();
-    delete mw;
+    // [0] - имя файла процесса
+    // [1] - команды : "-scan_file" или "-scan_dir"
+    // [2] - путь
+    if ( args.count() == 3 )
+    {
+        if ( args[1] == "-scan_file" )
+        {
+            task->addTaskPath( TaskPath{QDir::fromNativeSeparators(args[2]), "", false} );
+            instant_start = true;
+        }
+        if ( args[1] == "-scan_dir" )
+        {
+            task->addTaskPath( TaskPath{QDir::fromNativeSeparators(args[2]), "*", settings->config.recursion} );
+            instant_start = true;
+        }
+        if ( args[1] == "-scan_drv" )
+        {
+            // при вызове из контекстного меню запоминающего устройства, возвращается строка вида C:", где " - двойная кавычка
+            task->addTaskPath( TaskPath{QDir::fromNativeSeparators(args[2]).chopped(1), "*", settings->config.recursion} );
+            instant_start = true;
+        }
+    }
+
+    if ( !instant_start )
+    {
+        auto mw = new MainWindow;
+        mw->show();
+        app.exec();
+        delete mw;
+    }
+    else
+    {
+        MainWindow::showNewSessionWindow(nullptr); // вызываем SessionWindow без предварительного создания MainWindow
+        app.exec();
+    }
 
     settings->dump_to_file();
     delete settings;

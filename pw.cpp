@@ -420,7 +420,7 @@ void PathsWindow::rxAddFilenames(QStringList filenames)
         {
             if ( !task->isTaskPathPresent(one) )
             {
-                task->addTaskPath(TaskPath {one, "", false});
+                task->addTaskPath( TaskPath{one, "", false} );
                 auto delete_button = new DeleteMicroButton(nullptr, *paths_count, delete_pixmap, delete_hover_pixmap);
                 delete_button->setFixedSize(delete_pixmap->size());
                 paths_table->setCellWidget(*paths_count, 0, delete_button);

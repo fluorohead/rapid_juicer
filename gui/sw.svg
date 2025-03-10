@@ -9,7 +9,7 @@
    id="svg1"
    inkscape:version="1.4 (86a8ad7, 2024-10-11)"
    sodipodi:docname="sw.svg"
-   inkscape:export-filename="sw.png"
+   inkscape:export-filename="settings\sw.png"
    inkscape:export-xdpi="50"
    inkscape:export-ydpi="50"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
@@ -31,15 +31,15 @@
      showguides="true"
      showborder="true"
      shape-rendering="auto"
-     inkscape:zoom="1.0076757"
-     inkscape:cx="1920.2607"
-     inkscape:cy="1141.7364"
+     inkscape:zoom="1.4250686"
+     inkscape:cx="2028.6742"
+     inkscape:cy="1258.5359"
      inkscape:window-width="1920"
      inkscape:window-height="1017"
      inkscape:window-x="1912"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer3" />
+     inkscape:current-layer="layer2" />
   <defs
      id="defs1">
     <linearGradient
@@ -2382,10 +2382,10 @@
        inkscape:label="Posterized Blur"
        style="color-interpolation-filters:sRGB;"
        id="filter24"
-       x="-0.10039622"
-       y="-0.1377401"
-       width="1.2007924"
-       height="1.2754802">
+       x="-0.10023147"
+       y="-0.12483448"
+       width="1.2004629"
+       height="1.249669">
       <feComposite
          in2="SourceGraphic"
          result="result1"
@@ -2469,11 +2469,11 @@
      style="stroke-width:0.797844;filter:url(#filter24)">
     <g
        id="g23"
-       transform="matrix(1.3025603,0,0,1.5047306,-902.41123,-1305.2773)"
+       transform="matrix(1.3025603,0,0,1.6635846,-902.41123,-1513.7736)"
        inkscape:label="background"
-       style="stroke-width:0.575293">
+       style="stroke-width:0.547137">
       <rect
-         style="display:inline;fill:#677a75;fill-opacity:1;fill-rule:evenodd;stroke:url(#linearGradient23);stroke-width:3.45176;stroke-linecap:butt;stroke-linejoin:miter;paint-order:normal"
+         style="display:inline;fill:#677a75;fill-opacity:1;fill-rule:evenodd;stroke:url(#linearGradient23);stroke-width:3.28282;stroke-linecap:butt;stroke-linejoin:miter;paint-order:normal"
          id="rect19"
          width="512.70911"
          height="325.17813"
@@ -2628,7 +2628,7 @@
        width="677.46045"
        height="2.3854957"
        x="1657.2672"
-       y="1287.1663"
+       y="1381.1663"
        ry="1.0843714" />
   </g>
   <g
@@ -2643,15 +2643,15 @@
        width="60.70488"
        height="8.069787"
        x="2133.3357"
-       y="1127.6066"
+       y="1268.1885"
        ry="4.0348935" />
     <rect
        style="fill:#33667b;fill-opacity:1;fill-rule:evenodd;stroke-width:4.23692"
        id="rect3-2"
        width="32.454578"
        height="6.3154855"
-       x="1363.2932"
-       y="1992.2633"
+       x="1297.8622"
+       y="2116.6919"
        ry="3.1577427"
        transform="rotate(-27.736877)" />
     <rect
@@ -2659,8 +2659,8 @@
        id="rect3-7-2"
        width="32.454578"
        height="6.3154855"
-       x="2416.6516"
-       y="-10.957184"
+       x="2482.0767"
+       y="-135.38704"
        ry="3.1577427"
        transform="matrix(0.88509426,0.46541181,0.46541181,-0.88509426,0,0)" />
   </g>
@@ -2676,15 +2676,15 @@
        width="60.70488"
        height="8.069787"
        x="2133.3357"
-       y="1121.8685"
+       y="1262.4504"
        ry="4.0348935" />
     <rect
        style="fill:#5ab5da;fill-opacity:1;fill-rule:evenodd;stroke-width:4.23692"
        id="rect3"
        width="32.454578"
        height="6.3154855"
-       x="1365.9639"
-       y="1987.1844"
+       x="1300.5328"
+       y="2111.6133"
        ry="3.1577427"
        transform="rotate(-27.736877)" />
     <rect
@@ -2692,8 +2692,8 @@
        id="rect3-7"
        width="32.454578"
        height="6.3154855"
-       x="2413.9812"
-       y="-5.8784132"
+       x="2479.4062"
+       y="-130.30827"
        ry="3.1577427"
        transform="matrix(0.88509426,0.46541181,0.46541181,-0.88509426,0,0)" />
   </g>
