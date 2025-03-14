@@ -719,7 +719,7 @@ SettingsWindow::~SettingsWindow()
         QApplication::postEvent(this->parent(), new QEvent(QEvent::LanguageChange)); // отсылаем родителю, т.е. MainWindow
     }
 #ifdef _WIN64
-        settings->config.ctx_menu ? install_ctx_menu() : remove_ctx_menu();
+    settings->config.ctx_menu ? install_ctx_menu() : remove_ctx_menu();
 #elif defined(__gnu_linux__) || defined(__linux__)
     // FFU
 #elif defined(__APPLE__) || defined(__MACH__)
@@ -763,12 +763,18 @@ void SettingsWindow::install_ctx_menu()
 
 void SettingsWindow::remove_ctx_menu()
 {
+#ifdef _WIN64
     QSettings win_registry_for_file(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\*\shell)", QSettings::Registry64Format);
     win_registry_for_file.remove("Scan with Rapid Juicer");
     QSettings win_registry_for_dir(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell)", QSettings::Registry64Format);
     win_registry_for_dir.remove("Scan with Rapid Juicer");
     QSettings win_registry_for_drive(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell)", QSettings::Registry64Format);
     win_registry_for_drive.remove("Scan with Rapid Juicer");
+#elif defined(__gnu_linux__) || defined(__linux__)
+    // FFU
+#elif defined(__APPLE__) || defined(__MACH__)
+    // FFU
+#endif
 }
 
 void SettingsWindow::mouseMoveEvent(QMouseEvent *event)

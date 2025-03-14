@@ -4278,9 +4278,19 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_wmf RECOGNIZE_FUNC_HEADER
         u32i max_record;
         u16i members_num;
     };
-#pragma pack(pop)
-    // qInfo() << "!!! WMF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
-    // qInfo() << "file:" << e->file.fileName();
+    struct RecordHeader
+    {
+        u32i rec_size;
+        u16i rec_func;
+    };
+#pragma pack(pop)/*
+    qInfo() << "!!! WMF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    qInfo() << "file:" << e->file.fileName();*/
+    static const QSet<u16i> VALID_FUNC {0x0000, 0x0035, 0x0037, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107, 0x0108, 0x0127, 0x0139, 0x0142, 0x0149, 0x0201, 0x0209,
+                                        0x0211, 0x0213, 0x0214, 0x0220, 0x0228, 0x0231, 0x0234, 0x0324, 0x0325, 0x020A, 0x020B, 0x020C, 0x020D, 0x020E, 0x020F, 0x0410,
+                                        0x0412, 0x0415, 0x0416, 0x0418, 0x0419, 0x0429, 0x0436, 0x0521, 0x0538, 0x0548, 0x041B, 0x041F, 0x061C, 0x061D, 0x001E, 0x081A,
+                                        0x0B23, 0x0626, 0x012A, 0x012B, 0x012C, 0x012D, 0x012E, 0x0817, 0x0830, 0x0922, 0x0a32, 0x0d33, 0x0940, 0x0b41, 0x0f43, 0x01f0,
+                                        0x00f7, 0x01F9, 0x02FA, 0x02FB, 0x02FC, 0x06FF};
     bool placeable = ( *((u32i*)&e->mmf_scanbuf[e->scanbuf_offset]) == 0x9AC6CDD7 );
 //    qInfo() << "placeable:" << placeable;
     u64i base_index = e->scanbuf_offset;
@@ -4313,8 +4323,22 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_wmf RECOGNIZE_FUNC_HEADER
     if ( ( meta_header->type != 0x0001 ) and ( meta_header->type != 0x0002 ) ) return 0;
     if ( meta_header->header_size != 0x0009 ) return 0;
     if ( ( meta_header->version != 0x0300 ) and ( meta_header->version != 0x0100 ) ) return 0;
-    last_index = base_index + meta_header->size * 2 + (placeable ? sizeof(PlaceableHeader) : 0);
+    if ( meta_header->members_num != 0 ) return 0;
+    u64i record_li = last_index + sizeof(MetaHeader); // ставимся на первую запись типа Record
+    last_index = base_index + meta_header->size * 2 + (placeable ? sizeof(PlaceableHeader) : 0); // сразу рассчитываем последнее смещение по данным из заголовка ресурса
     if ( last_index > file_size ) return 0;
+    RecordHeader *record;
+    while(true) // идём по записям в поисках EOF, попутно валидируя функции
+    {
+        if ( file_size - record_li < sizeof(RecordHeader) ) return 0; // нет места на очередной RecordHeader
+        record = (RecordHeader*)&buffer[record_li];
+        //qInfo() << "record_offset:" << record_li << "; rec_size:" << record->rec_size * 2 << QString("; rec_function: 0x%1").arg(QString::number(record->rec_func, 16).rightJustified(4, '0'));
+        if ( !VALID_FUNC.contains(record->rec_func) ) return 0; // неизвестная функция
+        if ( record->rec_size < 3 ) return 0; // неверный размер записи
+        record_li += (record->rec_size * 2);
+        if ( record->rec_func == 0 ) break; // нашли EOF
+    }
+    //qInfo() << "record_li:" << record_li << "; last_index:" << last_index;
     u64i resource_size = last_index - base_index;
     QString info;
     if ( placeable ) info = QString("%1 dpi : %2 x %3 inch (%4 x %5 cm)").arg(  QString::number(image_inch),
