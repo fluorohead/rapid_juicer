@@ -366,7 +366,7 @@ void Engine::generate_comparation_func()
         aj_asm.mov(x86::ptr(x86::rdi, 0x4D * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["ogg"].index] or selected_formats[fformats["ttf"].index] )
+    if ( selected_formats[fformats["ogg"].index] or selected_formats[fformats["ogm"].index] or selected_formats[fformats["ttf"].index] )
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[27])); // ogg, otc(ttf)
         aj_asm.mov(x86::ptr(x86::rdi, 0x4F * 8), x86::rax);
@@ -716,7 +716,7 @@ aj_asm.bind(aj_sub_labels[19]); // flx?
     }
 aj_asm.jmp(aj_loop_check_label);
 
-    // ; 0x45
+// ; 0x45
 aj_asm.bind(aj_signat_labels[7]);
     // ; xm : 0x45'78 : 0x74'65
     aj_asm.cmp(x86::al, 0x78);
@@ -930,7 +930,7 @@ aj_asm.bind(aj_signat_labels[27]);
     if ( selected_formats[fformats["ttf"].index] )
     {
         aj_asm.cmp(x86::al, 0x54);
-        aj_asm.jne(aj_sub_labels[6]);
+        aj_asm.jne(aj_sub_labels[22]);
         aj_asm.cmp(x86::bx, 0x54'4F);
         aj_asm.jne(aj_loop_check_label);
         // вызов recognize_ttf
@@ -943,8 +943,8 @@ aj_asm.bind(aj_signat_labels[27]);
         //
         aj_asm.jmp(aj_loop_check_label);
     }
-aj_asm.bind(aj_sub_labels[6]); // ogg ?
-    if ( selected_formats[fformats["ogg"].index] )
+aj_asm.bind(aj_sub_labels[22]); // ogg ?
+    if ( selected_formats[fformats["ogg"].index] or selected_formats[fformats["ogm"].index])
     {
         aj_asm.cmp(x86::al, 0x67);
         aj_asm.jne(aj_loop_check_label);
@@ -1044,7 +1044,7 @@ aj_asm.bind(aj_signat_labels[26]);
     aj_asm.cmp(x86::bx, 0x6F'76);
     aj_asm.jne(aj_loop_check_label);
     aj_asm.jmp(aj_sub_labels[12]);
-    aj_asm.bind(aj_sub_labels[11]);
+aj_asm.bind(aj_sub_labels[11]);
     aj_asm.cmp(x86::bx, 0x61'74);
     aj_asm.jne(aj_loop_check_label);
     aj_asm.bind(aj_sub_labels[12]);
@@ -1436,6 +1436,12 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
         u16i ntrks; // number of tracks
         u16i division;
     };
+    struct FmtWavInfoHeader
+    {
+        u32i subchunk_id;
+        u32i subchunk_size;
+        WavInfoHeader info;
+    };
 #pragma pack(pop)
     //qInfo() << " RIFF RECOGNIZER CALLED:";
     static u32i avi_id {fformats["avi"].index};
@@ -1445,6 +1451,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     static const u64i min_room_need = sizeof(ChunkHeader);
     static const QSet <u64i> VALID_SUBCHUNK_TYPE {  0x5453494C20495641 /*AVI LIST*/,
                                                     0x20746D6645564157 /*WAVEfmt */,
+                                                    0x4B4E554A45564157 /*WAVEJUNK*/,
                                                     0x6174616444494D52 /*RMIDdata*/,
                                                     0x5453494C4E4F4341 /*ACONLIST*/,
                                                     0x68696E614E4F4341 /*ACONanih*/
@@ -1478,7 +1485,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
     {
         if ( ( !e->selected_formats[wav_id] ) ) return 0;
         if ( resource_size < (sizeof(ChunkHeader) + sizeof(WavInfoHeader)) ) return 0;
-        auto wav_info_header = (WavInfoHeader*)(&buffer[base_index + sizeof(ChunkHeader)]);
+        auto wav_info_header = (WavInfoHeader*)&buffer[base_index + sizeof(ChunkHeader)];
         if ( ( wav_info_header->chans == 0 ) or ( wav_info_header->chans > 6 ) ) return 0;
         if ( !VALID_WAV_BPS.contains(wav_info_header->bits_per_sample) ) return 0;
         QString codec_name = ( wave_codecs.contains(wav_info_header->fmt_code) ) ? wave_codecs[wav_info_header->fmt_code] : "unknown";
@@ -1486,6 +1493,24 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_riff RECOGNIZE_FUNC_HEADER
                                                                     QString::number(wav_info_header->bits_per_sample),
                                                                     QString::number(wav_info_header->sample_rate),
                                                                     QString::number(wav_info_header->chans));
+        Q_EMIT e->txResourceFound("wav", base_index, resource_size, info);
+        e->resource_offset = base_index;
+        return resource_size;
+    }
+    case 0x4B4E554A45564157: // wav, "WAVEJUNK" subchunk
+    {
+        if ( ( !e->selected_formats[wav_id] ) ) return 0;
+        u64i fmt_offset = base_index + sizeof(ChunkHeader) + ((ChunkHeader*)(&buffer[base_index]))->subchunk_size;
+        if ( file_size - fmt_offset < sizeof(FmtWavInfoHeader) ) return 0; // не хватает места под заголовок информационного сабчанка
+        auto fmt_wav_info_header = (FmtWavInfoHeader*)&buffer[fmt_offset];
+        if ( fmt_wav_info_header->subchunk_id != 0x20746D66 ) return 0;
+        if ( ( fmt_wav_info_header->info.chans == 0 ) or ( fmt_wav_info_header->info.chans > 6 ) ) return 0;
+        if ( !VALID_WAV_BPS.contains(fmt_wav_info_header->info.bits_per_sample) ) return 0;
+        QString codec_name = ( wave_codecs.contains(fmt_wav_info_header->info.fmt_code) ) ? wave_codecs[fmt_wav_info_header->info.fmt_code] : "unknown";
+        auto info = QString(R"(%1 codec : %2-bit %3Hz %4-ch)").arg( codec_name,
+                                                                    QString::number(fmt_wav_info_header->info.bits_per_sample),
+                                                                    QString::number(fmt_wav_info_header->info.sample_rate),
+                                                                    QString::number(fmt_wav_info_header->info.chans));
         Q_EMIT e->txResourceFound("wav", base_index, resource_size, info);
         e->resource_offset = base_index;
         return resource_size;
@@ -3868,9 +3893,23 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
         u32i bitrate_nom;
         u32i bitrate_min;
     };
-
+    struct VideoHeader
+    {
+        u8i  packet_type;
+        u32i signature1; // "vide"
+        u16i signature2; // "o\x00"
+        u8i  unknown_1[2];
+        u8i  codec_name[8];
+        u8i  unknown_2[28];
+        u32i width;
+        u32i height;
+        u8i  unknown[4];
+    };
 #pragma pack(pop)
     //qInfo() << " !!! OGG RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    enum class OggType { Unknown , Vorbis, Video };
+    static u32i ogg_id {fformats["ogg"].index};
+    static u32i ogm_id {fformats["ogm"].index};
     static const u64i min_room_need = sizeof(PageHeader);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
@@ -3881,9 +3920,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     u64i pages = 0;
     bool info_derived = false;
     VorbisHeader *vorbis_header;
+    VideoHeader *video_header;
+    OggType ogg_type = OggType::Unknown;
     while(true)
     {
-        if ( last_index + sizeof(PageHeader) > file_size ) break;// есть место для очередного PageHeader?
+        if ( last_index + sizeof(PageHeader) > file_size ) break;// есть место для очередного PageHeader?+
         page_header = (PageHeader*)(&buffer[last_index]);
         if ( page_header->signature != 0x5367674F /*'OggS'*/) break;
         if ( last_index + sizeof(PageHeader) + page_header->segments_num > file_size ) break;// есть ли место на список размеров сегментов? он идёт сразу после PageHeader
@@ -3898,7 +3939,19 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
             vorbis_header = (VorbisHeader*)&buffer[last_index + sizeof(PageHeader) + page_header->segments_num];
             if ( ( vorbis_header->packet_type == 0x1 ) and ( vorbis_header->signature1 == 0x62726F76 /*vorb*/) and ( vorbis_header->signature2 == 0x7369 /*is*/) )
             {
+                if ( !e->selected_formats[ogg_id] ) return 0;
                 info_derived = true;
+                ogg_type = OggType::Vorbis;
+            }
+        }
+        if ( !info_derived and ( page_header->segments_num > 0 ) and segments_block >= sizeof(VideoHeader) )
+        {
+            video_header = (VideoHeader*)&buffer[last_index + sizeof(PageHeader) + page_header->segments_num];
+            if ( ( video_header->packet_type == 0x1 ) and ( video_header->signature1 == 0x65646976 /*vide*/) and ( video_header->signature2 == 0x006F /*o */) )
+            {
+                if ( !e->selected_formats[ogm_id] ) return 0;
+                info_derived = true;
+                ogg_type = OggType::Video;
             }
         }
         last_index += (sizeof(PageHeader) + page_header->segments_num + segments_block);
@@ -3907,9 +3960,28 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     if ( pages < 2 ) return 0;
     u64i resource_size = last_index - base_index;
     QString info;
-    if ( info_derived ) info = QString("%1Hz %2kbps").arg(  QString::number(vorbis_header->sample_rate),
-                                                            QString::number(vorbis_header->bitrate_nom / 1000));
-    Q_EMIT e->txResourceFound("ogg", base_index, resource_size, info);
+    QString fmt_extension;
+    switch(ogg_type)
+    {
+    case OggType::Vorbis:
+    {
+        info = QString("%1Hz %2kbps").arg(  QString::number(vorbis_header->sample_rate),
+                                            QString::number(vorbis_header->bitrate_nom / 1000));
+        fmt_extension = "ogg";
+        break;
+    }
+    case OggType::Video:
+    {
+        info = QString("%1x%2, codec_id: %3").arg(  QString::number(video_header->width),
+                                                    QString::number(video_header->height),
+                                                    QString(QByteArray((char*)video_header->codec_name, 8)));
+        fmt_extension = "ogm";
+        break;
+    }
+    case OggType::Unknown:
+        return 0;
+    }
+    Q_EMIT e->txResourceFound(fmt_extension, base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }

@@ -124,7 +124,8 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "ico_win",  { "MS Windows Icon", "", "ICO", { CAT_IMAGE, CAT_WIN, CAT_PERFRISK }, CAT_NONE, { "ico_win" }, 0, "" } },
     { "cur_win",  { "MS Windows Cursor", "", "CUR", { CAT_IMAGE, CAT_WIN, CAT_PERFRISK }, CAT_NONE, { "cur_win" }, 0, "" } },
     { "mp3",      { "MPEG-1 Layer III Audio", "", "MP3", { CAT_AUDIO, CAT_PERFRISK, CAT_NONE }, CAT_LOSSY, { "mp3_fffa", "mp3_fffb", "mp3_id3v2" }, 0, "" } },
-    { "ogg",      { "Ogg Audio/Video", "", "OGG", { CAT_AUDIO, CAT_VIDEO, CAT_NONE }, CAT_NONE, { "ogg" }, 0, "" } },
+    { "ogg",      { "Ogg Vorbis Audio", "", "OGG", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "ogg" }, 0, "" } },
+    { "ogm",      { "Ogg Media", "not official", "OGM", { CAT_VIDEO, CAT_NONE, CAT_NONE }, CAT_NONE, { "ogg" }, 0, "" } },
     { "med",      { "OctaMED Module", "MMD0/MMD1/MMD2/MMD03", "MED", { CAT_MUSIC, CAT_AMIGA, CAT_OUTDATED }, CAT_MOTOROLA, { "mmd0", "mmd1", "mmd2", "mmd3" }, 0, "" } },
     { "dbm0",     { "DigiBooster Pro Module", "", "DBM", { CAT_MUSIC, CAT_AMIGA, CAT_OUTDATED }, CAT_MOTOROLA, { "dbm0" }, 0, "" } },
     { "ttf",      { "TrueType/OpenType Font", "TTF/OTF", "TTF", { CAT_OTHER, CAT_NONE, CAT_NONE }, CAT_VECTOR, { "ttf", "otf" }, 0, "" } },
@@ -132,7 +133,7 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "wmv",      { "Windows Media Video", "ASF container", "WMV", { CAT_VIDEO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } },
     { "wmf",      { "Windows Metafile", "", "WMF", { CAT_IMAGE, CAT_WIN, CAT_OUTDATED }, CAT_VECTOR, { "wmf_plc", "wmf_mem", "wmf_disk" }, 0, "" } },
     { "emf",      { "Enhanced Metafile", "", "EMF", { CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_VECTOR, { "emf" }, 0, "" } },
-    /// Сейчас 39 форматов.
+    /// Сейчас 40 форматов.
     /// ВНИМАНИЕ! При добавлении нового формата, нужно удостовериться, что хватит места для тайла в таблице результатов
     /// и при необходимости откорректировать макрос RESULTS_TABLE_ROWS в session.cpp ( RESULTS_TABLE_ROWS * RESULTS_TABLE_COLUMNS всегда должно быть >= кол-ва форматов).
 };

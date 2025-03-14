@@ -244,7 +244,7 @@ QString human_readable_bytes(u64i value, int lang_id)
         ++power;
     }
     new_value = new_value / pow(1024, power);
-    return QString("%1 %2").arg(QString::number(new_value, 'g', 3), unit_names[lang_id][power]);
+    return QString("%1 %2").arg(QString::number(new_value, 'g', 4), unit_names[lang_id][power]);
 }
 
 void FormatTile::update_counter(u64i value)
