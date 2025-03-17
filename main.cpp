@@ -80,7 +80,7 @@ int main(int argc, char **argv)
 
     //task->delAllTaskPaths();
     //task->addTaskPath(TaskPath {R"(c:\Games\Borderlands 3 Directors Cut\OakGame\Content\Paks\pakchunk0-WindowsNoEditor.pak)", "", false});
-    task->addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\ogm\bgc.sub.dub.ogm)", "", false});
+    task->addTaskPath(TaskPath {R"(c:\Downloads\rj_research\battlefield\fonts\JetBrainsMono-Regular.ttf)", "", false});
     //task->addTaskPath(TaskPath {R"(C:/Program Files/ASCON/KOMPAS-3D v22/Manual/Exercises)", "*", true});
 
     // [0] - имя файла процесса

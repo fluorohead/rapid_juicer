@@ -4140,6 +4140,21 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
         u32i offset;
         u32i len;
     };
+    struct NamingTableHeader
+    {
+        u16i format;
+        u16i count;
+        u16i strings_offset; // смещение от начала NamingTableHeader
+    };
+    struct NameRecord
+    {
+        u16i platf_id;
+        u16i platf_specif_id;
+        u16i lang_id;
+        u16i name_id;
+        u16i len;
+        u16i offset; // смещение от начала таблицы строк
+    };
 #pragma pack(pop)
     //qInfo() << " !!! TTF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     static const u64i min_room_need = sizeof(TTF_Header);
@@ -4162,6 +4177,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
     //qInfo() << "num_of_tables:" << num_tables;
     if ( num_tables == 0 ) return 0;
     if ( last_index + num_tables * sizeof(TableRecord) > file_size ) return 0; // не хватает места под директорию таблиц
+    QString family_name;
+    QString weight_type;
     for(u16i idx = 0; idx < num_tables; ++idx) // обход directory table
     {
         table_record = (TableRecord*)&buffer[last_index];
@@ -4169,12 +4186,56 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
         if ( base_index + be2le(table_record->offset) + be2le(table_record->len) > file_size ) return 0; // тело таблицы не вмещается в сканируемый файл
         tables_db[be2le(table_record->offset)] = be2le(table_record->len);
         //qInfo() << "idx:" << idx << QString("; tag_type: 0x%1").arg(QString::number(be2le(table_record->table_tag), 16)) << "; table_offset:" << be2le(table_record->offset) << "; table_len:" << be2le(table_record->len);
+        if ( be2le(table_record->table_tag) == 0x6E616D65 /*name*/ ) // достаём имя и толщину шрифта
+        {
+            u64i ntbl_li = base_index + be2le(table_record->offset); // поставились на NamingTableHeader
+            if ( ntbl_li >= file_size ) return 0; // смещение за пределами исходника
+            if ( file_size - ntbl_li < sizeof(NamingTableHeader) ) return 0; // нет места на NamingTableHeader
+            auto ntbl_header = (NamingTableHeader*)&buffer[ntbl_li];
+            u64i strings_offset = ntbl_li + be2le(ntbl_header->strings_offset);
+            if ( strings_offset >= file_size ) return 0; // неверное смещение списка строк за пределами исходного файла
+            //qInfo() << "name_table header at offset:" << ntbl_li << "; name_strings at offset:" << strings_offset;
+            ntbl_li += sizeof(NamingTableHeader); // ставимся на первую name-запись
+            if ( file_size - ntbl_li < be2le(ntbl_header->count) * sizeof(NameRecord) ) return 0; // нет места под весь список name-записей
+            auto name_rec = (NameRecord*)&buffer[ntbl_li];
+            for(u16i n_idx = 0; n_idx < be2le(ntbl_header->count); ++n_idx)
+            {
+                qInfo() << "name_record idx:" << n_idx << "; platf_id:" << be2le(name_rec[n_idx].platf_id) << "; platf_spec_id:" << be2le(name_rec[n_idx].platf_specif_id) << "; lang_id:" << be2le(name_rec[n_idx].lang_id)
+                        << "; name_id:" << be2le(name_rec[n_idx].name_id) << "; len:" << be2le(name_rec[n_idx].len)  << "; offset:" << strings_offset + be2le(name_rec[n_idx].offset) << "; relative_offset:" << be2le(name_rec[n_idx].offset);
+                if ( ( be2le(name_rec[n_idx].platf_id) == 3 ) and ( be2le(name_rec[n_idx].platf_specif_id) == 1 ) and
+                     ( be2le(name_rec[n_idx].lang_id) == 1033 ) and ( be2le(name_rec[n_idx].name_id) == 1 ) and
+                     ( be2le(name_rec[n_idx].len) >= 2 ) ) /// извлекаем имя шрифта
+                {
+                    if ( file_size - (strings_offset + be2le(name_rec[n_idx].offset)) < be2le(name_rec[n_idx].len) ) return 0;
+                    qInfo() << "possibly name is at:" << strings_offset + be2le(name_rec[n_idx].offset) << "; len:" << be2le(name_rec[n_idx].len);
+                    auto font_name = (char*)&buffer[strings_offset + be2le(name_rec[n_idx].offset)];
+                    font_name++; // сдвигаем на 1 байт, т.к. этот байт == \x00 и соответствует big-endian UTF-16, а нам нужен little-endian UTF-16
+                    auto qba_font_name = QByteArray(font_name, be2le(name_rec[n_idx].len) - 1); // -1, т.к. указатель сдвинут
+                    qba_font_name.append('\x00'); // добавляем недостающий ноль, т.к. в little-endian utf-16 нули для латинских букв идут после символов
+                    family_name = std::move(QString::fromWCharArray((wchar_t*)qba_font_name.data(), be2le(name_rec[n_idx].len) / 2));
+                }
+
+                if ( ( be2le(name_rec[n_idx].platf_id) == 3 ) and ( be2le(name_rec[n_idx].platf_specif_id) == 1 ) and
+                     ( be2le(name_rec[n_idx].lang_id) == 1033 ) and ( be2le(name_rec[n_idx].name_id) == 2 ) and
+                     ( be2le(name_rec[n_idx].len) >= 2 ) ) /// извлекаем вес шрифта (Bold/Italic/Regular/etc...)
+                {
+                    if ( file_size - (strings_offset + be2le(name_rec[n_idx].offset)) < be2le(name_rec[n_idx].len) ) return 0;
+                    qInfo() << "possibly weight is at:" << strings_offset + be2le(name_rec[n_idx].offset) << "; len:" << be2le(name_rec[n_idx].len);
+                    auto font_name = (char*)&buffer[strings_offset + be2le(name_rec[n_idx].offset)];
+                    font_name++; // сдвигаем на 1 байт, т.к. этот байт == \x00 и соответствует big-endian UTF-16, а нам нужен little-endian UTF-16
+                    auto qba_font_name = QByteArray(font_name, be2le(name_rec[n_idx].len) - 1); // -1, т.к. указатель сдвинут
+                    qba_font_name.append('\x00'); // добавляем недостающий ноль, т.к. в little-endian utf-16 нули для латинских букв идут после символов
+                    weight_type = std::move(QString::fromWCharArray((wchar_t*)qba_font_name.data(), be2le(name_rec[n_idx].len) / 2));
+                }
+            }
+        }
         last_index += sizeof(TableRecord);
     }
     //qInfo() << tables_db;
     if ( tables_db.lastKey() < sizeof(TTF_Header) + num_tables * sizeof(TableRecord) ) return 0; // все таблицы должны быть строго после директории
     u64i resource_size = tables_db.lastKey() + tables_db[tables_db.lastKey()];
-    Q_EMIT e->txResourceFound("ttf", base_index, resource_size, "");
+    QString info (QString("%1 %2").arg(family_name, weight_type));
+    Q_EMIT e->txResourceFound("ttf", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
