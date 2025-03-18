@@ -43,6 +43,7 @@
   //   22 |669  : 6966
   //   26 |mdat : 6D64 : 6174
   //   26 |moov : 6D6F : 6F76
+  //   33 |ttc  : 7474 : 6366
   //   20 |png  : 8950 : 4E47
   //   29 |wmf  : D7CD : C69A
   //   21 |jpg  : FFD8 : FFE0
@@ -113,6 +114,7 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "mmd3",       { 0x0000000033444D4D, 4, Engine::recognize_med      } }, // "MMD3" OctaMED
     { "dbm0",       { 0x00000000304D4244, 4, Engine::recognize_dbm0     } }, // "DBM0" DigiBooster Pro
     { "ttf",        { 0x0000000000000100, 4, Engine::recognize_ttf      } }, // "\x00\x01\x00\x00"
+    { "ttc",        { 0x0000000066637474, 4, Engine::recognize_ttc      } }, // "ttcf"
     { "otf",        { 0x000000004F54544F, 4, Engine::recognize_ttf      } }, // "OTTO"
     { "asf",        { 0x0000000075B22630, 4, Engine::recognize_asf      } }, // "\x30\x26\xB2\x75"
     { "wmf_plc",    { 0x000000009AC6CDD7, 4, Engine::recognize_wmf      } }, // "\xD7\xCD\xC6\x9A"
@@ -394,6 +396,12 @@ void Engine::generate_comparation_func()
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[26])); // mdat, moov
         aj_asm.mov(x86::ptr(x86::rdi, 0x6D * 8), x86::rax);
+    }
+
+    if ( selected_formats[fformats["ttf"].index] )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[33])); // ttc
+        aj_asm.mov(x86::ptr(x86::rdi, 0x74 * 8), x86::rax);
     }
 
     if ( selected_formats[fformats["png"].index] )
@@ -1057,6 +1065,23 @@ aj_asm.bind(aj_sub_labels[11]);
     //
     aj_asm.jmp(aj_loop_check_label);
 
+// ; 0x74
+aj_asm.bind(aj_signat_labels[33]);
+    // ; ttc : 74'74 : 63'66
+    aj_asm.cmp(x86::al, 0x74);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x63'66);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_ttc
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_ttc));
+    // для ttc всегда выключен scrupulous mode.
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_off_label);
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
 // ; 0x89
 aj_asm.bind(aj_signat_labels[20]);
     // ; png : 0x89'50 : 0x4E'47
@@ -1080,7 +1105,7 @@ aj_asm.bind(aj_signat_labels[29]);
     aj_asm.jne(aj_loop_check_label);
     aj_asm.cmp(x86::bx, 0xC6'9A);
     aj_asm.jne(aj_loop_check_label);
-    // вызов recognize_png
+    // вызов recognize_wmf
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_wmf));
@@ -4119,6 +4144,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dbm0 RECOGNIZE_FUNC_HEADER
     return resource_size;
 };
 
+static const QSet<u32i> TTF_VALID_TABLE_TAG {   0x41534350 /*ASCP*/, 0x42415345 /*BASE*/, 0x43464620 /*CFF */, 0x434F4C52 /*COLR*/, 0x4350414C /*CPAL*/, 0x44534947 /*DSIG*/, 0x45424454 /*EBDT*/,
+                                                0x45424C43 /*EBLC*/, 0x4646544D /*FFTM*/, 0x47444546 /*GDEF*/, 0x47504F53 /*GPOS*/, 0x47535542 /*GSUB*/, 0x48564152 /*HVAR*/, 0x4A535446 /*JSTF*/,
+                                                0x4C545348 /*LTSH*/, 0x4D415448 /*MATH*/, 0x4D455247 /*MERG*/, 0x4D564152 /*MVAR*/, 0x4F532F32 /*OS/2*/, 0x50434C54 /*PCLT*/, 0x53544154 /*STAT*/,
+                                                0x54544641 /*TTFA*/, 0x56444D58 /*VDMX*/, 0x564F5247 /*VORG*/, 0x61766172 /*avar*/, 0x62646174 /*bdat*/, 0x626C6F63 /*bloc*/, 0x636D6170 /*cmap*/,
+                                                0x63767420 /*cvt */, 0x6670676D /*fpgm*/, 0x66766172 /*fvar*/, 0x67617370 /*gasp*/, 0x676C7966 /*glyf*/, 0x67766172 /*gvar*/, 0x68646D78 /*hdmx*/,
+                                                0x68656164 /*head*/, 0x68686561 /*hhea*/, 0x686D7478 /*hmtx*/, 0x6B65726E /*kern*/, 0x6C6F6361 /*loca*/, 0x6D617870 /*maxp*/, 0x6D657461 /*meta*/,
+                                                0x6E616D65 /*name*/, 0x706F7374 /*post*/, 0x70726570 /*prep*/, 0x76686561 /*vhea*/, 0x766D7478 /*vmtx*/ };
+
 RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
 {
 // https://github.com/corkami/pics/blob/master/binary/ttf.png
@@ -4158,13 +4191,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
 #pragma pack(pop)
     //qInfo() << " !!! TTF RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     static const u64i min_room_need = sizeof(TTF_Header);
-    static const QSet<u32i> VALID_TABLE_TAG {   0x41534350 /*ASCP*/, 0x42415345 /*BASE*/, 0x43464620 /*CFF */, 0x434F4C52 /*COLR*/, 0x4350414C /*CPAL*/, 0x44534947 /*DSIG*/, 0x45424454 /*EBDT*/,
-                                                0x45424C43 /*EBLC*/, 0x4646544D /*FFTM*/, 0x47444546 /*GDEF*/, 0x47504F53 /*GPOS*/, 0x47535542 /*GSUB*/, 0x48564152 /*HVAR*/, 0x4A535446 /*JSTF*/,
-                                                0x4C545348 /*LTSH*/, 0x4D415448 /*MATH*/, 0x4D455247 /*MERG*/, 0x4D564152 /*MVAR*/, 0x4F532F32 /*OS/2*/, 0x50434C54 /*PCLT*/, 0x53544154 /*STAT*/,
-                                                0x54544641 /*TTFA*/, 0x56444D58 /*VDMX*/, 0x564F5247 /*VORG*/, 0x61766172 /*avar*/, 0x62646174 /*bdat*/, 0x626C6F63 /*bloc*/, 0x636D6170 /*cmap*/,
-                                                0x63767420 /*cvt */, 0x6670676D /*fpgm*/, 0x66766172 /*fvar*/, 0x67617370 /*gasp*/, 0x676C7966 /*glyf*/, 0x67766172 /*gvar*/, 0x68646D78 /*hdmx*/,
-                                                0x68656164 /*head*/, 0x68686561 /*hhea*/, 0x686D7478 /*hmtx*/, 0x6B65726E /*kern*/, 0x6C6F6361 /*loca*/, 0x6D617870 /*maxp*/, 0x6D657461 /*meta*/,
-                                                0x6E616D65 /*name*/, 0x706F7374 /*post*/, 0x70726570 /*prep*/, 0x76686561 /*vhea*/, 0x766D7478 /*vmtx*/ };
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset;
     auto buffer = e->mmf_scanbuf;
@@ -4176,13 +4202,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
     u16i num_tables = be2le(info_header->num_tables);
     //qInfo() << "num_of_tables:" << num_tables;
     if ( num_tables == 0 ) return 0;
-    if ( last_index + num_tables * sizeof(TableRecord) > file_size ) return 0; // не хватает места под директорию таблиц
+    if ( file_size - last_index < num_tables * sizeof(TableRecord) ) return 0; // не хватает места под директорию таблиц
     QString family_name;
     QString weight_type;
     for(u16i idx = 0; idx < num_tables; ++idx) // обход directory table
     {
         table_record = (TableRecord*)&buffer[last_index];
-        if ( !VALID_TABLE_TAG.contains(be2le(table_record->table_tag)) ) return 0; // встретился неизвестный тег
+        if ( !TTF_VALID_TABLE_TAG.contains(be2le(table_record->table_tag)) ) return 0; // встретился неизвестный тег
         if ( base_index + be2le(table_record->offset) + be2le(table_record->len) > file_size ) return 0; // тело таблицы не вмещается в сканируемый файл
         tables_db[be2le(table_record->offset)] = be2le(table_record->len);
         //qInfo() << "idx:" << idx << QString("; tag_type: 0x%1").arg(QString::number(be2le(table_record->table_tag), 16)) << "; table_offset:" << be2le(table_record->offset) << "; table_len:" << be2le(table_record->len);
@@ -4200,17 +4226,17 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
             auto name_rec = (NameRecord*)&buffer[ntbl_li];
             for(u16i n_idx = 0; n_idx < be2le(ntbl_header->count); ++n_idx)
             {
-                qInfo() << "name_record idx:" << n_idx << "; platf_id:" << be2le(name_rec[n_idx].platf_id) << "; platf_spec_id:" << be2le(name_rec[n_idx].platf_specif_id) << "; lang_id:" << be2le(name_rec[n_idx].lang_id)
-                        << "; name_id:" << be2le(name_rec[n_idx].name_id) << "; len:" << be2le(name_rec[n_idx].len)  << "; offset:" << strings_offset + be2le(name_rec[n_idx].offset) << "; relative_offset:" << be2le(name_rec[n_idx].offset);
+                // qInfo() << "name_record idx:" << n_idx << "; platf_id:" << be2le(name_rec[n_idx].platf_id) << "; platf_spec_id:" << be2le(name_rec[n_idx].platf_specif_id) << "; lang_id:" << be2le(name_rec[n_idx].lang_id)
+                //         << "; name_id:" << be2le(name_rec[n_idx].name_id) << "; len:" << be2le(name_rec[n_idx].len)  << "; offset:" << strings_offset + be2le(name_rec[n_idx].offset) << "; relative_offset:" << be2le(name_rec[n_idx].offset);
                 if ( ( be2le(name_rec[n_idx].platf_id) == 3 ) and ( be2le(name_rec[n_idx].platf_specif_id) == 1 ) and
                      ( be2le(name_rec[n_idx].lang_id) == 1033 ) and ( be2le(name_rec[n_idx].name_id) == 1 ) and
                      ( be2le(name_rec[n_idx].len) >= 2 ) ) /// извлекаем имя шрифта
                 {
                     if ( file_size - (strings_offset + be2le(name_rec[n_idx].offset)) < be2le(name_rec[n_idx].len) ) return 0;
-                    qInfo() << "possibly name is at:" << strings_offset + be2le(name_rec[n_idx].offset) << "; len:" << be2le(name_rec[n_idx].len);
-                    auto font_name = (char*)&buffer[strings_offset + be2le(name_rec[n_idx].offset)];
-                    font_name++; // сдвигаем на 1 байт, т.к. этот байт == \x00 и соответствует big-endian UTF-16, а нам нужен little-endian UTF-16
-                    auto qba_font_name = QByteArray(font_name, be2le(name_rec[n_idx].len) - 1); // -1, т.к. указатель сдвинут
+                    //qInfo() << "possibly name is at:" << strings_offset + be2le(name_rec[n_idx].offset) << "; len:" << be2le(name_rec[n_idx].len);
+                    auto name = (char*)&buffer[strings_offset + be2le(name_rec[n_idx].offset)];
+                    name++; // сдвигаем на 1 байт, т.к. этот байт == \x00 и соответствует big-endian UTF-16, а нам нужен little-endian UTF-16
+                    auto qba_font_name = QByteArray(name, be2le(name_rec[n_idx].len) - 1); // -1, т.к. указатель сдвинут
                     qba_font_name.append('\x00'); // добавляем недостающий ноль, т.к. в little-endian utf-16 нули для латинских букв идут после символов
                     family_name = std::move(QString::fromWCharArray((wchar_t*)qba_font_name.data(), be2le(name_rec[n_idx].len) / 2));
                 }
@@ -4220,10 +4246,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
                      ( be2le(name_rec[n_idx].len) >= 2 ) ) /// извлекаем вес шрифта (Bold/Italic/Regular/etc...)
                 {
                     if ( file_size - (strings_offset + be2le(name_rec[n_idx].offset)) < be2le(name_rec[n_idx].len) ) return 0;
-                    qInfo() << "possibly weight is at:" << strings_offset + be2le(name_rec[n_idx].offset) << "; len:" << be2le(name_rec[n_idx].len);
-                    auto font_name = (char*)&buffer[strings_offset + be2le(name_rec[n_idx].offset)];
-                    font_name++; // сдвигаем на 1 байт, т.к. этот байт == \x00 и соответствует big-endian UTF-16, а нам нужен little-endian UTF-16
-                    auto qba_font_name = QByteArray(font_name, be2le(name_rec[n_idx].len) - 1); // -1, т.к. указатель сдвинут
+                    //qInfo() << "possibly weight is at:" << strings_offset + be2le(name_rec[n_idx].offset) << "; len:" << be2le(name_rec[n_idx].len);
+                    auto name = (char*)&buffer[strings_offset + be2le(name_rec[n_idx].offset)];
+                    name++; // сдвигаем на 1 байт, т.к. этот байт == \x00 и соответствует big-endian UTF-16, а нам нужен little-endian UTF-16
+                    auto qba_font_name = QByteArray(name, be2le(name_rec[n_idx].len) - 1); // -1, т.к. указатель сдвинут
                     qba_font_name.append('\x00'); // добавляем недостающий ноль, т.к. в little-endian utf-16 нули для латинских букв идут после символов
                     weight_type = std::move(QString::fromWCharArray((wchar_t*)qba_font_name.data(), be2le(name_rec[n_idx].len) / 2));
                 }
@@ -4239,6 +4265,96 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
     e->resource_offset = base_index;
     return resource_size;
 }
+
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_ttc RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct TTC_Header
+    {
+        u32i ttc_tag;
+        u16i maj_ver;
+        u16i min_ver;
+        u32i fonts_num;
+    };
+    struct DSIG_Tag
+    {
+        u32i tag;
+        u32i len;
+        u32i offset;
+    };
+    struct TTF_Header
+    {
+        u32i sfnt_version; // 0x00000100 ttf
+        u16i num_tables;
+        u16i search_range;
+        u16i entry_selector;
+        u16i range_shift;
+    };
+    struct TableRecord
+    {
+        u32i table_tag;
+        u32i checksum;
+        u32i offset;
+        u32i len;
+    };
+#pragma pack(pop)
+    //qInfo() << " !!! TTC RECOGNIZER CALLED !!!" << e->scanbuf_offset;
+    static const u64i min_room_need = sizeof(TTC_Header);
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset;
+    auto buffer = e->mmf_scanbuf;
+    auto ttc_header = (TTC_Header*)&buffer[base_index];
+    if ( ( ttc_header->maj_ver != 0x0100 ) and ( ttc_header->maj_ver != 0x0200 ) ) return 0;
+    if ( ttc_header->min_ver != 0x0000 ) return 0;
+    s64i file_size = e->file_size;
+    u64i last_index = base_index + sizeof(TTC_Header); // переставляемся на список смещений директорий
+    if ( last_index >= file_size ) return 0; // список смещений за пределами исходника
+    u32i max_fonts = be2le(ttc_header->fonts_num);
+    if ( file_size - last_index < max_fonts * 4 ) return 0; // не хватает места под смещения директорий
+    u32i* dir_offset_ptr = (u32i*)&buffer[last_index];
+    QMap<u32i, u32i> tables_db; // бд тел таблиц всех фонтов в коллекции (а также digital signature, которая может быть в самом конце исходника)
+    // анализ наличия DSIG'а
+    if ( ( ttc_header->maj_ver == 0x0200 ) and ( file_size - base_index >= sizeof(TTC_Header) + max_fonts * 4 + sizeof(DSIG_Tag) ) )
+    {
+        auto dsig_tag = (DSIG_Tag*)&buffer[last_index + max_fonts * 4];
+        if ( be2le(dsig_tag->offset) >= sizeof(TTC_Header) + max_fonts * 4 + sizeof(DSIG_Tag) )
+        {
+            if ( base_index + be2le(dsig_tag->offset) + be2le(dsig_tag->len) <= file_size )
+            {
+                tables_db[be2le(dsig_tag->offset)] = be2le(dsig_tag->len);
+                //qInfo() << "digital signature present at offset:" << be2le(dsig_tag->offset) << "; len:" << be2le(dsig_tag->len);
+            }
+        }
+    }
+    for(u32i fnt_idx = 0; fnt_idx < max_fonts; ++fnt_idx) // проход по смещениям директорий
+    {
+        u64i font_base_offset = base_index + be2le(dir_offset_ptr[fnt_idx]); // смещение очередного фонта от начала исходника
+        if ( font_base_offset >= file_size ) return 0; // смещение фонта за пределами исходника
+        if ( file_size - font_base_offset < sizeof(TTF_Header) ) return 0; // не хватает места на заголовок фонта
+        auto ttf_header = (TTF_Header*)&buffer[font_base_offset];
+        if ( ttf_header->sfnt_version != 0x00000100 ) return 0;
+        u16i num_tables = be2le(ttf_header->num_tables);
+        if ( num_tables == 0 ) return 0;
+        if ( file_size - font_base_offset < sizeof(TTF_Header) + sizeof(TableRecord) * num_tables ) return 0; // не хватает места под directory table
+        auto table_record = (TableRecord*)&buffer[font_base_offset + sizeof(TTF_Header)]; // поставились на первую запись в directory table
+        //qInfo() << "\n>>> fnt_idx:" << fnt_idx << "; font_base_offset: " << font_base_offset << "; max_tables:" << num_tables;
+        for(u16i idx = 0; idx < num_tables; ++idx) // обход directory table
+        {
+            if ( !TTF_VALID_TABLE_TAG.contains(be2le(table_record[idx].table_tag)) ) return 0; // встретился неизвестный тег
+            if ( base_index + be2le(table_record[idx].offset) + be2le(table_record[idx].len) > file_size ) return 0; // тело таблицы не вмещается в сканируемый файл
+            tables_db[be2le(table_record[idx].offset)] = be2le(table_record[idx].len);
+            //qInfo() << "    dir_idx:" << idx << QString("; tag_type: 0x%1").arg(QString::number(be2le(table_record[idx].table_tag), 16)) << "; table_offset:" << be2le(table_record[idx].offset) << "; table_len:" << be2le(table_record[idx].len);
+        }
+    }
+    //qInfo() << tables_db;
+    u64i resource_size = tables_db.lastKey() + tables_db[tables_db.lastKey()];
+    QString info (QString("%1 font(s) in collection").arg(QString::number(max_fonts)));
+    Q_EMIT e->txResourceFound("ttf", base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
 
 RECOGNIZE_FUNC_RETURN Engine::recognize_asf RECOGNIZE_FUNC_HEADER
 {
