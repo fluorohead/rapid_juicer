@@ -157,7 +157,7 @@ public Q_SLOTS:
     void rxFileChange(const QString &file_name, u64i file_size);
     void rxFileProgress(s64i percentage_value);
     void rxChangePageTo(int page);
-    void rxResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);
+    void rxResourceFound(const QString &format_name, const QString &format_extension, s64i file_offset, u64i size, const QString &info);
     void rxSerializeAndReport();
     void rxSerializeAndSaveAll();
     void rxSerializeAndSaveSelected(const QString &format_name);

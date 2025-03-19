@@ -272,7 +272,7 @@ FormatTile::FormatTile(const QString &format_name)
     tmpFont.setPixelSize(15);
     tmpFont.setBold(true);
     fmt_text->setFont(tmpFont);
-    fmt_text->setText(fformats[format_name].extension);
+    fmt_text->setText(fformats[format_name].default_extension);
     counter = new QLabel(this);
     counter->setFixedSize(80, 24);
     counter->setStyleSheet("color: #c6d7d7; background-color: #794642; border-width: 0px; margin: 0px;");
@@ -976,7 +976,7 @@ void SessionWindow::rxFileProgress(s64i percentage_value)
     file_progress_bar->setValue(percentage_value);
 }
 
-void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info)
+void SessionWindow::rxResourceFound(const QString &format_name, const QString &format_extension, s64i file_offset, u64i size, const QString &info)
 {
     ++total_resources_found;
     if ( !resources_db.contains(format_name) ) // формат встретился первый раз?
@@ -1010,7 +1010,14 @@ void SessionWindow::rxResourceFound(const QString &format_name, s64i file_offset
        //накладно хранить в каждой записи имя исходного файла,поэтому храним там только индекс из этого списка.
     }
     // занесение в БД
-    resources_db[format_name].append( { total_resources_found, false, u64i(src_files.count() - 1), file_offset, size, info, fformats[format_name].extension } );
+    if ( format_extension.isEmpty() ) // если передано пустое расширение, значит оно берётся из названия формата
+    {
+        resources_db[format_name].append( { total_resources_found, false, u64i(src_files.count() - 1), file_offset, size, info, fformats[format_name].default_extension.toLower() } );
+    }
+    else
+    {
+        resources_db[format_name].append( { total_resources_found, false, u64i(src_files.count() - 1), file_offset, size, info, format_extension } );
+    }
 
     // занесение на страницу формата
     ((ResultsByFormatWidget*)pages->widget(fformats[format_name].index + 1))->InsertNewRecord( &resources_db[format_name].last(), resources_db[format_name].count() - 1 );

@@ -66,7 +66,7 @@ struct FileFormat
 {
     QString        description; // для отображения в списке форматов
     QString        commentary; // для отображения более мелким шрифтом в списке форматов
-    QString        extension;  // для отображения в списке форматов
+    QString        default_extension;  // для отображения в списке форматов (может быть уточнено в отчётах recognizer'ов)
     u64i           base_categories[3];
     u64i           additional_categories; // задаётся через битовое "|"
     QList<QString> signature_ids;  // список сигнатур для формата (должен быть >= 1)

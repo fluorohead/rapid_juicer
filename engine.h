@@ -107,7 +107,7 @@ public:
 Q_SIGNALS:
     void txFileChange(const QString &file_name, u64i bytes_amount);
     void txFileProgress(s64i percentage_value);
-    void txResourceFound(const QString &format_name, s64i file_offset, u64i size, const QString &info);
+    void txResourceFound(const QString &format_name, const QString &format_extension, s64i file_offset, u64i size, const QString &info);
 
     friend WalkerThread;
 };

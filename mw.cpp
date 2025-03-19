@@ -288,7 +288,7 @@ FormatsTable::FormatsTable(QWidget *parent)
     for (auto it = fformats.begin(); it != fformats.end(); ++it)
     {
         this->setRowHeight(it.value().index + 1, FORMATS_TABLE_ROW_H);
-        auto fmt_label = new FormatLabel(it.key(), it.value().extension, corner_fmt_pixmap);
+        auto fmt_label = new FormatLabel(it.key(), it.value().default_extension, corner_fmt_pixmap);
         fmt_label->setFixedSize(FORMATS_TABLE_COL0_W - 1, FORMATS_TABLE_ROW_H - 1);
         fmt_label->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
         fmt_label->setFont(column0_font);
