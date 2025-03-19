@@ -3138,6 +3138,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
     };
 #pragma pack(pop)
     static const u64i min_room_need = sizeof(FLC_Header) - sizeof(FLC_Header::file_size);
+    static const QHash<u16i, QString> EXTENSION { { 0xAF11, "fli" }, { 0xAF12, "flc" }, {0xAF44, "flx"} };
     if ( e->scanbuf_offset < sizeof(FLC_Header::file_size) ) return 0;
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset - sizeof(FLC_Header::file_size);
@@ -3156,7 +3157,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
     auto info = QString("%1x%2 %3-bpp").arg(QString::number(info_header->width),
                                             QString::number(info_header->height),
                                             QString::number(info_header->pix_depth));
-    Q_EMIT e->txResourceFound("flc", "", base_index, resource_size, info);
+    Q_EMIT e->txResourceFound("flc", EXTENSION[info_header->file_id], base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
@@ -3178,6 +3179,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
         u8i  sample_name[13];
         u32i sample_size, loop_begin, loop_end;
     };
+    using Note = u8i[3];
+    using Row = Note[8]; // т.к. 8 каналов
+    using Pattern = Row[64];
 #pragma pack(pop)
     //qInfo() << " !!! 669 RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     static const u64i min_room_need = sizeof(_669_Header);
@@ -3188,11 +3192,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     if ( ( info_header->smpnum == 0 ) or ( info_header->patnum == 0 ) ) return 0; // жесткая проверка (т.к. в теории могут быть модули и без сэмплов и без паттернов), но вынужденная, иначе много ложных срабатываний
     if ( info_header->smpnum > 64 ) return 0; // согласно описанию
     if ( info_header->patnum > 128 ) return 0; // согласно описанию
-    for (u8i idx = 0; idx < sizeof(_669_Header::song_name); ++idx) // проверка на неподпустимые символы в названии песни
-    {
-        if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] < 32 )) return 0;
-        if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] > 126 )) return 0;
-    }
+    // for (u8i idx = 0; idx < sizeof(_669_Header::song_name); ++idx) // проверка на неподпустимые символы в названии песни
+    // {
+    //     //if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] < 32 )) return 0;
+    //     if ( ( info_header->song_name[idx] != 0 ) and ( info_header->song_name[idx] > 126 )) return 0;
+    // }
     s64i file_size = e->file_size;
     if ( base_index + sizeof(_669_Header) + sizeof(SampleHeader) * info_header->smpnum + info_header->patnum * 1536 > file_size) return 0; // где 1536 - размер одного паттерна
     u64i last_index = base_index + sizeof(_669_Header); // переставляем last_index на первый заголовок сэмпла
@@ -3200,25 +3204,48 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     u64i samples_block = 0; // суммарный размер тел сэмплов
     for (u8i idx = 0; idx < info_header->smpnum; ++idx)
     {
-        if ( last_index + sizeof(SampleHeader) > file_size ) return 0; // не хватает места для заголовка сэмпла
+        if ( file_size - last_index < sizeof(SampleHeader) ) return 0; // не хватает места для заголовка сэмпла
         sample_header = (SampleHeader*)&buffer[last_index];
-        //qInfo() << " sample_id:" << idx << " sample_size:" << sample_header->sample_size << " loop_begin:" << sample_header->loop_begin << " loop end:" << sample_header->loop_end;
+        // qInfo() << " sample_id:" << idx << " sample_size:" << sample_header->sample_size << " loop_begin:" << sample_header->loop_begin << " loop end:" << sample_header->loop_end;
         // сигнатура 'if' очень часто встречается, поэтому формат CAT_PERFRISK.
         // нужны тщательные проверки :
         if ( sample_header->loop_begin > sample_header->sample_size ) return 0;
-        if ( ( sample_header->loop_end > sample_header->sample_size ) and ( sample_header->loop_end != 0xFFFFF) ) return 0;
+        if ( ( sample_header->loop_end > sample_header->sample_size ) and ( ( sample_header->loop_end != 0xFFFFF ) and ( sample_header->loop_end != 0xFFFFFFFF ) ) ) return 0;
         if ( sample_header->loop_begin > sample_header->loop_end ) return 0;
-        for (u8i sub_idx = 0; idx < sizeof(SampleHeader::sample_name); ++idx) // проверка на неподпустимые символы в названиях сэмплов
-        {
-            if ( ( sample_header->sample_name[sub_idx] != 0 ) and ( sample_header->sample_name[sub_idx] < 32 )) return 0;
-            if ( ( sample_header->sample_name[sub_idx] != 0 ) and ( sample_header->sample_name[sub_idx] > 126 )) return 0;
-        }
-        //
+        // for (u8i sub_idx = 0; sub_idx < sizeof(SampleHeader::sample_name); ++sub_idx) // проверка на неподпустимые символы в названиях сэмплов
+        // {
+        //     if ( ( sample_header->sample_name[sub_idx] != 0 ) and ( sample_header->sample_name[sub_idx] < 32 )) return 0;
+        //     if ( ( sample_header->sample_name[sub_idx] != 0 ) and ( sample_header->sample_name[sub_idx] > 126 )) return 0;
+        // }
         samples_block += sample_header->sample_size;
         last_index += sizeof(SampleHeader); // переставляем last_index на следующий заголовок сэмпла (или начало паттернов, если завершение цикла)
     }
-    //qInfo() << " summary sample bodies size:" << samples_block;
+    // здесь last_index стоит в начале паттернов
+    // qInfo() << "begin of patterns offset:" << last_index;
+    // далее валидация нотных команд
+    auto patterns = (Pattern*)&buffer[last_index];
+    for(u8i pat_idx = 0; pat_idx < info_header->patnum; ++ pat_idx) // идём по паттернам
+    {
+        // qInfo() << "pat_idx:" << pat_idx << "; pat_offset:" << (uchar*)&patterns[pat_idx] - e->mmf_scanbuf;
+        auto rows = &patterns[pat_idx][0];
+        for(u8i row_idx = 0; row_idx < 64; ++row_idx) // идём по строкам
+        {
+            // qInfo() << "row_idx:" << row_idx << "; row_offset:" << (uchar*)&rows[row_idx] - e->mmf_scanbuf;
+            auto notes = &rows[row_idx][0];
+            for(u8i note_idx = 0; note_idx < 8; ++note_idx) // идём по каналам (нотам из каналов 0 - 7)
+            {
+                u8i instr_id = (notes[note_idx][1] >> 4) | ((notes[note_idx][0] << 4) & 0x00111111);
+                u8i command = notes[note_idx][2] >> 4;
+                // qInfo() << "note_idx:" << note_idx << "; note_offset:" << (uchar*)&patterns[pat_idx][row_idx] - e->mmf_scanbuf << "; byte0:" << notes[note_idx][0]
+                //         << "; byte1:" << notes[note_idx][1] << "; byte2:" << notes[note_idx][2] << "; instr_num:" << instr_id << "; command:" << command;
+                if ( ( command > 7 ) and ( notes[note_idx][2] != 0xFF ) ) return 0; // некорректная команда
+                if ( ( instr_id > info_header->smpnum ) and (instr_id != 31 ) ) return 0;
+            }
+        }
+    }
+    // qInfo() << " summary sample bodies size:" << samples_block;
     last_index += (info_header->patnum * 1536 + samples_block);
+    // qInfo() << "last_index:" << last_index;
     if ( last_index > file_size ) return 0;
     u64i resource_size = last_index - base_index;
     int song_name_len;
@@ -4228,9 +4255,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ttf RECOGNIZE_FUNC_HEADER
                     if ( file_size - (strings_offset + be2le(name_rec[n_idx].offset)) < be2le(name_rec[n_idx].len) ) return 0;
                     // qInfo() << "possibly weight is at:" << strings_offset + be2le(name_rec[n_idx].offset) << "; len:" << be2le(name_rec[n_idx].len);
                     auto name = (char*)&buffer[strings_offset + be2le(name_rec[n_idx].offset)];
-                    name++; // сдвигаем на 1 байт, т.к. этот байт == \x00 и соответствует big-endian UTF-16, а нам нужен little-endian UTF-16
+                    name++; // сдвигаем на 1 байт, т.к. этот байт == \x00 и соответствует 'big-endian UTF-16', а нам нужен 'little-endian UTF-16'
                     auto qba_font_name = QByteArray(name, be2le(name_rec[n_idx].len) - 1); // -1, т.к. указатель сдвинут
-                    qba_font_name.append('\x00'); // добавляем недостающий ноль, т.к. в little-endian utf-16 нули для латинских букв идут после символов
+                    qba_font_name.append('\x00'); // добавляем недостающий ноль, т.к. в 'little-endian utf-16' нули для латинских букв идут после символов
                     subfamily_name = std::move(QString::fromWCharArray((wchar_t*)qba_font_name.data(), be2le(name_rec[n_idx].len) / 2));
                 }
             }

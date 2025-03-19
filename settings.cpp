@@ -79,6 +79,11 @@ const QString cancel_txt[int(Langs::MAX)]
     "Cancel",  "Отмена"
 };
 
+const QString scan_with_rj[int(Langs::MAX)]
+{
+    "Scan with Rapid Juicer", "Сканировать в Rapid Juicer"
+};
+
 extern const QList<u64i> permitted_buffers {2, 10, 50}; // разрешённые размеры гранулярности (в мибибайтах)
 
 const QString QS_LANGUAGE  { "lang_idx" };
@@ -730,8 +735,9 @@ SettingsWindow::~SettingsWindow()
 void SettingsWindow::install_ctx_menu()
 {
 #ifdef _WIN64
-    QString rapid_juicer_path = QApplication::arguments()[0];
-    QSettings win_registry_for_file(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\*\shell\Scan with Rapid Juicer)", QSettings::Registry64Format);
+    QString rapid_juicer_path = std::move(QApplication::arguments()[0]);
+
+    QSettings win_registry_for_file(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\*\shell\)" + scan_with_rj[curr_lang()], QSettings::Registry64Format);
     win_registry_for_file.setValue("Icon", rapid_juicer_path + ",0");
     win_registry_for_file.setValue("SeparatorAfter", "");
     win_registry_for_file.setValue("SeparatorBefore", "");
@@ -739,7 +745,7 @@ void SettingsWindow::install_ctx_menu()
     win_registry_for_file.setValue(R"(Default)", QString(R"("%1" )").arg(rapid_juicer_path) + R"("-scan_file" "%1")");
     win_registry_for_file.endGroup();
 
-    QSettings win_registry_for_dir(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\Scan with Rapid Juicer)", QSettings::Registry64Format);
+    QSettings win_registry_for_dir(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\)" + scan_with_rj[curr_lang()], QSettings::Registry64Format);
     win_registry_for_dir.setValue("Icon", rapid_juicer_path + ",0");
     win_registry_for_dir.setValue("SeparatorAfter", "");
     win_registry_for_dir.setValue("SeparatorBefore", "");
@@ -747,7 +753,7 @@ void SettingsWindow::install_ctx_menu()
     win_registry_for_dir.setValue(R"(Default)", QString(R"("%1" )").arg(rapid_juicer_path) + R"("-scan_dir" "%1")");
     win_registry_for_dir.endGroup();
 
-    QSettings win_registry_for_drive(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\Scan with Rapid Juicer)", QSettings::Registry64Format);
+    QSettings win_registry_for_drive(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\)" + scan_with_rj[curr_lang()], QSettings::Registry64Format);
     win_registry_for_drive.setValue("Icon", rapid_juicer_path + ",0");
     win_registry_for_drive.setValue("SeparatorAfter", "");
     win_registry_for_drive.setValue("SeparatorBefore", "");
@@ -765,11 +771,14 @@ void SettingsWindow::remove_ctx_menu()
 {
 #ifdef _WIN64
     QSettings win_registry_for_file(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\*\shell)", QSettings::Registry64Format);
-    win_registry_for_file.remove("Scan with Rapid Juicer");
+    win_registry_for_file.remove(scan_with_rj[int(Langs::Eng)]);
+    win_registry_for_file.remove(scan_with_rj[int(Langs::Rus)]);
     QSettings win_registry_for_dir(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell)", QSettings::Registry64Format);
-    win_registry_for_dir.remove("Scan with Rapid Juicer");
+    win_registry_for_dir.remove(scan_with_rj[int(Langs::Eng)]);
+    win_registry_for_dir.remove(scan_with_rj[int(Langs::Rus)]);
     QSettings win_registry_for_drive(R"(HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell)", QSettings::Registry64Format);
-    win_registry_for_drive.remove("Scan with Rapid Juicer");
+    win_registry_for_drive.remove(scan_with_rj[int(Langs::Eng)]);
+    win_registry_for_drive.remove(scan_with_rj[int(Langs::Rus)]);
 #elif defined(__gnu_linux__) || defined(__linux__)
     // FFU
 #elif defined(__APPLE__) || defined(__MACH__)
