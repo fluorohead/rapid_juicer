@@ -11,6 +11,7 @@
   //   2  |fli  : 11AF
   //   3  |flc  : 12AF
   //   30 |emf  : 2045 : 4D46
+  //   34 |stm  : 2153 : 6372
   //   25 |au   : 2E73 : 6E64
   //   28 |asf  : 3026 : b275
   //   4  |bik  : 4249
@@ -86,6 +87,7 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "mid",        { 0x000000006468544D, 4, Engine::recognize_mid      } }, // "MThd"
     { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod      } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
     { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm       } }, // "Exte"
+    { "stm",        { 0x0000000072635321, 4, Engine::recognize_stm      } }, // "!Scream!"
     { "s3m",        { 0x000000004D524353, 4, Engine::recognize_s3m      } }, // "SCRM"
     { "it",         { 0x000000004D504D49, 4, Engine::recognize_it       } }, // "IMPM"
     { "bink1",      { 0x0000000000004942, 2, Engine::recognize_bink     } }, // "BI"
@@ -294,6 +296,12 @@ void Engine::generate_comparation_func()
     {
         aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[30])); // emf
         aj_asm.mov(x86::ptr(x86::rdi, 0x20 * 8), x86::rax);
+    }
+
+    if ( selected_formats[fformats["stm"].index] )
+    {
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[34])); // stm
+        aj_asm.mov(x86::ptr(x86::rdi, 0x21 * 8), x86::rax);
     }
 
     if ( selected_formats[fformats["au"].index] )
@@ -586,6 +594,23 @@ aj_asm.bind(aj_signat_labels[30]);
     // для emf всегда выключен scrupulous mode.
     aj_asm.cmp(x86::rax, 0);
     aj_asm.jne(aj_scrup_mode_off_label);
+    //
+    aj_asm.jmp(aj_loop_check_label);
+
+
+// ; 0x21
+aj_asm.bind(aj_signat_labels[34]);
+    // ; stm : 0x21'53 :0x63'72
+    aj_asm.cmp(x86::al, 0x53);
+    aj_asm.jne(aj_loop_check_label);
+    aj_asm.cmp(x86::bx, 0x63'72);
+    aj_asm.jne(aj_loop_check_label);
+    // вызов recognize_stm
+    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+    aj_asm.call(imm((u64i)Engine::recognize_stm));
+    aj_asm.cmp(x86::rax, 0);
+    aj_asm.jne(aj_scrup_mode_check_label);
     //
     aj_asm.jmp(aj_loop_check_label);
 
@@ -2403,6 +2428,85 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_xm RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
+
+RECOGNIZE_FUNC_RETURN Engine::recognize_stm RECOGNIZE_FUNC_HEADER
+{
+#pragma pack(push,1)
+    struct InstrHeader
+    {
+        u8i  filename[12];
+        u8i  zero;
+        u8i  disk;
+        u16i sample_offset; // in paragraphs
+        u16i sample_len;
+        u16i loop_start;
+        u16i loop_end;
+        u8i  volume;
+        u8i  reserved1;
+        u16i c4speed;
+        u32i reserved2;
+        u16i para_len;
+    };
+    struct STM_Header
+    {
+        u8i  song_name[20];
+        u64i tracker_name; //  !Scream!
+        u8i  str_terminator; // 0x1A
+        u8i  file_type;
+        u8i  maj_ver;
+        u8i  min_ver;
+        u8i  default_tempo;
+        u8i  pat_num;
+        u8i  default_volume;
+        u8i  reserved[13];
+        InstrHeader instr_headers[31];
+        u8i  pattern_order[128]; // 128, а не 64! в доках неправильно!
+    };
+#pragma pack(pop)
+    //qInfo() << "STM RECOGNIZER CALLED: " << e->scanbuf_offset;
+    static const u64i min_room_need = sizeof(STM_Header) - sizeof(STM_Header::song_name);
+    if ( e->scanbuf_offset < sizeof(STM_Header::song_name) ) return 0;
+    if ( !e->enough_room_to_continue(min_room_need) ) return 0;
+    u64i base_index = e->scanbuf_offset - sizeof(STM_Header::song_name); // base offset (индекс в массиве)
+    auto buffer = e->mmf_scanbuf;
+    auto info_header = (STM_Header*)&buffer[base_index];
+    if ( info_header->tracker_name != 0x216D616572635321 /*!Scream!*/ ) return 0;
+    if ( info_header->str_terminator != 0x1A ) return 0;
+    if ( ( info_header->file_type != 1 ) and ( info_header->file_type != 2 ) ) return 0;
+    if ( info_header->maj_ver != 2 ) return 0;
+    // qInfo() << "patterns_num:" << info_header->pat_num;
+    auto instr_headers = (InstrHeader*)&buffer[base_index + sizeof(STM_Header) - sizeof(STM_Header::instr_headers) - sizeof(STM_Header::pattern_order)];
+    QMap<u32i, u32i> db; // база данных смещений сэмплов (а так же смещения блока паттернов, т.к. может существовать модуль вообще без сэмлов)
+    db[sizeof(STM_Header)] = 1024 * info_header->pat_num; // сразу заносим смещение (относительно base_index) и размер блока паттернов
+    u32i minimal_samples_offset = db.lastKey() + db.last(); // минимальное смещение начала сэмплов
+    // qInfo() << "minimal_samples_offset:" << minimal_samples_offset;
+    for(u8i idx = 0; idx < 31; ++idx)
+    {
+        u32i long_sample_offset = instr_headers[idx].sample_offset * 16;
+        // qInfo() << "instr_idx:" << idx << "; sample_offset:" << long_sample_offset << "; sample_len:" << instr_headers[idx].sample_len
+        //         << "; loop_start:" << instr_headers[idx].loop_start << "; loop_end:" << instr_headers[idx].loop_end << "; volume:" << instr_headers[idx].volume
+        //         << "; c4speed:" << instr_headers[idx].c4speed;
+        if ( ( long_sample_offset >= minimal_samples_offset ) and ( instr_headers[idx].sample_len > 1) ) // повсеместно встречаются сэмплы размером 1, но по факту это то же самое, что и 0
+        {
+            db[long_sample_offset] = instr_headers[idx].sample_len;
+        }
+    }
+    //qInfo() << db;
+    u64i resource_size = db.lastKey() + db[db.lastKey()];
+    s64i file_size = e->file_size;
+    if ( file_size - base_index < resource_size ) return 0; // вычисленный размер не вмещается в исходник
+    int song_name_len;
+    for (song_name_len = 0; song_name_len < 20; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
+    {
+        if ( info_header->song_name[song_name_len] == 0 ) break;
+    }
+    auto info = std::move(QString("song '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len))));
+    Q_EMIT e->txResourceFound("stm", "", base_index, resource_size, info);
+    e->resource_offset = base_index;
+    return resource_size;
+}
+
+
 RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
 {
 #pragma pack(push,1)
@@ -2501,7 +2605,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_s3m RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    auto info = QString("song '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    auto info = std::move(QString("song '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len))));
     Q_EMIT e->txResourceFound("s3m", "", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -3154,9 +3258,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_flc RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index + info_header->file_size;
     if ( last_index > e->file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    auto info = QString("%1x%2 %3-bpp").arg(QString::number(info_header->width),
-                                            QString::number(info_header->height),
-                                            QString::number(info_header->pix_depth));
+    auto info = std::move(QString("%1x%2 %3-bpp").arg(  QString::number(info_header->width),
+                                                        QString::number(info_header->height),
+                                                        QString::number(info_header->pix_depth)));
     Q_EMIT e->txResourceFound("flc", EXTENSION[info_header->file_id], base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -3253,7 +3357,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_669 RECOGNIZE_FUNC_HEADER
     {
         if ( info_header->song_name[song_name_len] == 0 ) break;
     }
-    auto info = QString("song '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len)));
+    auto info = std::move(QString("song '%1'").arg(QString(QByteArray((char*)(info_header->song_name), song_name_len))));
     Q_EMIT e->txResourceFound("669", "", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -3288,8 +3392,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_au RECOGNIZE_FUNC_HEADER
     u64i last_index = base_index + be2le(info_header->data_offset) + be2le(info_header->data_size);
     if ( last_index > e->file_size ) return 0;
     u64i resource_size = last_index - base_index;
-    auto info = QString("%1Hz %2-ch").arg(  QString::number(be2le(info_header->sample_rate)),
-                                            QString::number(be2le(info_header->channels)));
+    auto info = std::move(QString("%1Hz %2-ch").arg(QString::number(be2le(info_header->sample_rate)),
+                                                    QString::number(be2le(info_header->channels))));
     Q_EMIT e->txResourceFound("au", "", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -3377,9 +3481,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
                     channels = compression_type - 3;
                     compression_type = 0x04;
                 }
-                info = QString("%1 codec : %2Hz %3-ch").arg(VALID_COMPRESSION[compression_type],
-                                                            QString::number(sample_rate),
-                                                            QString::number(channels));
+                info = std::move(QString("%1 codec : %2Hz %3-ch").arg(  VALID_COMPRESSION[compression_type],
+                                                                        QString::number(sample_rate),
+                                                                        QString::number(channels)));
                 info_derived = true;
             }
         }
@@ -3397,10 +3501,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_voc RECOGNIZE_FUNC_HEADER
                 {
                     codec = VALID_WFORMAT[sound_data->wformat];
                 }
-                info = QString("%1 codec : %2Hz %3-ch %4-bit").arg( codec,
-                                                                    QString::number(sound_data->sample_rate),
-                                                                    QString::number(sound_data->channels),
-                                                                    QString::number(sound_data->bits_per_sample));
+                info = std::move(QString("%1 codec : %2Hz %3-ch %4-bit").arg(   codec,
+                                                                                QString::number(sound_data->sample_rate),
+                                                                                QString::number(sound_data->channels),
+                                                                                QString::number(sound_data->bits_per_sample)));
                 info_derived = true;
             }
         }
@@ -3577,9 +3681,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_tga RECOGNIZE_FUNC_HEADER
     last_index += 4096; // накидываем ещё 4K : вдруг это TGAv2, у которого есть области расширения и разработчика.
     if ( last_index > e->file_size ) last_index = e->file_size;
     u64i resource_size = last_index - base_index;
-    auto info = QString("%1x%2 %3-bpp").arg(QString::number(info_header->width),
-                                            QString::number(info_header->height),
-                                            QString::number(info_header->pix_depth));
+    auto info = std::move(QString("%1x%2 %3-bpp").arg(  QString::number(info_header->width),
+                                                        QString::number(info_header->height),
+                                                        QString::number(info_header->pix_depth)));
     Q_EMIT e->txResourceFound("tga_tc", "", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
@@ -3875,7 +3979,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mp3 RECOGNIZE_FUNC_HEADER
         }
     }
 mp3_id3v1:
-    QString info = QString("%1kbps %2Hz").arg(QString::number(avg_bit_rate / 1000), QString::number(avg_sample_rate));
+    QString info = std::move(QString("%1kbps %2Hz").arg(QString::number(avg_bit_rate / 1000), QString::number(avg_sample_rate)));
     if ( file_size - last_index >= sizeof(ID3v1) ) // может осталось место под ID3v1 в конце ресурса?
     {
         auto id3v1 = (ID3v1*)&buffer[last_index];
@@ -3887,7 +3991,7 @@ mp3_id3v1:
                 if ( id3v1->title[song_name_len] == 0 ) break;
                 info.append(QChar(id3v1->title[song_name_len]));
             }
-            info = info + "'";
+            info = std::move(info + "'");
             last_index += sizeof(ID3v1);
         }
     }
@@ -3996,16 +4100,16 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_ogg RECOGNIZE_FUNC_HEADER
     {
     case OggType::Vorbis:
     {
-        info = QString("%1Hz %2kbps").arg(  QString::number(vorbis_header->sample_rate),
-                                            QString::number(vorbis_header->bitrate_nom / 1000));
+        info = std::move(QString("%1Hz %2kbps").arg(QString::number(vorbis_header->sample_rate),
+                                                    QString::number(vorbis_header->bitrate_nom / 1000)));
         fmt_extension = "ogg";
         break;
     }
     case OggType::Video:
     {
-        info = QString("%1x%2, codec_id: %3").arg(  QString::number(video_header->width),
-                                                    QString::number(video_header->height),
-                                                    QString(QByteArray((char*)video_header->codec_name, 8)));
+        info = std::move(QString("%1x%2, codec_id: %3").arg(QString::number(video_header->width),
+                                                            QString::number(video_header->height),
+                                                            QString(QByteArray((char*)video_header->codec_name, 8))));
         fmt_extension = "ogm";
         break;
     }
@@ -4503,8 +4607,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_asf RECOGNIZE_FUNC_HEADER
     //
     QTime duration_time(0, 0, 0);
     duration_time = duration_time.addMSecs(duration);
-    QString info = QString("%1kbps %2").arg(QString::number(max_bitrate / 1000),
-                                            duration_time.toString(Qt::ISODateWithMs));
+    QString info = std::move(QString("%1kbps %2").arg(  QString::number(max_bitrate / 1000),
+                                                        duration_time.toString(Qt::ISODateWithMs)));
     u64i resource_size = last_index - base_index;
     Q_EMIT e->txResourceFound(format_type, "", base_index, resource_size, info);
     e->resource_offset = base_index;
@@ -4597,11 +4701,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_wmf RECOGNIZE_FUNC_HEADER
     //qInfo() << "record_li:" << record_li << "; last_index:" << last_index;
     u64i resource_size = last_index - base_index;
     QString info;
-    if ( placeable ) info = QString("%1 dpi : %2 x %3 inch (%4 x %5 cm)").arg(  QString::number(image_inch),
-                                                                                QString::number(image_width, 'g', 4),
-                                                                                QString::number(image_height, 'g', 4),
-                                                                                QString::number(image_width * 25.4 / 10, 'g', 4),
-                                                                                QString::number(image_height * 25.4 / 10, 'g', 4));
+    if ( placeable ) info = std::move(QString("%1 dpi : %2 x %3 inch (%4 x %5 cm)").arg(QString::number(image_inch),
+                                                                                        QString::number(image_width, 'g', 4),
+                                                                                        QString::number(image_height, 'g', 4),
+                                                                                        QString::number(image_width * 25.4 / 10, 'g', 4),
+                                                                                        QString::number(image_height * 25.4 / 10, 'g', 4)));
     Q_EMIT e->txResourceFound("wmf", "", base_index, resource_size, info);
     return resource_size;
 }
@@ -4646,21 +4750,13 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_emf RECOGNIZE_FUNC_HEADER
     // qInfo() << "dev_cx_pix:" << info_header->dev_cx_pix << "; dev_cy_pix:" << info_header->dev_cy_pix << "; dev_cx_mm:" << info_header->dev_cx_mm << "; dev_cy_mm:" << info_header->dev_cy_mm;
     double image_width = double(( info_header->b_right > info_header->b_left ) ? info_header->b_right - info_header->b_left : info_header->b_left - info_header->b_right) / 96;
     double image_height = double(( info_header->b_bottom > info_header->b_top ) ? info_header->b_bottom - info_header->b_top : info_header->b_top - info_header->b_bottom) / 96;
-    QString info = QString("%1 dpi : %2 x %3 inch (%4 x %5 cm)").arg(   QString::number(96),
-                                                                        QString::number(image_width, 'g', 4),
-                                                                        QString::number(image_height, 'g', 4),
-                                                                        QString::number(image_width * 25.4 / 10, 'g', 4),
-                                                                        QString::number(image_height * 25.4 / 10, 'g', 4));
-
-    // u32i image_width = ( info_header->b_right > info_header->b_left ) ? info_header->b_right - info_header->b_left : info_header->b_left - info_header->b_right;
-    // u32i image_height = ( info_header->b_bottom > info_header->b_top ) ? info_header->b_bottom - info_header->b_top : info_header->b_top - info_header->b_bottom;
-    // QString info = QString("%1x%2").arg(QString::number(image_width),
-    //                                     QString::number(image_height)
-    //                                     );
-
+    QString info = std::move(QString("%1 dpi : %2 x %3 inch (%4 x %5 cm)").arg( QString::number(96),
+                                                                                QString::number(image_width, 'g', 4),
+                                                                                QString::number(image_height, 'g', 4),
+                                                                                QString::number(image_width * 25.4 / 10, 'g', 4),
+                                                                                QString::number(image_height * 25.4 / 10, 'g', 4)));
     u64i resource_size = last_index - base_index;
     Q_EMIT e->txResourceFound("emf", "", base_index, resource_size, info);
     e->resource_offset = base_index;
     return resource_size;
 }
-

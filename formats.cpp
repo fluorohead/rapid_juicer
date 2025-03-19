@@ -108,6 +108,7 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "aif",      { "Audio Interchange Format", "AIFF/AIFC/8SVX/16SV", "AIF", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "iff" }, 0, "" } },
     { "mod",      { "Tracker Module", "M.K./xCHN/xxCH", "MOD", { CAT_MUSIC, CAT_OUTDATED, CAT_NONE }, CAT_MOTOROLA, { "mod_m.k.", "mod_ch" }, 0, "" } },
     { "xm",       { "FastTracker II Module" , "", "XM", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "xm" }, 0, "" } },
+    { "stm",      { "ScreamTracker 2 Module", "", "STM", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "stm" }, 0, "" } },
     { "s3m",      { "ScreamTracker 3 Module", "", "S3M", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "s3m" }, 0, "" } },
     { "it",       { "ImpulseTracker Module", "", "IT", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "it" }, 0, "" } },
     { "bik",      { "Bink Video", "", "BIK", { CAT_VIDEO, CAT_OUTDATED, CAT_NONE }, CAT_NONE, { "bink1" }, 0, "" } },
@@ -131,7 +132,7 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "wmv",      { "Windows Media Video", "ASF container", "WMV", { CAT_VIDEO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } },
     { "wmf",      { "Windows Metafile", "", "WMF", { CAT_IMAGE, CAT_WIN, CAT_OUTDATED }, CAT_VECTOR, { "wmf_plc", "wmf_mem", "wmf_disk" }, 0, "" } },
     { "emf",      { "Enhanced Metafile", "", "EMF", { CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_VECTOR, { "emf" }, 0, "" } },
-    /// Сейчас 40 форматов.
+    /// Сейчас 41 формат.
     /// ВНИМАНИЕ! При добавлении нового формата, нужно удостовериться, что хватит места для тайла в таблице результатов
     /// и при необходимости откорректировать макрос RESULTS_TABLE_ROWS в session.cpp ( RESULTS_TABLE_ROWS * RESULTS_TABLE_COLUMNS всегда должно быть >= кол-ва форматов).
 };
