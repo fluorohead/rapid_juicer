@@ -6,6 +6,7 @@
 #include <QMutex>
 #include <QFile>
 #include <asmjit/asmjit.h>
+#include "tga_check.h"
 
 #define MIN_SIGNAL_INTERVAL_MSECS 20
 
@@ -66,6 +67,7 @@ class Engine: public QObject
     ComparationFunc comparation_func;
     void generate_comparation_func();
 
+    TgaDecoder tga_decoder;
 public:
     Engine(WalkerThread *walker_parent);
     ~Engine();

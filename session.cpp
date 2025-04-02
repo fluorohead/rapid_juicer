@@ -19,7 +19,7 @@
 #define RESULTS_TABLE_WIDTH 785
 #define RESULTS_TABLE_HEIGHT 450
 #define RESULTS_TABLE_COLUMNS 7
-#define RESULTS_TABLE_ROWS 6
+#define RESULTS_TABLE_ROWS 7
 
 extern QString reduce_file_path(const QString&, int);
 
