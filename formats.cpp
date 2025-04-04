@@ -132,7 +132,9 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "wmv",      { "Windows Media Video", "ASF container", "WMV", { CAT_VIDEO, CAT_WIN, CAT_NONE }, CAT_NONE, { "asf" }, 0, "" } },
     { "wmf",      { "Windows Metafile", "", "WMF", { CAT_IMAGE, CAT_WIN, CAT_OUTDATED }, CAT_VECTOR, { "wmf_plc", "wmf_mem", "wmf_disk" }, 0, "" } },
     { "emf",      { "Enhanced Metafile", "", "EMF", { CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_VECTOR, { "emf" }, 0, "" } },
-    /// Сейчас 41 формат.
+    { "dds",      { "DirectDraw Surface", "", "DDS", { CAT_IMAGE, CAT_WIN, CAT_NONE}, CAT_RASTER, { "dds" }, 0, "" } },
+
+    /// Сейчас 42 формат (при макс. 49).
     /// ВНИМАНИЕ! При добавлении нового формата, нужно удостовериться, что хватит места для тайла в таблице результатов
     /// и при необходимости откорректировать макрос RESULTS_TABLE_ROWS в session.cpp ( RESULTS_TABLE_ROWS * RESULTS_TABLE_COLUMNS всегда должно быть >= кол-ва форматов).
 };
