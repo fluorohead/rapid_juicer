@@ -4838,24 +4838,31 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dds RECOGNIZE_FUNC_HEADER
         u32i array_size;
         u32i misc_flags2;
     };
+    struct Compression
+    {
+        QString name;
+        u8i div_shift;
+    };
+
 #pragma pack(pop)
     // qInfo() << "!!! DDS RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     // qInfo() << "file:" << e->file.fileName();
     static const QSet<u32i> VALID_BITCOUNT { 8, 16, 24, 32 };
-    static const QHash<u32i,QString> VALID_COMPRESSION { { 0x31545844, "DXT1" }, { 0x32545844, "DXT2" },
-                                                         { 0x33545844, "DXT3" }, { 0x34545844, "DXT4" },
-                                                         { 0x35545844, "DXT5" }, { 0x30315844, "DX10" },
-                                                         { 0x31495441, "ATI1" }, { 0x32495441, "ATI2" },
-                                                         { 0x42475852, "RXGB" },
-                                                         { 0x55344342, "BC4U" }, { 0x55354342, "BC5U"},
-                                                         { 0x53354342, "BC5S" }
-                                                       };
+    static const QHash<u32i,Compression> VALID_COMPRESSION {{ 0x31545844, { "DXT1", 1 } }, { 0x32545844, { "DXT2", 0 } },
+                                                            { 0x33545844, { "DXT3", 0 } }, { 0x34545844, { "DXT4", 0 } },
+                                                            { 0x35545844, { "DXT5", 0 } }, { 0x30315844, { "DX10", 0 } }, // div_shift для DX10 может не использоваться в случае несжатой текстуры
+                                                            { 0x31495441, { "ATI1", 1 } }, { 0x32495441, { "ATI2", 0 } },
+                                                            { 0x42475852, { "RXGB", 0 } },
+                                                            { 0x55344342, { "BC4U", 1 } }, { 0x55354342, { "BC5U" ,0 }},
+                                                            { 0x53354342, { "BC5S", 0 } }
+                                                            };
     static const QSet<u32i> VALID_DXGI { 29 /*R8G8B8A8_UNORM_SRGB*/, 91 /*B8G8R8A8_UNORM_SRGB*/, 95 /*BC6H_UF16*/, 98 /*BC7_UNORM*/, 99 /*BC7_UNORM_SRGB*/ };
-    static const QSet<u32i> VALID_COMPRESSED_DXGI { 95, 98, 99 };
-    static const QSet<u32i> VALID_PIXFLAGS { 0x02,   /* only alpha uncompressed */
-                                             0x04,   /* compressed rgb */
-                                             0x40,   /* uncompressed rgb */
-                                             0x20000 /* only luminance uncompressed */
+    static const QHash<u32i,u8i> VALID_COMPRESSED_DXGI { {95, 0}, {98, 0}, {99, 0} }; // где u8i это div_shift
+    static const QHash<u32i,u8i> VALID_UNCOMPRESSED_DXGI { {29, 2}, {91, 2} }; // где u8i это mult_shift
+    static const QSet<u32i> VALID_PIXFLAGS {0x02,   /* only alpha uncompressed */
+                                            0x04,   /* compressed rgb */
+                                            0x40,   /* uncompressed rgb */
+                                            0x20000 /* only luminance uncompressed */
                                            };
     static const u64i min_room_need = sizeof(DDS_Header);
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
@@ -4869,9 +4876,9 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dds RECOGNIZE_FUNC_HEADER
     if ( ( info_header->flags & 0x1007 ) != 0x1007 ) return 0; // заполнены ли обязательные поля caps, width, height, pix_fmt?
     if ( ( ( info_header->flags & 0x08 ) == 0x08 ) and ( ( info_header->flags & 0x080000 ) == 0x080000 ) ) return 0; // текстура не может быть одновременно и сжатой и несжатой
     if ( ( ( info_header->pix_fmt_flags & 0x04 ) == 0x04 ) and ( ( info_header->pix_fmt_flags & 0x40 ) == 0x40 ) ) return 0; // текстура не может быть одновременно и сжатой и несжатой
-    qInfo() << "width:" << info_header->width << "; height:" << info_header->height << "; pitch_lsize:" << info_header->pitch_lsize << "; depth:" << info_header->depth
-            << "; mipmap_cnt:" << info_header->mipmap_cnt << "; flags:" << QString::number(info_header->flags, 16) << "; pix_flags:" << QString::number(info_header->pix_fmt_flags, 16)
-            << "; pix_fmt_rgb_bit_cnt:" << info_header->pix_fmt_rgb_bit_cnt;
+    // qInfo() << "width:" << info_header->width << "; height:" << info_header->height << "; pitch_lsize:" << info_header->pitch_lsize << "; depth:" << info_header->depth
+    //         << "; mipmap_cnt:" << info_header->mipmap_cnt << "; flags:" << QString::number(info_header->flags, 16) << "; pix_flags:" << QString::number(info_header->pix_fmt_flags, 16)
+    //         << "; pix_fmt_rgb_bit_cnt:" << info_header->pix_fmt_rgb_bit_cnt;
     bool valid_type = false;
     for(auto & one_type: VALID_PIXFLAGS)
     {
@@ -4888,87 +4895,42 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dds RECOGNIZE_FUNC_HEADER
     u32i scal_w; // scaled width : divided by 2^mmp_idx
     u32i scal_h; // scaled height : divided by 2^mmp_idx
 
-    if ( ( info_header->pix_fmt_flags & 0x02 ) == 0x02 ) // несжатый альфа-канал
-    {
-        if ( !VALID_BITCOUNT.contains(info_header->pix_fmt_rgb_bit_cnt) ) return 0;
-        for(u32i mmp_idx = 0; mmp_idx < mmp_cnt; ++mmp_idx )
-        {
-            scal_w = qMax(1, int(w / (1 << mmp_idx)));
-            scal_h = qMax(1, int(h / (1 << mmp_idx)));
-            qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << (scal_w * scal_h * (info_header->pix_fmt_rgb_bit_cnt >> 3));
-            textures_array_size += (scal_w * scal_h * (info_header->pix_fmt_rgb_bit_cnt >> 3)); // эквив. формула : (scal_w * scal_h) * (info_header->pix_fmt_rgb_bit_cnt / 8)
-        }
-        info = QString("%1x%2 %3-bpp (alpha ch.), %4 mip(s)").arg(   QString::number(info_header->width),
-                                                                        QString::number(info_header->height),
-                                                                        QString::number(info_header->pix_fmt_rgb_bit_cnt),
-                                                                        QString::number(mmp_cnt)
-                                                                    );
-        qInfo() << "non-compressed alpha-channel";
-    }
-
     if ( ( info_header->pix_fmt_flags & 0x04 ) == 0x04 ) // сжатая обычная текстура, либо DX10-текстура (сжатая или несжатая)
     {
         if ( !VALID_COMPRESSION.contains(info_header->pix_fmt_four_cc) ) return 0;
         u8i div_shift; // используется в формуле расчёта сжатых данных
         u8i mult_shift; // используется в формуле расчёта несжатых DX10-данных
-        switch(info_header->pix_fmt_four_cc) // вычисление сдвига вправо для обычной сжатой текстуры
-        {
-        case 0x31495441: // ATI1 aka BC4 aka 3Dc+
-        case 0x31545844: // DXT1 aka BC1
-        case 0x55344342: // BC4U (unsigned)
-            div_shift = 1; // эквив. 8/16=1/2, то-есть делению на 2
-            // 8/16, где 8 байт размер сжатого квадрата 4x4 из 16 пикселей
-            break;
-        case 0x32495441: // ATI2 aka BC5 aka 3Dc
-        case 0x32545844: // DXT2 aka BC2
-        case 0x33545844: // DXT3 aka BC2
-        case 0x34545844: // DXT4 aka BC3
-        case 0x35545844: // DXT5 aka BC3
-        case 0x42475852: // RXGB
-        case 0x53354342: // BC5S (signed)
-        case 0x55354342: // BC5U (unsigned)
-            div_shift = 0; // эквив. 16/16=1/1, то-есть делению на 1
-            // 16/16, где 16 байт размер сжатого квадрата 4x4 из 16 пикселей
-        }
+        div_shift = VALID_COMPRESSION[info_header->pix_fmt_four_cc].div_shift;
+        // div_shift = 1 эквив. 8/16=1/2, то-есть делению на 2;
+        // 8/16, где 8 байт размер сжатого квадрата 4x4 из 16 пикселей
         if ( info_header->pix_fmt_four_cc == 0x30315844 /*DX10*/ )
         {
             if ( file_size - base_index < sizeof(DDS_Header) + sizeof(DX10_Header) ) return 0; // хватает ли места под DX10-заголовок?
             auto dx10_header = (DX10_Header*)&buffer[base_index + sizeof(DDS_Header)];
-            qInfo() << "dxgi_fmt:" << dx10_header->dxgi_fmt << "; res_dim:" << dx10_header->res_dim << "; misc_flags1:" << QString::number(dx10_header->misc_flags1, 16)
-                    << "; array_size:" << dx10_header->array_size << "; misc_flags2:" << QString::number(dx10_header->misc_flags2);
+            // qInfo() << "dxgi_fmt:" << dx10_header->dxgi_fmt << "; res_dim:" << dx10_header->res_dim << "; misc_flags1:" << QString::number(dx10_header->misc_flags1, 16)
+            //         << "; array_size:" << dx10_header->array_size << "; misc_flags2:" << QString::number(dx10_header->misc_flags2);
             if ( !VALID_DXGI.contains(dx10_header->dxgi_fmt) ) return 0;
             if ( VALID_COMPRESSED_DXGI.contains(dx10_header->dxgi_fmt) ) // сжатый DX10-формат
             {
-                qInfo() << "compressed DX10";
-                switch(dx10_header->dxgi_fmt) // вычисление сдвига вправо для сжатой DX10-текстуры
-                {
-                case 95: // BC6H_UF16
-                case 98: // BC7_UNORM
-                case 99: // BC7_UNORM_SRGB
-                    div_shift = 0;
-                }
+                // qInfo() << "compressed DX10";
+                div_shift = VALID_COMPRESSED_DXGI[dx10_header->dxgi_fmt]; // вычисление делителя для сжатой DX10-текстуры
                 for(u32i mmp_idx = 0; mmp_idx < mmp_cnt; ++mmp_idx )
                 {
                     scal_w = qMax(4, int(align_bnd4(w / (1 << mmp_idx)))); // 4 пикселя - минимальные ширина и высота
                     scal_h = qMax(4, int(align_bnd4(h / (1 << mmp_idx)))); //
-                    qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << ((scal_w * scal_h) >> div_shift);
+                    // qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << ((scal_w * scal_h) >> div_shift);
                     textures_array_size += ((scal_w * scal_h) >> div_shift); // эквив. формуле (((w * h) / (2 ^ (mmp_idx * 2))) / 2), где div_shift == 1
                 }
             }
             else // несжатый DX10-формат
             {
-                qInfo() << "uncompressed DX10";
-                switch(dx10_header->dxgi_fmt) // вычисление множителя для несжатой DX10-текстуры
-                {
-                case 29:
-                case 91:
-                    mult_shift = 2;
-                }
+                // qInfo() << "uncompressed DX10";
+                mult_shift = VALID_UNCOMPRESSED_DXGI[dx10_header->dxgi_fmt]; // вычисление множителя для несжатой DX10-текстуры
                 for(u32i mmp_idx = 0; mmp_idx < mmp_cnt; ++mmp_idx )
                 {
                     scal_w = qMax(1, int(w / (1 << mmp_idx)));
                     scal_h = qMax(1, int(h / (1 << mmp_idx)));
-                    qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << (scal_w * scal_h << mult_shift);
+                    // qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << (scal_w * scal_h << mult_shift);
                     textures_array_size += (scal_w * scal_h << mult_shift);
                 }
             }
@@ -4979,54 +4941,44 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dds RECOGNIZE_FUNC_HEADER
             {
                 scal_w = qMax(4, int(align_bnd4(w / (1 << mmp_idx)))); // 4 пикселя - минимальные ширина и высота
                 scal_h = qMax(4, int(align_bnd4(h / (1 << mmp_idx)))); //
-                qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << ((scal_w * scal_h) >> div_shift);
+                // qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << ((scal_w * scal_h) >> div_shift);
                 textures_array_size += ((scal_w * scal_h) >> div_shift); // эквив. формуле (((w * h) / (2 ^ (mmp_idx * 2))) / 2), где div_shift == 1
             }
         }
-        info = QString("%1x%2 (%3), %4 mip(s)").arg( QString::number(w),
-                                                        QString::number(h),
-                                                        VALID_COMPRESSION[info_header->pix_fmt_four_cc],
-                                                        QString::number(mmp_cnt)
+        info = QString("%1x%2 (%3), %4 mip(s)").arg(QString::number(w),
+                                                    QString::number(h),
+                                                    VALID_COMPRESSION[info_header->pix_fmt_four_cc].name,
+                                                    QString::number(mmp_cnt)
                                                     );
-        qInfo() << "compressed texture";
+        // qInfo() << "compressed texture";
     }
 
-    if ( ( info_header->pix_fmt_flags & 0x40 ) == 0x40 ) // несжатая текстура
+    if ( ( ( info_header->pix_fmt_flags & 0x02 ) == 0x02 ) or
+         ( ( info_header->pix_fmt_flags & 0x40 ) == 0x40 ) or
+         ( ( info_header->pix_fmt_flags & 0x200 ) == 0x200 ) or
+         ( ( info_header->pix_fmt_flags & 0x20000 ) == 0x20000 ) ) // несжатые текстуры типов : Alpha/RGB/YUV/Luminance
     {
         if ( !VALID_BITCOUNT.contains(info_header->pix_fmt_rgb_bit_cnt) ) return 0;
         for(u32i mmp_idx = 0; mmp_idx < mmp_cnt; ++mmp_idx )
         {
             scal_w = qMax(1, int(w / (1 << mmp_idx)));
             scal_h = qMax(1, int(h / (1 << mmp_idx)));
-            qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << (scal_w * scal_h * (info_header->pix_fmt_rgb_bit_cnt >> 3));
+            // qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << (scal_w * scal_h * (info_header->pix_fmt_rgb_bit_cnt >> 3));
             textures_array_size += (scal_w * scal_h * (info_header->pix_fmt_rgb_bit_cnt >> 3)); // эквив. формула : (scal_w * scal_h) * (info_header->pix_fmt_rgb_bit_cnt / 8)
         }
-        info = QString("%1x%2 %3-bpp, %4 mip(s)").arg(   QString::number(info_header->width),
+        QString texture_type;
+        if ( ( info_header->pix_fmt_flags & 0x02 ) == 0x02 ) texture_type = "alpha-ch.";
+        if ( ( info_header->pix_fmt_flags & 0x40 ) == 0x40 ) texture_type = "RGB";
+        if ( ( info_header->pix_fmt_flags & 0x200 ) == 0x200 ) texture_type = "YUV";
+        if ( ( info_header->pix_fmt_flags & 0x20000 ) == 0x20000 ) texture_type = "Lumin.";
+        info = QString("%1x%2 %3-bpp (%4), %5 mip(s)").arg(  QString::number(info_header->width),
                                                             QString::number(info_header->height),
                                                             QString::number(info_header->pix_fmt_rgb_bit_cnt),
+                                                            texture_type,
                                                             QString::number(mmp_cnt)
                                                         );
-        qInfo() << "non-compressed texture";
+        // qInfo() << "non-compressed alpha/rgb/yuv/lumin. texture";
     }
-
-    if ( ( info_header->pix_fmt_flags & 0x20000 ) == 0x20000 ) // несжатая освещённость
-    {
-        if ( !VALID_BITCOUNT.contains(info_header->pix_fmt_rgb_bit_cnt) ) return 0;
-        for(u32i mmp_idx = 0; mmp_idx < mmp_cnt; ++mmp_idx )
-        {
-            scal_w = qMax(1, int(w / (1 << mmp_idx)));
-            scal_h = qMax(1, int(h / (1 << mmp_idx)));
-            qInfo() << scal_w << "x" << scal_h << ":" << textures_array_size << "+" << (scal_w * scal_h * (info_header->pix_fmt_rgb_bit_cnt >> 3));
-            textures_array_size += (scal_w * scal_h * (info_header->pix_fmt_rgb_bit_cnt >> 3)); // эквив. формула : (scal_w * scal_h) * (info_header->pix_fmt_rgb_bit_cnt / 8)
-        }
-        info = QString("%1x%2 %3-bpp (lumin.), %4 mip(s)").arg(  QString::number(info_header->width),
-                                                                    QString::number(info_header->height),
-                                                                    QString::number(info_header->pix_fmt_rgb_bit_cnt),
-                                                                    QString::number(mmp_cnt)
-                                                                );
-        qInfo() << "non-compressed luminance";
-    }
-
     u64i resource_size = sizeof(DDS_Header) + sizeof(DX10_Header) * u32i(info_header->pix_fmt_four_cc == 0x30315844) + textures_array_size;
     if ( file_size - base_index < resource_size ) return 0;
     Q_EMIT e->txResourceFound("dds", "", base_index, resource_size, info);
