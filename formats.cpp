@@ -106,7 +106,7 @@ QMap <QString, FileFormat> fformats // QMap -> АВТОМАТИЧЕСКОЕ УП
     { "jpg",      { "JPEG File Interchange Format", "", "JPG", { CAT_IMAGE, CAT_NONE, CAT_NONE }, CAT_RASTER, { "jpg" }, 0, "" } },
     { "ani_riff", { "MS Windows Animated Cursor", "RIFF container", "ANI", { CAT_IMAGE, CAT_WIN, CAT_NONE }, CAT_RASTER, { "riff" }, 0, "" } },
     { "aif",      { "Audio Interchange Format", "AIFF/AIFC/8SVX/16SV", "AIF", { CAT_AUDIO, CAT_NONE, CAT_NONE }, CAT_NONE, { "iff" }, 0, "" } },
-    { "mod",      { "Tracker Module", "M.K./xCHN/xxCH", "MOD", { CAT_MUSIC, CAT_OUTDATED, CAT_NONE }, CAT_MOTOROLA, { "mod_m.k.", "mod_ch" }, 0, "" } },
+    { "mod",      { "Tracker Module", "M.K./xCHN/xxCH/FLTx", "MOD", { CAT_MUSIC, CAT_OUTDATED, CAT_NONE }, CAT_MOTOROLA, { "mod_m.k.", "mod_ch", "mod_flt4", "mod_flt8" }, 0, "" } },
     { "xm",       { "FastTracker II Module" , "", "XM", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "xm" }, 0, "" } },
     { "stm",      { "ScreamTracker 2.x Module", "", "STM", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "stm" }, 0, "" } },
     { "s3m",      { "ScreamTracker 3.x Module", "", "S3M", { CAT_MUSIC, CAT_DOS, CAT_OUTDATED }, CAT_NONE, { "s3m" }, 0, "" } },

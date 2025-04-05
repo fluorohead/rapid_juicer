@@ -23,6 +23,8 @@
   //   6  |flx  : 44AF
   //   7  |xm   : 4578 : 7465
   //   8  |iff  : 464F : 524D
+  //   8  |flt4 : 464C : 5434
+  //   8  |flt8 : 464C : 5438
   //   9  |gif  : 4749 : 4638
   //   10 |id3v2: 4944 : 33
   //   10 |tifi : 4949 : 2A00
@@ -125,6 +127,8 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "wmf_disk",   { 0x0000000000090002, 4, Engine::recognize_wmf      } }, // "\x02\x00\x09\x00"
     { "emf",        { 0x00000000464D4520, 4, Engine::recognize_emf      } }, // "\x20\x45\x4D\x46"
     { "dds",        { 0x0000000020534444, 4, Engine::recognize_dds      } }, // "DDS "
+    { "mod_flt4",   { 0x0000000034544C46, 4, Engine::recognize_mod      } }, // "FLT4" - Startrekker
+    { "mod_flt8",   { 0x0000000038544C46, 4, Engine::recognize_mod      } }, // "FLT8" - Startrekker
 };
 
 u16i be2le(u16i be)
@@ -342,9 +346,9 @@ void Engine::generate_comparation_func()
         aj_asm.mov(x86::ptr(x86::rdi, 0x45 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["xmi"].index] or selected_formats[fformats["lbm"].index] or selected_formats[fformats["aif"].index] )
+    if ( selected_formats[fformats["xmi"].index] or selected_formats[fformats["lbm"].index] or selected_formats[fformats["aif"].index] or selected_formats[fformats["mod"].index])
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[8])); // iff
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[8])); // iff, flt4, flt8
         aj_asm.mov(x86::ptr(x86::rdi, 0x46 * 8), x86::rax);
     }
 
@@ -786,19 +790,46 @@ aj_asm.bind(aj_signat_labels[7]);
 
 // ; 0x46
 aj_asm.bind(aj_signat_labels[8]);
-    // ; iff : 0x46'4F : 0x52'4D
-    aj_asm.cmp(x86::al, 0x4F);
-    aj_asm.jne(aj_loop_check_label);
-    aj_asm.cmp(x86::bx, 0x52'4D);
-    aj_asm.jne(aj_loop_check_label);
-    // вызов recognize_xm
-    aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
-    aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
-    aj_asm.call(imm((u64i)Engine::recognize_iff));
-    aj_asm.cmp(x86::rax, 0);
-    aj_asm.jne(aj_scrup_mode_check_label);
-    //
-    aj_asm.jmp(aj_loop_check_label);
+    // ; flt4 : 0x46'4C : 0x54'34
+    // ; flt8 : 0x46'4C : 0x54'38
+    // ;  iff : 0x46'4F : 0x52'4D
+aj_asm.bind(aj_sub_labels[24]); // flt4/flt8 ?
+    if ( selected_formats[fformats["mod"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x4C);
+        aj_asm.jne(aj_sub_labels[26]);
+        aj_asm.cmp(x86::bh, 0x54);
+        aj_asm.jne(aj_loop_check_label);
+        aj_asm.cmp(x86::bl, 0x34);
+        aj_asm.je(aj_sub_labels[25]);
+        aj_asm.cmp(x86::bl, 0x38);
+        aj_asm.jne(aj_loop_check_label);
+aj_asm.bind(aj_sub_labels[25]);
+        // вызов recognize_mod
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_mod));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
+        //
+        aj_asm.jmp(aj_loop_check_label);
+    }
+aj_asm.bind(aj_sub_labels[26]); // iff ?
+    if ( selected_formats[fformats["xmi"].index] or selected_formats[fformats["lbm"].index] or selected_formats[fformats["aif"].index] )
+    {
+        aj_asm.cmp(x86::al, 0x4F);
+        aj_asm.jne(aj_loop_check_label);
+        aj_asm.cmp(x86::bx, 0x52'4D);
+        aj_asm.jne(aj_loop_check_label);
+        // вызов recognize_iff
+        aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
+        aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
+        aj_asm.call(imm((u64i)Engine::recognize_iff));
+        aj_asm.cmp(x86::rax, 0);
+        aj_asm.jne(aj_scrup_mode_check_label);
+        //
+    }
+        aj_asm.jmp(aj_loop_check_label);
 
 // ; 0x47
 aj_asm.bind(aj_signat_labels[9]);
@@ -807,7 +838,7 @@ aj_asm.bind(aj_signat_labels[9]);
     aj_asm.jne(aj_loop_check_label);
     aj_asm.cmp(x86::bx, 0x46'38);
     aj_asm.jne(aj_loop_check_label);
-    // вызов recognize_xm
+    // вызов recognize_gif
     aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
     aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
     aj_asm.call(imm((u64i)Engine::recognize_gif));
@@ -915,7 +946,7 @@ aj_asm.bind(aj_sub_labels[4]); // mod_m.k. ?
         aj_asm.jne(aj_sub_labels[5]);
         aj_asm.cmp(x86::bx, 0x4B'2E);
         aj_asm.jne(aj_loop_check_label);
-        // вызов recognize_mod_mk
+        // вызов recognize_mod
         aj_asm.mov(x86::qword_ptr(x86::r13), x86::r14); // пишем текущее смещение из r14 в this->scanbuf_offset, который по адресу [r13]
         aj_asm.mov(x86::rcx, imm(this)); // передача первого (и единственного) параметра в recognizer
         aj_asm.call(imm((u64i)Engine::recognize_mod));
@@ -2226,14 +2257,14 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     auto buffer = e->mmf_scanbuf;
     u64i base_index = e->scanbuf_offset;
     // определяем положительную поправку для размера заголовка :
-    // +0 - для 'M.K.'
+    // +0 - для 'M.K.', 'FLT4', 'FLT8'
     // +1 - для 'xCHN'
     // +2 - для 'xxCH'
     u64i offset_correction = 0;
     u64i channels = 4;             // это стандартное значение для M.K.-модуля (далее может меняться)
-    u64i steps_in_pattern = 64;    // это стандартное значение для M.K.-модуля
-    u64i one_note_size = 4;        // это стандартное значение для M.K.-модуля
-    if ( *((u16i*)&buffer[base_index]) == 0x4843 )
+    u64i steps_in_pattern = 64;    // это стандартное значение для M.K.-модуля (далее может меняться)
+    u64i one_note_size = 4;        // это стандартное значение для M.K.-модуля (далее может меняться)
+    if ( *((u16i*)&buffer[base_index]) == 0x4843 /*'CH'*/)
     {
         if ( buffer[base_index + 2] == 'N' ) // 'xCHN'
         {
@@ -2259,6 +2290,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
             if ( channels > 32 ) return 0;
         }
     }
+    if ( *((u32i*)&buffer[base_index]) == 0x38544C46 /*'FLT8'*/)
+    {
+        channels = 8;
+    }
     //
     if ( e->scanbuf_offset < sizeof(MOD_31_Header) + offset_correction ) return 0;
     base_index = e->scanbuf_offset - (sizeof(MOD_31_Header) + offset_correction);
@@ -2273,7 +2308,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_mod RECOGNIZE_FUNC_HEADER
     u64i samples_block_size = 0;
     for (int sample_id = 0; sample_id < 31; ++sample_id) // калькуляция размера блока сэмплов
     {
-
         // qInfo() << " sample id:" << sample_id << " size:" << u32i(be2le(info_header->sample_descriptors[sample_id].len)) * 2 << " repeat_offset:" << u32i(be2le(info_header->sample_descriptors[sample_id].repeat_offset)) * 2
         //         << " repeat_len:" << u32i(be2le(info_header->sample_descriptors[sample_id].repeat_len)) * 2;
         if ( be2le(info_header->sample_descriptors[sample_id].len) > 0 ) // проверка на корректность заголовка сэмпла
@@ -4792,10 +4826,10 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_emf RECOGNIZE_FUNC_HEADER
     return resource_size;
 }
 
-// дополнение числа до кратности 4
+// округление числа до кратности 4 в большую сторону
 u32i align_bnd4(u32i value)
 {
-    return ((value + 3) >> 2) << 2;
+    return (value + 3) & 0xFFFFFFFC; // эквив. ((value + 3) >> 2) << 2 или ((value + 3) / 4) * 4
 }
 
 RECOGNIZE_FUNC_RETURN Engine::recognize_dds RECOGNIZE_FUNC_HEADER
@@ -4843,7 +4877,6 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dds RECOGNIZE_FUNC_HEADER
         QString name;
         u8i div_shift;
     };
-
 #pragma pack(pop)
     // qInfo() << "!!! DDS RECOGNIZER CALLED !!!" << e->scanbuf_offset;
     // qInfo() << "file:" << e->file.fileName();
@@ -4935,7 +4968,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dds RECOGNIZE_FUNC_HEADER
                 }
             }
         }
-        else
+        else // обычная сжатая текстура (не DX10)
         {
             for(u32i mmp_idx = 0; mmp_idx < mmp_cnt; ++mmp_idx )
             {
@@ -4970,7 +5003,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_dds RECOGNIZE_FUNC_HEADER
         if ( ( info_header->pix_fmt_flags & 0x02 ) == 0x02 ) texture_type = "alpha-ch.";
         if ( ( info_header->pix_fmt_flags & 0x40 ) == 0x40 ) texture_type = "RGB";
         if ( ( info_header->pix_fmt_flags & 0x200 ) == 0x200 ) texture_type = "YUV";
-        if ( ( info_header->pix_fmt_flags & 0x20000 ) == 0x20000 ) texture_type = "Lumin.";
+        if ( ( info_header->pix_fmt_flags & 0x20000 ) == 0x20000 ) texture_type = "lumin.";
         info = QString("%1x%2 %3-bpp (%4), %5 mip(s)").arg(  QString::number(info_header->width),
                                                             QString::number(info_header->height),
                                                             QString::number(info_header->pix_fmt_rgb_bit_cnt),
