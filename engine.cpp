@@ -133,45 +133,90 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "mod_flt8",   { 0x0000000038544C46, 4, Engine::recognize_mod      } }, // "FLT8" - Startrekker
 };
 
-u16i be2le(u16i be)
+// u16i be2le(u16i be)
+// {
+//     union {
+//         u16i as_le;
+//         u8i  bytes[2];
+//     };
+//     bytes[0] = be >> 8;
+//     bytes[1] = be;
+//     return as_le;
+// }
+
+// u32i be2le(u32i be)
+// {
+//     union {
+//         u32i as_le;
+//         u8i  bytes[4];
+//     };
+//     bytes[0] = be >> 24;
+//     bytes[1] = be >> 16;
+//     bytes[2] = be >> 8 ;
+//     bytes[3] = be;
+//     return as_le;
+// }
+
+// u32i be2le(u64i be)
+// {
+//     union {
+//         u64i as_le;
+//         u8i  bytes[8];
+//     };
+//     bytes[0] = be >> 56;
+//     bytes[1] = be >> 48;
+//     bytes[2] = be >> 40 ;
+//     bytes[3] = be >> 32;
+//     bytes[4] = be >> 24;
+//     bytes[5] = be >> 16;
+//     bytes[6] = be >> 8;
+//     bytes[7] = be;
+//     return as_le;
+// }
+
+u64i be2le(u64i value)
 {
-    union {
-        u16i as_le;
-        u8i  bytes[2];
-    };
-    bytes[0] = be >> 8;
-    bytes[1] = be;
-    return as_le;
+    __asm__ volatile (
+    R"(
+    mov %[qword_value], %%rax
+    bswap %%rax
+    mov %%rax, %[qword_value]
+    )"
+    :
+    : [qword_value] "m" (value)
+    : "rax", "memory"
+    );
+    return value;
 }
 
-u32i be2le(u32i be)
+u32i be2le(u32i value)
 {
-    union {
-        u32i as_le;
-        u8i  bytes[4];
-    };
-    bytes[0] = be >> 24;
-    bytes[1] = be >> 16;
-    bytes[2] = be >> 8 ;
-    bytes[3] = be;
-    return as_le;
+    __asm__ volatile (
+    R"(
+    mov %[dword_value], %%eax
+    bswap %%eax
+    mov %%eax, %[dword_value]
+    )"
+    :
+    : [dword_value] "m" (value)
+    : "eax", "memory"
+    );
+    return value;
 }
 
-u32i be2le(u64i be)
+u16i be2le(u16i value)
 {
-    union {
-        u64i as_le;
-        u8i  bytes[8];
-    };
-    bytes[0] = be >> 56;
-    bytes[1] = be >> 48;
-    bytes[2] = be >> 40 ;
-    bytes[3] = be >> 32;
-    bytes[4] = be >> 24;
-    bytes[5] = be >> 16;
-    bytes[6] = be >> 8;
-    bytes[7] = be;
-    return as_le;
+    __asm__ volatile (
+    R"(
+    mov %[word_value], %%ax
+    xchg %%ah, %%al
+    mov %%ax, %[word_value]
+    )"
+    :
+    : [word_value] "m" (value)
+    : "ax", "memory"
+    );
+    return value;
 }
 
 Engine::Engine(WalkerThread *walker_parent)
@@ -2514,7 +2559,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_stm RECOGNIZE_FUNC_HEADER
     struct STM_Header
     {
         u8i  song_name[20];
-        u64i tracker_name; //  !Scream!
+        u64i tracker_name; //  !Scream! или BMOD2STM
         u8i  str_terminator; // 0x1A
         u8i  file_type;
         u8i  maj_ver;
@@ -2570,7 +2615,7 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_stm RECOGNIZE_FUNC_HEADER
     u64i resource_size = db.lastKey() + db[db.lastKey()];
     s64i file_size = e->file_size;
     if ( file_size - base_index < resource_size ) return 0; // вычисленный размер не вмещается в исходник
-    if ( bmod2stm ) // bmod2stm выравнивает размер модуля на границу 16 байт
+    if ( bmod2stm ) // bmod2stm выравнивает размер модуля на границу 16 байт с помощью zero padding
     {
         resource_size = (resource_size + 15) & 0xFFFFFFFF'FFFFFFF0; // эквив. формуле ((resource_size + 15) / 16)*16 или ((resource_size + 15) >> 4 ) << 4
         if ( file_size - base_index < resource_size ) resource_size = file_size - base_index;
