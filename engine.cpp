@@ -16,6 +16,7 @@
   //   28 |asf  : 3026 : b275
   //   4  |bik  : 4249
   //   4  |bmp  : 424D
+  //   4  |bmod : 424D : 4F44 <- crossing with bmp
   //   24 |ch   : 4348
   //   24 |voc  : 4372 : 6561
   //   6  |dbm0 : 4442 : 4D30
@@ -91,6 +92,7 @@ QMap <QString, Signature> signatures // в QMap значения автомат�
     { "mod_m.k.",   { 0x000000002E4B2E4D, 4, Engine::recognize_mod      } }, // "M.K." SoundTracker 2.2 by Unknown/D.O.C. [Michael Kleps] and ProTracker/NoiseTracker/etc...
     { "xm",         { 0x0000000065747845, 4, Engine::recognize_xm       } }, // "Exte"
     { "stm",        { 0x0000000072635321, 4, Engine::recognize_stm      } }, // "!Scream!"
+    { "stm_bmod",   { 0x00000000444F4D42, 4, Engine::recognize_stm      } }, // "BMOD2STM"
     { "s3m",        { 0x000000004D524353, 4, Engine::recognize_s3m      } }, // "SCRM"
     { "it",         { 0x000000004D504D49, 4, Engine::recognize_it       } }, // "IMPM"
     { "bink1",      { 0x0000000000004942, 2, Engine::recognize_bink     } }, // "BI"
@@ -322,9 +324,9 @@ void Engine::generate_comparation_func()
         aj_asm.mov(x86::ptr(x86::rdi, 0x30 * 8), x86::rax);
     }
 
-    if ( selected_formats[fformats["bik"].index] or selected_formats[fformats["bmp"].index] )
+    if ( selected_formats[fformats["bik"].index] or selected_formats[fformats["bmp"].index] or selected_formats[fformats["stm"].index] )
     {
-        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[4])); // bik, bmp
+        aj_asm.lea(x86::rax, x86::ptr(aj_signat_labels[4])); // bik, bmp, stm_bmod
         aj_asm.mov(x86::ptr(x86::rdi, 0x42 * 8), x86::rax);
     }
 
@@ -654,8 +656,9 @@ aj_asm.bind(aj_signat_labels[28]);
 
 // ; 0x42
 aj_asm.bind(aj_signat_labels[4]);
-    // ; bik : 0x42'49
-    // ; bmp : 0x42'4D
+    // ; bik  : 0x42'49
+    // ; bmp  : 0x42'4D
+    // ; bmod : 0x42'4D : 0x4F'44
 aj_asm.bind(aj_sub_labels[0]); // bik ?
     if ( selected_formats[fformats["bik"].index] )
     {
@@ -671,7 +674,7 @@ aj_asm.bind(aj_sub_labels[0]); // bik ?
         aj_asm.jmp(aj_loop_check_label);
     }
 aj_asm.bind(aj_sub_labels[1]); // bmp ?
-    if ( selected_formats[fformats["bmp"].index] )
+    if ( selected_formats[fformats["bmp"].index] or selected_formats[fformats["stm"].index] )
     {
         aj_asm.cmp(x86::al, 0x4D);
         aj_asm.jne(aj_loop_check_label);
@@ -1378,7 +1381,8 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
     {
         u16i file_type; // "BM"
         u32i file_size;
-        u32i reserved;  // u16i reserved1 + u16i reserved2; = 0
+        u16i reserved1;  // u16i reserved1 + u16i reserved2; = 0
+        u16i reserved2;
         u32i bitmap_offset;
         // включая BitmapHeader
         u32i bitmapheader_size; // 12, 40, 108
@@ -1393,11 +1397,18 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_bmp RECOGNIZE_FUNC_HEADER
     static const u64i min_room_need = sizeof(FileHeader);
     static const QSet <u32i> VALID_BMP_HEADER_SIZE { 12, 40, 108 };
     static const QSet <u16i> VALID_BITS_PER_PIXEL { 1, 4, 8, 16, 24, 32 };
+    static u32i stm_id {fformats["stm"].index}; // формат stm_bmod пересекается с bmp по сигнатуре, поэтому проверка сначала производится здесь
+    static u32i bmp_id {fformats["bmp"].index};
     if ( !e->enough_room_to_continue(min_room_need) ) return 0;
     u64i base_index = e->scanbuf_offset; // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
     auto info_header = (FileHeader*)(&buffer[base_index]);
-    if ( info_header->reserved != 0 ) return 0;
+    if ( e->selected_formats[stm_id] )
+    {
+        if ( ( info_header->file_size == 0x5332444F /*OD2S*/ ) and ( info_header->reserved1 == 0x4D54 /*TM*/) ) return recognize_stm(e);
+    }
+    if ( !e->selected_formats[bmp_id] ) return 0;
+    if ( ( info_header->reserved1 != 0 ) and ( info_header->reserved1 != 0 ) ) return 0;
     if ( !VALID_BMP_HEADER_SIZE.contains(info_header->bitmapheader_size) ) return 0;
     if ( info_header->planes != 1 ) return 0;
     if ( !VALID_BITS_PER_PIXEL.contains(info_header->bits_per_pixel) ) return 0;
@@ -2523,7 +2534,18 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_stm RECOGNIZE_FUNC_HEADER
     u64i base_index = e->scanbuf_offset - sizeof(STM_Header::song_name); // base offset (индекс в массиве)
     auto buffer = e->mmf_scanbuf;
     auto info_header = (STM_Header*)&buffer[base_index];
-    if ( info_header->tracker_name != 0x216D616572635321 /*!Scream!*/ ) return 0;
+    bool bmod2stm = false;
+    if ( info_header->tracker_name != 0x216D616572635321 /*!Scream!*/ )
+    {
+        if ( info_header->tracker_name != 0x4D545332444F4D42 /*BMOD2STM*/ )
+        {
+            return 0;
+        }
+        else
+        {
+            bmod2stm = true;
+        }
+    }
     if ( info_header->str_terminator != 0x1A ) return 0;
     if ( ( info_header->file_type != 1 ) and ( info_header->file_type != 2 ) ) return 0;
     if ( info_header->maj_ver != 2 ) return 0;
@@ -2548,6 +2570,11 @@ RECOGNIZE_FUNC_RETURN Engine::recognize_stm RECOGNIZE_FUNC_HEADER
     u64i resource_size = db.lastKey() + db[db.lastKey()];
     s64i file_size = e->file_size;
     if ( file_size - base_index < resource_size ) return 0; // вычисленный размер не вмещается в исходник
+    if ( bmod2stm ) // bmod2stm выравнивает размер модуля на границу 16 байт
+    {
+        resource_size = (resource_size + 15) & 0xFFFFFFFF'FFFFFFF0; // эквив. формуле ((resource_size + 15) / 16)*16 или ((resource_size + 15) >> 4 ) << 4
+        if ( file_size - base_index < resource_size ) resource_size = file_size - base_index;
+    }
     int song_name_len;
     for (song_name_len = 0; song_name_len < 20; ++song_name_len) // определение длины song name; не использую std::strlen, т.к не понятно всегда ли будет 0 на последнем индексе [19]
     {
